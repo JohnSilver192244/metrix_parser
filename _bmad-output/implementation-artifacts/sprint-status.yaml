@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-20 21:32:49
-last_updated: 2026-03-20 21:42:52
+last_updated: 2026-03-21 11:52:02
 project: metrixParser
 project_key: NOKEY
 tracking_system: file-system
@@ -43,34 +43,34 @@ story_location: /Users/andreynikolaev/Documents/optima-ide/metrixParser/_bmad-ou
 
 development_status:
   epic-1: in-progress
-  1-1-initsializatsiya-monorepozitoriya-i-bazovyh-prilozheniy: review
-  1-2-bazovaya-integratsiya-supabase-i-infrastruktura-migratsiy: backlog
-  1-3-backend-api-karkas-i-health-read-contract: backlog
-  1-4-bazovyy-administrativnyy-interfeys-zapuska-obnovleniy: backlog
-  1-5-obshchiy-lifecycle-obnovleniya-i-itogovaya-statistika: backlog
-  1-6-idempotentnost-i-chastichno-ustoychivoe-vypolnenie-obnovleniy: backlog
+  1-1-initsializatsiya-monorepozitoriya-i-bazovyh-prilozheniy: done
+  1-2-bazovaya-integratsiya-supabase-i-infrastruktura-migratsiy: done
+  1-3-backend-api-karkas-i-health-read-contract: done
+  1-4-bazovyy-administrativnyy-interfeys-zapuska-obnovleniy: ready-for-dev
+  1-5-obshchiy-lifecycle-obnovleniya-i-itogovaya-statistika: ready-for-dev
+  1-6-idempotentnost-i-chastichno-ustoychivoe-vypolnenie-obnovleniy: ready-for-dev
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-integratsiya-worker-s-discgolfmetrix-dlya-polucheniya-sorevnovaniy: backlog
-  2-2-filtratsiya-i-mapping-sorevnovaniy-dlya-sohraneniya-v-sisteme: backlog
-  2-3-sohranenie-i-obnovlenie-sorevnovaniy-bez-dubley: backlog
-  2-4-poluchenie-dannyh-o-parkah-po-sorevnovaniyam: backlog
-  2-5-sohranenie-parkov-i-raschet-course-par: backlog
+  epic-2: in-progress
+  2-1-integratsiya-worker-s-discgolfmetrix-dlya-polucheniya-sorevnovaniy: ready-for-dev
+  2-2-filtratsiya-i-mapping-sorevnovaniy-dlya-sohraneniya-v-sisteme: ready-for-dev
+  2-3-sohranenie-i-obnovlenie-sorevnovaniy-bez-dubley: ready-for-dev
+  2-4-poluchenie-dannyh-o-parkah-po-sorevnovaniyam: ready-for-dev
+  2-5-sohranenie-parkov-i-raschet-course-par: ready-for-dev
   epic-2-retrospective: optional
 
-  epic-3: backlog
-  3-1-poluchenie-rezultatov-sorevnovaniy-po-sohranennym-sorevnovaniyam: backlog
-  3-2-razbor-i-vydelenie-igrokov-iz-rezultatov-sorevnovaniy: backlog
-  3-3-sohranenie-i-obnovlenie-igrokov-bez-dubley: backlog
-  3-4-sohranenie-rezultatov-sorevnovaniy-s-obrabotkoy-dnf: backlog
-  3-5-chastichno-ustoychivoe-obnovlenie-rezultatov-i-itogovaya-diagnostika: backlog
+  epic-3: in-progress
+  3-1-poluchenie-rezultatov-sorevnovaniy-po-sohranennym-sorevnovaniyam: ready-for-dev
+  3-2-razbor-i-vydelenie-igrokov-iz-rezultatov-sorevnovaniy: ready-for-dev
+  3-3-sohranenie-i-obnovlenie-igrokov-bez-dubley: ready-for-dev
+  3-4-sohranenie-rezultatov-sorevnovaniy-s-obrabotkoy-dnf: ready-for-dev
+  3-5-chastichno-ustoychivoe-obnovlenie-rezultatov-i-itogovaya-diagnostika: ready-for-dev
   epic-3-retrospective: optional
 
-  epic-4: backlog
-  4-1-stranitsa-prosmotra-sorevnovaniy: backlog
-  4-2-stranitsa-prosmotra-parkov: backlog
-  4-3-stranitsa-prosmotra-igrokov: backlog
-  4-4-stranitsa-prosmotra-rezultatov-dlya-igrokov-i-rdga: backlog
-  4-5-bazovaya-navigatsiya-mezhdu-stranitsami-prosmotra-i-administrativnym-razdelom: backlog
+  epic-4: in-progress
+  4-1-stranitsa-prosmotra-sorevnovaniy: ready-for-dev
+  4-2-stranitsa-prosmotra-parkov: ready-for-dev
+  4-3-stranitsa-prosmotra-igrokov: ready-for-dev
+  4-4-stranitsa-prosmotra-rezultatov-dlya-igrokov-i-rdga: ready-for-dev
+  4-5-bazovaya-navigatsiya-mezhdu-stranitsami-prosmotra-i-administrativnym-razdelom: ready-for-dev
   epic-4-retrospective: optional

@@ -1,6 +1,6 @@
 # Story 1.1: Инициализация монорепозитория и базовых приложений
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -122,6 +122,7 @@ GPT-5 Codex
 - Added starter exports for shared contracts and utilities to prevent later stories from inventing ad-hoc shared boundaries.
 - Added `scripts/verify-workspace.mjs` and validated the workspace skeleton successfully with `npm run check:workspace`.
 - Applied the post-review fix by adding `@types/node` to both backend packages so their `tsconfig.json` settings are consistent with declared devDependencies.
+- Confirmed end-to-end validation after dependency installation: `npm install --workspaces --include-workspace-root`, `npm run check`, and `npm run build` all completed successfully.
 
 ### File List
 

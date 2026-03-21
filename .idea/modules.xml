@@ -2,6 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.agents/.agents.iml" filepath="$PROJECT_DIR$/.agents/.agents.iml" />
+      <module fileurl="file://$PROJECT_DIR$/_bmad/_bmad.iml" filepath="$PROJECT_DIR$/_bmad/_bmad.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/metrixParser.iml" filepath="$PROJECT_DIR$/.idea/metrixParser.iml" />
     </modules>
   </component>
