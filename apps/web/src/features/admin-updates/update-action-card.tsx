@@ -1,14 +1,14 @@
 import { useState } from "react";
 
 import type {
-  TriggerUpdateResponse,
-  UpdateOperation,
+  UpdateLifecyclePhase,
+  UpdateOperationResult,
   UpdatePeriod,
 } from "@metrix-parser/shared-types";
 
-import { triggerUpdate } from "../../shared/api/updates";
-import { ApiClientError } from "../../shared/api/http";
+import { mapUpdateError, triggerUpdate } from "../../shared/api/updates";
 import type { UpdateScenarioDefinition } from "./update-scenarios";
+import { UpdateOperationStatus } from "./update-operation-status";
 
 interface UpdateActionCardProps {
   scenario: UpdateScenarioDefinition;
@@ -23,39 +23,41 @@ function createInitialPeriod(requiresPeriod: boolean): UpdatePeriod {
   return requiresPeriod ? emptyPeriod : { ...emptyPeriod };
 }
 
-function formatOperationLabel(operation: UpdateOperation): string {
-  return operation === "courses" ? "парков" : operation;
-}
-
 export function UpdateActionCard({ scenario }: UpdateActionCardProps) {
   const [period, setPeriod] = useState<UpdatePeriod>(() => createInitialPeriod(scenario.requiresPeriod));
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [result, setResult] = useState<TriggerUpdateResponse | null>(null);
+  const [phase, setPhase] = useState<UpdateLifecyclePhase>("idle");
+  const [result, setResult] = useState<UpdateOperationResult | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setIsSubmitting(true);
-    setErrorMessage(null);
+    setPhase("submitting");
+    setResult(null);
+
+    const submittedPeriod = scenario.requiresPeriod ? { ...period } : undefined;
 
     try {
-      const response = await triggerUpdate(
-        scenario.operation,
-        scenario.requiresPeriod ? period : {},
-      );
-
+      const response = await triggerUpdate(scenario.operation, submittedPeriod ?? {});
+      setPhase(response.finalStatus === "completed" ? "success" : "error");
       setResult(response);
     } catch (error) {
-      if (error instanceof ApiClientError) {
-        setErrorMessage(error.message);
-      } else {
-        setErrorMessage("Не удалось отправить команду обновления.");
-      }
-      setResult(null);
-    } finally {
-      setIsSubmitting(false);
+      setPhase("error");
+      setResult(mapUpdateError(scenario.operation, error, submittedPeriod));
     }
   }
+
+  function handlePeriodChange(field: keyof UpdatePeriod, value: string) {
+    setPeriod((currentPeriod) => ({
+      ...currentPeriod,
+      [field]: value,
+    }));
+
+    if (phase !== "idle") {
+      setPhase("idle");
+      setResult(null);
+    }
+  }
+
+  const isSubmitting = phase === "submitting";
 
   return (
     <article className="update-card">
@@ -76,10 +78,7 @@ export function UpdateActionCard({ scenario }: UpdateActionCardProps) {
                 name={`${scenario.operation}-date-from`}
                 value={period.dateFrom}
                 onChange={(event) => {
-                  setPeriod((currentPeriod) => ({
-                    ...currentPeriod,
-                    dateFrom: event.target.value,
-                  }));
+                  handlePeriodChange("dateFrom", event.target.value);
                 }}
                 required
               />
@@ -91,10 +90,7 @@ export function UpdateActionCard({ scenario }: UpdateActionCardProps) {
                 name={`${scenario.operation}-date-to`}
                 value={period.dateTo}
                 onChange={(event) => {
-                  setPeriod((currentPeriod) => ({
-                    ...currentPeriod,
-                    dateTo: event.target.value,
-                  }));
+                  handlePeriodChange("dateTo", event.target.value);
                 }}
                 required
               />
@@ -111,25 +107,35 @@ export function UpdateActionCard({ scenario }: UpdateActionCardProps) {
         </button>
       </form>
 
-      {errorMessage ? (
-        <div className="update-card__status update-card__status--error" role="alert">
-          {errorMessage}
+      {phase === "submitting" ? (
+        <div className="update-card__status update-card__status--pending" role="status">
+          <div className="update-card__status-heading">
+            <strong>Выполняется</strong>
+            <span>Только для этой операции</span>
+          </div>
+          <p>Команда отправлена в backend API. Остальные сценарии остаются доступными.</p>
+          <dl className="update-card__summary-grid">
+            <div>
+              <dt>Found</dt>
+              <dd>...</dd>
+            </div>
+            <div>
+              <dt>Created</dt>
+              <dd>...</dd>
+            </div>
+            <div>
+              <dt>Updated</dt>
+              <dd>...</dd>
+            </div>
+            <div>
+              <dt>Skipped</dt>
+              <dd>...</dd>
+            </div>
+          </dl>
         </div>
       ) : null}
 
-      {result ? (
-        <div className="update-card__status update-card__status--success">
-          <strong>Команда принята.</strong>
-          <p>{result.message}</p>
-          <p>Запрос зарегистрирован: {new Date(result.requestedAt).toLocaleString("ru-RU")}.</p>
-          {result.period ? (
-            <p>
-              Период для {formatOperationLabel(result.operation)}: {result.period.dateFrom} -{" "}
-              {result.period.dateTo}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+      {result ? <UpdateOperationStatus result={result} /> : null}
     </article>
   );
 }

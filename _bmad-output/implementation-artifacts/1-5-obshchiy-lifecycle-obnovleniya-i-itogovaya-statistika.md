@@ -1,6 +1,6 @@
 # Story 1.5: Общий lifecycle обновления и итоговая статистика
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -17,14 +17,14 @@ so that я понимаю, что произошло и можно ли дове
 
 ## Tasks / Subtasks
 
-- [ ] Расширить admin-updates UI из story `1.4`, добавив локальный per-operation state machine как минимум для состояний `idle`, `submitting`, `success`, `error` или эквивалентного набора. (AC: 1, 2)
-- [ ] Добавить визуальный loading state только для той операции, которую пользователь запустил, не блокируя остальные сценарии обновления целиком. (AC: 1)
-- [ ] Спроектировать и реализовать единый client-facing result model для всех четырёх сценариев обновления, включающий как минимум `found`, `created`, `updated`, `skipped` и итоговый статус выполнения. (AC: 2, 3, 4)
-- [ ] Синхронизировать UI result model с backend/API contract из story `1.3`; при необходимости расширить shared types, чтобы все сценарии потребляли один и тот же shape результата. (AC: 3, 4)
-- [ ] Добавить в интерфейсе единый блок/паттерн отображения результата операции, который одинаково рендерит статистику и финальный статус для `competitions`, `courses`, `players`, `results`. (AC: 2, 3, 4)
-- [ ] Обработать error path так, чтобы пользователь видел финальное неуспешное состояние в том же lifecycle-паттерне, а не “тихий” сбой без статуса. (AC: 2, 4)
-- [ ] Если backend contract на момент реализации ещё не полностью готов, использовать согласованную adapter/mock boundary только внутри API layer, не зашивая временные shapes в UI-компоненты. (AC: 4)
-- [ ] Проверить статическую валидацию frontend и shared types через `npm run check --workspace @metrix-parser/web` и при необходимости `npm run check --workspace @metrix-parser/api`. (AC: 1, 2, 3, 4)
+- [x] Расширить admin-updates UI из story `1.4`, добавив локальный per-operation state machine как минимум для состояний `idle`, `submitting`, `success`, `error` или эквивалентного набора. (AC: 1, 2)
+- [x] Добавить визуальный loading state только для той операции, которую пользователь запустил, не блокируя остальные сценарии обновления целиком. (AC: 1)
+- [x] Спроектировать и реализовать единый client-facing result model для всех четырёх сценариев обновления, включающий как минимум `found`, `created`, `updated`, `skipped` и итоговый статус выполнения. (AC: 2, 3, 4)
+- [x] Синхронизировать UI result model с backend/API contract из story `1.3`; при необходимости расширить shared types, чтобы все сценарии потребляли один и тот же shape результата. (AC: 3, 4)
+- [x] Добавить в интерфейсе единый блок/паттерн отображения результата операции, который одинаково рендерит статистику и финальный статус для `competitions`, `courses`, `players`, `results`. (AC: 2, 3, 4)
+- [x] Обработать error path так, чтобы пользователь видел финальное неуспешное состояние в том же lifecycle-паттерне, а не “тихий” сбой без статуса. (AC: 2, 4)
+- [x] Если backend contract на момент реализации ещё не полностью готов, использовать согласованную adapter/mock boundary только внутри API layer, не зашивая временные shapes в UI-компоненты. (AC: 4)
+- [x] Проверить статическую валидацию frontend и shared types через `npm run check --workspace @metrix-parser/web` и при необходимости `npm run check --workspace @metrix-parser/api`. (AC: 1, 2, 3, 4)
 
 ## Dev Notes
 
@@ -102,3 +102,44 @@ so that я понимаю, что произошло и можно ли дове
 ## Change Log
 
 - 2026-03-20: Created implementation-ready story file for Story 1.5 and advanced sprint status from `backlog` to `ready-for-dev`.
+- 2026-03-21: Added unified lifecycle/result contracts, per-operation loading states, and shared status rendering for Story 1.5; story moved to `review`.
+- 2026-03-21: Applied code review fixes so stub results are explicitly marked as demo data and failed operations no longer render misleading zero-statistics; story moved to `done`.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+GPT-5 Codex
+
+### Debug Log References
+
+- Expanded shared update contracts to include a unified final result shape with `found`, `created`, `updated`, `skipped`, timestamps, and final status.
+- Extended backend update stubs to return the same result contract for all four operations so the UI can render one consistent lifecycle/result pattern.
+- Added a reusable status renderer for update results and updated each admin card to use local lifecycle state `idle/submitting/success/error`.
+- API test execution required a small script correction back to `node --import tsx --test` because the current environment runs on Node 20 and sandboxed `tsx --test` IPC failed.
+- Review follow-up added explicit `stub` source marking to successful demo responses and removed synthetic zero-summary rendering from failed operations.
+
+### Completion Notes List
+
+- Added local per-operation lifecycle state so each update card now tracks `idle`, `submitting`, `success`, and `error` independently.
+- Added a loading state that appears only inside the card being submitted; other update scenarios remain interactive.
+- Unified the client-facing result model across all update scenarios around one shape with `found`, `created`, `updated`, `skipped`, `finalStatus`, and timestamps.
+- Added a shared `UpdateOperationStatus` rendering pattern so `competitions`, `courses`, `players`, and `results` all present outcomes with the same layout and metric order.
+- Implemented an API-layer error adapter so temporary/backend stub differences do not leak ad-hoc result shapes into the UI component layer.
+- Updated backend update endpoints to return deterministic stub statistics aligned with the shared contract and explicitly labelled as demo data pending real orchestration.
+- Verified `npm run test --workspace @metrix-parser/api`, `npm run check --workspace @metrix-parser/web`, and `npm run build` successfully on 2026-03-21.
+- Re-checked that `apps/web` still has no direct `supabase` or DB client imports.
+- Adjusted failed operation rendering so the UI reports missing statistics honestly instead of fabricating `0/0/0/0` counters.
+
+### File List
+
+- _bmad-output/implementation-artifacts/1-5-obshchiy-lifecycle-obnovleniya-i-itogovaya-statistika.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- apps/api/package.json
+- apps/api/src/app.test.ts
+- apps/api/src/modules/updates/index.ts
+- apps/web/src/features/admin-updates/update-action-card.tsx
+- apps/web/src/features/admin-updates/update-operation-status.tsx
+- apps/web/src/shared/api/updates.ts
+- apps/web/src/styles/global.css
+- packages/shared-types/src/updates/index.ts

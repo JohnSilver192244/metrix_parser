@@ -72,12 +72,25 @@ test("POST /updates/competitions accepts a period-based update command", async (
     }),
   });
   const payload = JSON.parse(response.body) as {
-    data: { operation: string; status: string; period?: { dateFrom: string; dateTo: string } };
+    data: {
+      operation: string;
+      finalStatus: string;
+      source: string;
+      summary: { found: number; created: number; updated: number; skipped: number };
+      period?: { dateFrom: string; dateTo: string };
+    };
   };
 
   assert.equal(response.statusCode, 202);
   assert.equal(payload.data.operation, "competitions");
-  assert.equal(payload.data.status, "accepted");
+  assert.equal(payload.data.finalStatus, "completed");
+  assert.equal(payload.data.source, "stub");
+  assert.deepEqual(payload.data.summary, {
+    found: 24,
+    created: 8,
+    updated: 14,
+    skipped: 2,
+  });
   assert.deepEqual(payload.data.period, {
     dateFrom: "2026-01-01",
     dateTo: "2026-01-31",
@@ -93,12 +106,25 @@ test("POST /updates/courses accepts a period-free update command", async () => {
     body: JSON.stringify({}),
   });
   const payload = JSON.parse(response.body) as {
-    data: { operation: string; status: string; period?: unknown };
+    data: {
+      operation: string;
+      finalStatus: string;
+      source: string;
+      summary: { found: number; created: number; updated: number; skipped: number };
+      period?: unknown;
+    };
   };
 
   assert.equal(response.statusCode, 202);
   assert.equal(payload.data.operation, "courses");
-  assert.equal(payload.data.status, "accepted");
+  assert.equal(payload.data.finalStatus, "completed");
+  assert.equal(payload.data.source, "stub");
+  assert.deepEqual(payload.data.summary, {
+    found: 12,
+    created: 3,
+    updated: 7,
+    skipped: 2,
+  });
   assert.equal(payload.data.period, undefined);
 });
 

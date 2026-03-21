@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-20 21:32:49
-last_updated: 2026-03-21 11:59:37
+last_updated: 2026-03-21 21:32:50
 project: metrixParser
 project_key: NOKEY
 tracking_system: file-system
@@ -46,8 +46,8 @@ development_status:
   1-1-initsializatsiya-monorepozitoriya-i-bazovyh-prilozheniy: done
   1-2-bazovaya-integratsiya-supabase-i-infrastruktura-migratsiy: done
   1-3-backend-api-karkas-i-health-read-contract: done
-  1-4-bazovyy-administrativnyy-interfeys-zapuska-obnovleniy: review
-  1-5-obshchiy-lifecycle-obnovleniya-i-itogovaya-statistika: ready-for-dev
+  1-4-bazovyy-administrativnyy-interfeys-zapuska-obnovleniy: done
+  1-5-obshchiy-lifecycle-obnovleniya-i-itogovaya-statistika: done
   1-6-idempotentnost-i-chastichno-ustoychivoe-vypolnenie-obnovleniy: ready-for-dev
   epic-1-retrospective: optional
 
