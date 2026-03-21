@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import { sendError } from "./http";
+import { sendError, sendNoContent } from "./http";
 import { HttpError, toHttpError } from "./http-errors";
 
 export interface RouteContext {
@@ -19,6 +19,11 @@ export function createRouter(routes: RouteDefinition[]) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     try {
       const method = req.method ?? "GET";
+      if (method === "OPTIONS") {
+        sendNoContent(res);
+        return;
+      }
+
       const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
       const route = routes.find((candidate) => {
         return candidate.method === method && candidate.path === url.pathname;

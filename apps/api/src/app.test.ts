@@ -1,22 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { Readable } from "node:stream";
 
 import { createApiRequestHandler } from "./app";
 import { createRouter, type RouteDefinition } from "./lib/router";
 
-async function invokeRequest(path: string, method = "GET") {
+interface RequestOptions {
+  method?: string;
+  body?: string;
+  headers?: Record<string, string>;
+}
+
+async function invokeRequest(path: string, options: RequestOptions = {}) {
   const handler = createApiRequestHandler();
   const headers = new Map<string, string>();
   let body = "";
+  const requestBody = options.body ?? "";
 
-  const req = {
-    method,
+  const req = Readable.from(requestBody ? [requestBody] : []) as IncomingMessage;
+  Object.assign(req, {
+    method: options.method ?? "GET",
     url: path,
     headers: {
       host: "localhost",
+      ...(options.headers ?? {}),
     },
-  } as IncomingMessage;
+  });
 
   const res = {
     statusCode: 200,
@@ -48,6 +58,68 @@ test("GET /health returns the success envelope", async () => {
   assert.equal(payload.data.service, "api");
   assert.equal(payload.data.status, "ok");
   assert.ok(Date.parse(payload.data.timestamp));
+});
+
+test("POST /updates/competitions accepts a period-based update command", async () => {
+  const response = await invokeRequest("/updates/competitions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-31",
+    }),
+  });
+  const payload = JSON.parse(response.body) as {
+    data: { operation: string; status: string; period?: { dateFrom: string; dateTo: string } };
+  };
+
+  assert.equal(response.statusCode, 202);
+  assert.equal(payload.data.operation, "competitions");
+  assert.equal(payload.data.status, "accepted");
+  assert.deepEqual(payload.data.period, {
+    dateFrom: "2026-01-01",
+    dateTo: "2026-01-31",
+  });
+});
+
+test("POST /updates/courses accepts a period-free update command", async () => {
+  const response = await invokeRequest("/updates/courses", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+  const payload = JSON.parse(response.body) as {
+    data: { operation: string; status: string; period?: unknown };
+  };
+
+  assert.equal(response.statusCode, 202);
+  assert.equal(payload.data.operation, "courses");
+  assert.equal(payload.data.status, "accepted");
+  assert.equal(payload.data.period, undefined);
+});
+
+test("period-based update routes validate missing date fields", async () => {
+  const response = await invokeRequest("/updates/results", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      dateFrom: "2026-01-01",
+    }),
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.deepEqual(JSON.parse(response.body), {
+    error: {
+      code: "invalid_period",
+      message: "Both dateFrom and dateTo are required for this update scenario",
+    },
+  });
 });
 
 test("unknown routes return the shared error envelope", async () => {
