@@ -1,6 +1,6 @@
 # Story 2.3: Сохранение и обновление соревнований без дублей
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -17,11 +17,11 @@ so that повторные запуски обновления не портил
 
 ## Tasks / Subtasks
 
-- [ ] Реализовать persistence layer для `competitions` в `apps/worker/src/persistence/`, который принимает уже валидные mapped records из story `2.2`. (AC: 1, 2, 3)
-- [ ] Зафиксировать и реализовать upsert/match strategy на согласованных идентификаторах `competition_id` и `metrix_id`, избегая дублей при повторных запусках. (AC: 2, 3)
-- [ ] На уровне persistence outcome различать create/update/skip, чтобы update summary корректно увеличивал нужные счётчики и feeding в UI story `1.5` оставался единообразным. (AC: 1, 2, 4)
-- [ ] Обработать конфликтные/неполные competition records как skipped/problematic без падения всего job. (AC: 3, 4)
-- [ ] Добавить persistence-focused тесты или репозиторные smoke-checks для сценариев: новый record, повторный record, обновление изменившегося record, битой record. (AC: 1, 2, 3, 4)
+- [x] Реализовать persistence layer для `competitions` в `apps/worker/src/persistence/`, который принимает уже валидные mapped records из story `2.2`. (AC: 1, 2, 3)
+- [x] Зафиксировать и реализовать upsert/match strategy на согласованных идентификаторах `competition_id` и `metrix_id`, избегая дублей при повторных запусках. (AC: 2, 3)
+- [x] На уровне persistence outcome различать create/update/skip, чтобы update summary корректно увеличивал нужные счётчики и feeding в UI story `1.5` оставался единообразным. (AC: 1, 2, 4)
+- [x] Обработать конфликтные/неполные competition records как skipped/problematic без падения всего job. (AC: 3, 4)
+- [x] Добавить persistence-focused тесты или репозиторные smoke-checks для сценариев: новый record, повторный record, обновление изменившегося record, битой record. (AC: 1, 2, 3, 4)
 
 ## Dev Notes
 
@@ -77,3 +77,43 @@ so that повторные запуски обновления не портил
 ## Change Log
 
 - 2026-03-20: Created implementation-ready story file for Story 2.3 and advanced sprint status from `backlog` to `ready-for-dev`.
+- 2026-03-21: Added competitions persistence repository, Supabase adapter, duplicate-safe save flow, and persistence-focused tests for create/update/skip behavior.
+- 2026-03-21: Code review completed after fixing the upstream date-validation defect in story `2.2`; duplicate-safe persistence flow remains valid on top of the corrected mapping boundary.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+GPT-5 Codex
+
+### Implementation Plan
+
+- Add a dedicated worker persistence repository for `competitions` that accepts already-mapped records from story `2.2`.
+- Implement fallback identity matching via `competition_id` and `metrix_id`, with a skipped outcome for conflicting identities.
+- Wire the repository into the competitions update job so summary counters reflect create/update/skip persistence outcomes.
+- Cover create, repeat-run, update, conflict, and invalid identity paths with repository-focused tests.
+
+### Debug Log References
+
+- Added `apps/worker/src/persistence/competitions-repository.ts` to encapsulate duplicate-safe save semantics for competitions.
+- Added `apps/worker/src/persistence/supabase-competitions-adapter.ts` as the production adapter for the `competitions` table.
+- Updated `apps/worker/src/jobs/competitions-update-job.ts` to run fetch -> map -> persist and merge mapping/persistence issues into one update result.
+- Added repository tests plus job-level tests for create, repeat-run update, mapping skip, and transport failure scenarios.
+- Validation completed with `npm test --workspace @metrix-parser/worker`, `npm run check --workspace @metrix-parser/worker`, and `npm run check --workspace @metrix-parser/shared-types`.
+
+### Completion Notes List
+
+- Implemented a dedicated competitions persistence layer in the worker instead of mixing save logic into mapping or API code.
+- Applied the agreed identity strategy by matching `competition_id` first and `metrix_id` as a fallback, with conflict detection when they point to different rows.
+- Ensured persistence outcomes distinguish `created`, `updated`, and `skipped`, so update summaries stay consistent with the shared operation contract.
+- Kept problematic records recoverable: identity conflicts and missing stable identifiers become skipped issues instead of crashing the whole job.
+- Added persistence-focused tests covering new inserts, repeat-run updates without duplicates, changed-record updates, and problematic record handling.
+
+### File List
+
+- apps/worker/src/jobs/competitions-update-job.ts
+- apps/worker/src/jobs/competitions-update-job.test.ts
+- apps/worker/src/persistence/competitions-repository.ts
+- apps/worker/src/persistence/competitions-repository.test.ts
+- apps/worker/src/persistence/supabase-competitions-adapter.ts
+- apps/worker/package.json

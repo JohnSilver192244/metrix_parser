@@ -7,7 +7,7 @@
     "dev": "tsx watch src/main.ts",
     "build": "tsc --noEmit -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx --test ./src/orchestration/update-execution.test.ts ./src/integration/discgolfmetrix/client.test.ts ./src/jobs/competitions-update-job.test.ts"
+    "test": "tsx --test ./src/orchestration/update-execution.test.ts ./src/integration/discgolfmetrix/client.test.ts ./src/mapping/competitions.test.ts ./src/persistence/competitions-repository.test.ts ./src/jobs/competitions-update-job.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1"

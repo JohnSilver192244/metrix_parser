@@ -12,6 +12,8 @@ import {
   type UpdateRecordResult,
 } from "@metrix-parser/shared-types";
 
+import { executeCompetitionsUpdate as executeWorkerCompetitionsUpdate } from "../../../../worker/src/orchestration/competitions-update";
+
 interface DemoRecord {
   recordKey: string;
   matchedExisting: boolean;
@@ -66,6 +68,36 @@ function createDemoRecordResult(record: DemoRecord): UpdateRecordResult {
   };
 }
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return value;
+}
+
+function loadCompetitionsExecutionEnv() {
+  return {
+    discGolfMetrixBaseUrl: process.env.DISCGOLFMETRIX_BASE_URL ?? "https://discgolfmetrix.com",
+    discGolfMetrixCountryCode: requireEnv("DISCGOLFMETRIX_COUNTRY_CODE"),
+    discGolfMetrixApiCode: requireEnv("DISCGOLFMETRIX_API_CODE"),
+  };
+}
+
+export interface UpdatesExecutionDependencies {
+  executeCompetitionsUpdate?: (
+    period: UpdatePeriod,
+  ) => Promise<TriggerUpdateResponse>;
+}
+
+async function executeRuntimeCompetitionsUpdate(
+  period: UpdatePeriod,
+): Promise<TriggerUpdateResponse> {
+  return executeWorkerCompetitionsUpdate(period, loadCompetitionsExecutionEnv());
+}
+
 export function createAcceptedResponse(
   operation: UpdateOperation,
   period?: UpdatePeriod,
@@ -104,4 +136,19 @@ export function createAcceptedResponse(
     issues,
     period,
   };
+}
+
+export async function executeUpdateOperation(
+  operation: UpdateOperation,
+  period: UpdatePeriod | undefined,
+  dependencies: UpdatesExecutionDependencies = {},
+): Promise<TriggerUpdateResponse> {
+  if (operation === "competitions") {
+    const executeCompetitionsUpdate =
+      dependencies.executeCompetitionsUpdate ?? executeRuntimeCompetitionsUpdate;
+
+    return executeCompetitionsUpdate(period as UpdatePeriod);
+  }
+
+  return createAcceptedResponse(operation, period);
 }

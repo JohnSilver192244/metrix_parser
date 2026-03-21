@@ -7,13 +7,30 @@ import type {
 import { sendSuccess, readJsonBody } from "../../lib/http";
 import { HttpError } from "../../lib/http-errors";
 import type { RouteDefinition } from "../../lib/router";
-import { createAcceptedResponse } from "./execution";
+import {
+  executeUpdateOperation,
+  type UpdatesExecutionDependencies,
+} from "./execution";
 
 const PERIOD_OPERATIONS = new Set<UpdateOperation>(["competitions", "players", "results"]);
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+function isRealCalendarDate(value: string): boolean {
+  const [yearToken, monthToken, dayToken] = value.split("-");
+  const year = Number(yearToken);
+  const month = Number(monthToken);
+  const day = Number(dayToken);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
 function validateDate(value: string, fieldName: keyof UpdatePeriod): string {
-  if (!DATE_PATTERN.test(value) || Number.isNaN(Date.parse(value))) {
+  if (!DATE_PATTERN.test(value) || !isRealCalendarDate(value)) {
     throw new HttpError(400, "invalid_period", `Field ${fieldName} must use YYYY-MM-DD format`);
   }
 
@@ -44,22 +61,32 @@ function resolvePeriod(body: TriggerUpdateRequestBody): UpdatePeriod {
   return period;
 }
 
-function createUpdateRoute(operation: UpdateOperation): RouteDefinition {
+export interface UpdatesRouteDependencies extends UpdatesExecutionDependencies {}
+
+function createUpdateRoute(
+  operation: UpdateOperation,
+  dependencies: UpdatesRouteDependencies,
+): RouteDefinition {
   return {
     method: "POST",
     path: `/updates/${operation}`,
     handler: async ({ req, res }) => {
       const body = await readJsonBody<TriggerUpdateRequestBody>(req);
       const period = PERIOD_OPERATIONS.has(operation) ? resolvePeriod(body) : undefined;
+      const result = await executeUpdateOperation(operation, period, dependencies);
 
-      sendSuccess(res, createAcceptedResponse(operation, period), undefined, 202);
+      sendSuccess(res, result, undefined, 202);
     },
   };
 }
 
-export const updatesRoutes: RouteDefinition[] = [
-  createUpdateRoute("competitions"),
-  createUpdateRoute("courses"),
-  createUpdateRoute("players"),
-  createUpdateRoute("results"),
-];
+export function getUpdatesRoutes(
+  dependencies: UpdatesRouteDependencies = {},
+): RouteDefinition[] {
+  return [
+    createUpdateRoute("competitions", dependencies),
+    createUpdateRoute("courses", dependencies),
+    createUpdateRoute("players", dependencies),
+    createUpdateRoute("results", dependencies),
+  ];
+}

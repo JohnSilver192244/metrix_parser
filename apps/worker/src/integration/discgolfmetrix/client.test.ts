@@ -6,6 +6,7 @@ import {
   buildCompetitionsRequestUrl,
   createDiscGolfMetrixClient,
 } from "./index";
+import { createMockResponse } from "../../test-support/mock-response";
 
 test("buildCompetitionsRequestUrl maps shared period fields to DiscGolfMetrix request params", () => {
   const url = buildCompetitionsRequestUrl(
@@ -32,7 +33,7 @@ test("client returns raw competition records in a parsing-ready envelope", async
     countryCode: "EE",
     apiCode: "secret-code",
     fetchImpl: async () =>
-      new Response(
+      createMockResponse(
         JSON.stringify({
           competitions: [
             { competitionId: 101, name: "Moscow Open" },
@@ -68,7 +69,7 @@ test("client throws predictable HTTP errors for DiscGolfMetrix failures", async 
     baseUrl: "https://discgolfmetrix.com",
     countryCode: "EE",
     apiCode: "secret-code",
-    fetchImpl: async () => new Response("nope", { status: 502 }),
+    fetchImpl: async () => createMockResponse("nope", { status: 502 }),
   });
 
   await assert.rejects(
@@ -91,7 +92,7 @@ test("client throws predictable parse errors for non-JSON DiscGolfMetrix payload
     countryCode: "EE",
     apiCode: "secret-code",
     fetchImpl: async () =>
-      new Response("<html><body>temporary upstream page</body></html>", {
+      createMockResponse("<html><body>temporary upstream page</body></html>", {
         status: 200,
         headers: {
           "content-type": "text/html; charset=utf-8",

@@ -5,12 +5,21 @@ import { coursesRoutes } from "./courses";
 import { healthRoutes } from "./health";
 import { playersRoutes } from "./players";
 import { resultsRoutes } from "./results";
-import { updatesRoutes } from "./updates";
+import {
+  getUpdatesRoutes,
+  type UpdatesRouteDependencies,
+} from "./updates";
 
-export function getRegisteredRoutes(): RouteDefinition[] {
+export interface ApiModuleDependencies {
+  updates?: UpdatesRouteDependencies;
+}
+
+export function getRegisteredRoutes(
+  dependencies: ApiModuleDependencies = {},
+): RouteDefinition[] {
   return [
     ...healthRoutes,
-    ...updatesRoutes,
+    ...getUpdatesRoutes(dependencies.updates),
     ...competitionsRoutes,
     ...coursesRoutes,
     ...playersRoutes,

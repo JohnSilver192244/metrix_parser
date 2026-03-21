@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 
 import { createApiRequestHandler } from "./app";
 import { createRouter, type RouteDefinition } from "./lib/router";
+import type { ApiModuleDependencies } from "./modules";
 
 interface RequestOptions {
   method?: string;
@@ -12,8 +13,12 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
-async function invokeRequest(path: string, options: RequestOptions = {}) {
-  const handler = createApiRequestHandler();
+async function invokeRequest(
+  path: string,
+  options: RequestOptions = {},
+  dependencies?: ApiModuleDependencies,
+) {
+  const handler = createApiRequestHandler(dependencies);
   const headers = new Map<string, string>();
   let body = "";
   const requestBody = options.body ?? "";
@@ -61,16 +66,40 @@ test("GET /health returns the success envelope", async () => {
 });
 
 test("POST /updates/competitions accepts a period-based update command", async () => {
-  const response = await invokeRequest("/updates/competitions", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
+  const response = await invokeRequest(
+    "/updates/competitions",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        dateFrom: "2026-01-01",
+        dateTo: "2026-01-31",
+      }),
     },
-    body: JSON.stringify({
-      dateFrom: "2026-01-01",
-      dateTo: "2026-01-31",
-    }),
-  });
+    {
+      updates: {
+        executeCompetitionsUpdate: async (period) => ({
+          operation: "competitions",
+          finalStatus: "completed",
+          source: "runtime",
+          message: "Worker fetched and mapped competitions.",
+          requestedAt: "2026-03-21T10:00:00.000Z",
+          finishedAt: "2026-03-21T10:00:01.000Z",
+          summary: {
+            found: 2,
+            created: 0,
+            updated: 0,
+            skipped: 0,
+            errors: 0,
+          },
+          issues: [],
+          period,
+        }),
+      },
+    },
+  );
   const payload = JSON.parse(response.body) as {
     data: {
       operation: string;
@@ -90,18 +119,16 @@ test("POST /updates/competitions accepts a period-based update command", async (
 
   assert.equal(response.statusCode, 202);
   assert.equal(payload.data.operation, "competitions");
-  assert.equal(payload.data.finalStatus, "completed_with_issues");
-  assert.equal(payload.data.source, "stub");
+  assert.equal(payload.data.finalStatus, "completed");
+  assert.equal(payload.data.source, "runtime");
   assert.deepEqual(payload.data.summary, {
-    found: 5,
-    created: 2,
-    updated: 2,
-    skipped: 1,
-    errors: 1,
+    found: 2,
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    errors: 0,
   });
-  assert.equal(payload.data.issues.length, 1);
-  assert.equal(payload.data.issues[0]?.code, "incomplete_source_record");
-  assert.equal(payload.data.issues[0]?.recordKey, "competition-bad");
+  assert.equal(payload.data.issues.length, 0);
   assert.deepEqual(payload.data.period, {
     dateFrom: "2026-01-01",
     dateTo: "2026-01-31",
@@ -165,6 +192,27 @@ test("period-based update routes validate missing date fields", async () => {
     error: {
       code: "invalid_period",
       message: "Both dateFrom and dateTo are required for this update scenario",
+    },
+  });
+});
+
+test("period-based update routes reject impossible calendar dates", async () => {
+  const response = await invokeRequest("/updates/competitions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      dateFrom: "2026-02-31",
+      dateTo: "2026-03-02",
+    }),
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.deepEqual(JSON.parse(response.body), {
+    error: {
+      code: "invalid_period",
+      message: "Field dateFrom must use YYYY-MM-DD format",
     },
   });
 });

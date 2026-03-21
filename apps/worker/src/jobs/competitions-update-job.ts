@@ -1,8 +1,9 @@
 import {
+  accumulateUpdateSummary,
   createEmptyUpdateSummary,
-  resolveUpdateFinalStatus,
   type UpdateOperationResult,
   type UpdatePeriod,
+  resolveUpdateFinalStatus,
 } from "@metrix-parser/shared-types";
 
 import {
@@ -11,11 +12,22 @@ import {
   type DiscGolfMetrixClientDependencies,
   type DiscGolfMetrixCompetitionsResponse,
 } from "../integration/discgolfmetrix";
+import { createWorkerSupabaseAdminClient } from "../lib/supabase-admin";
+import { mapDiscGolfMetrixCompetitions } from "../mapping/competitions";
+import { executeUpdatePlan } from "../orchestration/update-execution";
+import {
+  createCompetitionsRepository,
+  type CompetitionsRepository,
+} from "../persistence/competitions-repository";
+import { createSupabaseCompetitionsAdapter } from "../persistence/supabase-competitions-adapter";
 
-export interface CompetitionsUpdateJobDependencies extends DiscGolfMetrixClientDependencies {}
+export interface CompetitionsUpdateJobDependencies extends DiscGolfMetrixClientDependencies {
+  repository?: CompetitionsRepository;
+}
 
 export interface CompetitionsUpdateJobResult extends UpdateOperationResult {
   fetchedPayload?: DiscGolfMetrixCompetitionsResponse;
+  mappedCompetitionsCount?: number;
 }
 
 export async function runCompetitionsUpdateJob(
@@ -27,26 +39,51 @@ export async function runCompetitionsUpdateJob(
 
   try {
     const fetchedPayload = await client.fetchCompetitions({ period });
-    const summary = createEmptyUpdateSummary();
-    summary.found = fetchedPayload.records.length;
+    const repository =
+      dependencies.repository ??
+      createCompetitionsRepository(
+        createSupabaseCompetitionsAdapter(createWorkerSupabaseAdminClient()),
+      );
+    const mappingResult = mapDiscGolfMetrixCompetitions(fetchedPayload.records);
+    const persistenceResult = await executeUpdatePlan({
+      operation: "competitions",
+      items: mappingResult.competitions.map((competition) => ({
+        recordKey: `competition:${competition.competitionId}`,
+        payload: competition,
+      })),
+      processItem: (item) => repository.saveCompetition(item.payload),
+      message:
+        "Worker fetched competitions from DiscGolfMetrix, filtered to Russian events, and persisted valid records.",
+      period,
+      requestedAt,
+    });
+
+    let summary = persistenceResult.summary ?? createEmptyUpdateSummary();
+    summary = {
+      ...summary,
+      found: fetchedPayload.records.length,
+      skipped: summary.skipped + mappingResult.skippedCount,
+      errors: summary.errors + mappingResult.issues.length,
+    };
+    const issues = [...mappingResult.issues, ...persistenceResult.issues];
 
     return {
       operation: "competitions",
       finalStatus: resolveUpdateFinalStatus(summary),
       source: "runtime",
       message:
-        "Worker fetched the raw competitions feed from DiscGolfMetrix and prepared it for the next mapping story.",
+        "Worker fetched competitions from DiscGolfMetrix, filtered to Russian events, and persisted valid records without creating duplicates.",
       requestedAt,
       finishedAt: new Date().toISOString(),
       summary,
-      issues: [],
+      issues,
       period,
       fetchedPayload,
+      mappedCompetitionsCount: mappingResult.competitions.length,
     };
   } catch (error) {
     const issue = toDiscGolfMetrixIssue(error);
     const summary = createEmptyUpdateSummary();
-    summary.skipped = 1;
     summary.errors = 1;
 
     return {

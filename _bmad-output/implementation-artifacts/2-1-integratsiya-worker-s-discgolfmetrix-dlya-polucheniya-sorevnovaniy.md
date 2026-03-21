@@ -1,6 +1,6 @@
 # Story 2.1: Интеграция worker с DiscGolfMetrix для получения соревнований
 
-Status: review
+Status: done
 
 ## Story
 
@@ -81,6 +81,7 @@ so that система могла запускать сценарий обнов
 
 - 2026-03-20: Created implementation-ready story file for Story 2.1 and advanced sprint status from `backlog` to `ready-for-dev`.
 - 2026-03-21: Added DiscGolfMetrix competitions client, predictable worker error handling, raw response boundary, and schema foundation for `competitions`/`courses`.
+- 2026-03-21: Code review findings were addressed and the story status was advanced to `done`.
 
 ## Dev Agent Record
 
