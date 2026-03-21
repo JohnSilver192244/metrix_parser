@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-20 21:32:49
-last_updated: 2026-03-21 21:32:50
+last_updated: 2026-03-21 22:52:00
 project: metrixParser
 project_key: NOKEY
 tracking_system: file-system
@@ -48,11 +48,11 @@ development_status:
   1-3-backend-api-karkas-i-health-read-contract: done
   1-4-bazovyy-administrativnyy-interfeys-zapuska-obnovleniy: done
   1-5-obshchiy-lifecycle-obnovleniya-i-itogovaya-statistika: done
-  1-6-idempotentnost-i-chastichno-ustoychivoe-vypolnenie-obnovleniy: ready-for-dev
+  1-6-idempotentnost-i-chastichno-ustoychivoe-vypolnenie-obnovleniy: review
   epic-1-retrospective: optional
 
   epic-2: in-progress
-  2-1-integratsiya-worker-s-discgolfmetrix-dlya-polucheniya-sorevnovaniy: ready-for-dev
+  2-1-integratsiya-worker-s-discgolfmetrix-dlya-polucheniya-sorevnovaniy: review
   2-2-filtratsiya-i-mapping-sorevnovaniy-dlya-sohraneniya-v-sisteme: ready-for-dev
   2-3-sohranenie-i-obnovlenie-sorevnovaniy-bez-dubley: ready-for-dev
   2-4-poluchenie-dannyh-o-parkah-po-sorevnovaniyam: ready-for-dev

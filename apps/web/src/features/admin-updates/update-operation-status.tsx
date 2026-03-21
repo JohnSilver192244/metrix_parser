@@ -5,14 +5,24 @@ interface UpdateOperationStatusProps {
 }
 
 function getStatusLabel(finalStatus: UpdateOperationResult["finalStatus"]): string {
-  return finalStatus === "completed" ? "Завершено" : "Завершилось с ошибкой";
+  if (finalStatus === "completed") {
+    return "Завершено";
+  }
+
+  if (finalStatus === "completed_with_issues") {
+    return "Завершено с пропусками";
+  }
+
+  return "Завершилось с ошибкой";
 }
 
 export function UpdateOperationStatus({ result }: UpdateOperationStatusProps) {
   const statusModifier =
     result.finalStatus === "completed"
       ? "update-card__status--success"
-      : "update-card__status--error";
+      : result.finalStatus === "completed_with_issues"
+        ? "update-card__status--warning"
+        : "update-card__status--error";
 
   return (
     <div className={`update-card__status ${statusModifier}`} role="status">
@@ -50,6 +60,10 @@ export function UpdateOperationStatus({ result }: UpdateOperationStatusProps) {
             <dt>Skipped</dt>
             <dd>{result.summary.skipped}</dd>
           </div>
+          <div>
+            <dt>Errors</dt>
+            <dd>{result.summary.errors}</dd>
+          </div>
         </dl>
       ) : (
         <p className="update-card__status-note">
@@ -57,6 +71,16 @@ export function UpdateOperationStatus({ result }: UpdateOperationStatusProps) {
           получения корректного результата.
         </p>
       )}
+      {result.issues.length > 0 ? (
+        <ul className="update-card__issues-list">
+          {result.issues.map((issue) => (
+            <li key={`${issue.code}-${issue.recordKey ?? issue.message}`}>
+              {issue.recordKey ? `${issue.recordKey}: ` : ""}
+              {issue.message}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

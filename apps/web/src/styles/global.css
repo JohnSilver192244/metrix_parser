@@ -292,6 +292,11 @@ body {
   border: 1px solid var(--success-border);
 }
 
+.update-card__status--warning {
+  background: #fff6dc;
+  border: 1px solid #e9cd74;
+}
+
 .update-card__status--error {
   background: var(--error-bg);
   border: 1px solid var(--error-border);
@@ -305,7 +310,7 @@ body {
 
 .update-card__summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
   gap: 12px;
   margin: 4px 0 0;
 }
@@ -329,6 +334,12 @@ body {
   font-size: 1.5rem;
   font-weight: 800;
   color: #17212b;
+}
+
+.update-card__issues-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--text-soft);
 }
 
 .not-found-panel {

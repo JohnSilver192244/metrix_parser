@@ -76,21 +76,32 @@ test("POST /updates/competitions accepts a period-based update command", async (
       operation: string;
       finalStatus: string;
       source: string;
-      summary: { found: number; created: number; updated: number; skipped: number };
+      summary: {
+        found: number;
+        created: number;
+        updated: number;
+        skipped: number;
+        errors: number;
+      };
+      issues: Array<{ code: string; recordKey?: string }>;
       period?: { dateFrom: string; dateTo: string };
     };
   };
 
   assert.equal(response.statusCode, 202);
   assert.equal(payload.data.operation, "competitions");
-  assert.equal(payload.data.finalStatus, "completed");
+  assert.equal(payload.data.finalStatus, "completed_with_issues");
   assert.equal(payload.data.source, "stub");
   assert.deepEqual(payload.data.summary, {
-    found: 24,
-    created: 8,
-    updated: 14,
-    skipped: 2,
+    found: 5,
+    created: 2,
+    updated: 2,
+    skipped: 1,
+    errors: 1,
   });
+  assert.equal(payload.data.issues.length, 1);
+  assert.equal(payload.data.issues[0]?.code, "incomplete_source_record");
+  assert.equal(payload.data.issues[0]?.recordKey, "competition-bad");
   assert.deepEqual(payload.data.period, {
     dateFrom: "2026-01-01",
     dateTo: "2026-01-31",
@@ -110,21 +121,31 @@ test("POST /updates/courses accepts a period-free update command", async () => {
       operation: string;
       finalStatus: string;
       source: string;
-      summary: { found: number; created: number; updated: number; skipped: number };
+      summary: {
+        found: number;
+        created: number;
+        updated: number;
+        skipped: number;
+        errors: number;
+      };
+      issues: Array<{ code: string; recordKey?: string }>;
       period?: unknown;
     };
   };
 
   assert.equal(response.statusCode, 202);
   assert.equal(payload.data.operation, "courses");
-  assert.equal(payload.data.finalStatus, "completed");
+  assert.equal(payload.data.finalStatus, "completed_with_issues");
   assert.equal(payload.data.source, "stub");
   assert.deepEqual(payload.data.summary, {
-    found: 12,
-    created: 3,
-    updated: 7,
-    skipped: 2,
+    found: 3,
+    created: 1,
+    updated: 1,
+    skipped: 1,
+    errors: 1,
   });
+  assert.equal(payload.data.issues.length, 1);
+  assert.equal(payload.data.issues[0]?.recordKey, "course-bad");
   assert.equal(payload.data.period, undefined);
 });
 

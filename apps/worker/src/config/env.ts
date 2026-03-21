@@ -1,7 +1,9 @@
-interface WorkerEnv {
+export interface WorkerEnv {
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
   discGolfMetrixBaseUrl: string;
+  discGolfMetrixCountryCode: string;
+  discGolfMetrixApiCode: string;
 }
 
 function requireEnv(name: string): string {
@@ -18,5 +20,7 @@ export function loadWorkerEnv(): WorkerEnv {
     supabaseUrl: requireEnv("SUPABASE_URL"),
     supabaseServiceRoleKey: requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
     discGolfMetrixBaseUrl: process.env.DISCGOLFMETRIX_BASE_URL ?? "https://discgolfmetrix.com",
+    discGolfMetrixCountryCode: requireEnv("DISCGOLFMETRIX_COUNTRY_CODE"),
+    discGolfMetrixApiCode: requireEnv("DISCGOLFMETRIX_API_CODE"),
   };
 }

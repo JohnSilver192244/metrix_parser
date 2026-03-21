@@ -1,6 +1,6 @@
 # Story 2.1: Интеграция worker с DiscGolfMetrix для получения соревнований
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -17,13 +17,13 @@ so that система могла запускать сценарий обнов
 
 ## Tasks / Subtasks
 
-- [ ] Добавить в `apps/worker/src/integration/discgolfmetrix/` клиент для получения списка соревнований за период, не смешивая transport, parsing и persistence в одном файле. (AC: 1, 2)
-- [ ] Определить request params/value objects для периода (`dateFrom`, `dateTo` или эквивалент) и явно зафиксировать mapping между admin/API contract и worker integration layer. (AC: 1, 2)
-- [ ] Подготовить raw response typing/parsing boundary, чтобы результат DiscGolfMetrix был пригоден для story `2.2`, но без преждевременного доменного маппинга всех полей в этой истории. (AC: 2)
-- [ ] Добавить предсказуемый error handling для network/HTTP/parse ошибок внешнего источника и включить эти ошибки в общий update-result contract, а не только в console logs. (AC: 3)
-- [ ] Создать migration(и) в `supabase/migrations/` для таблиц `competitions` и `courses` с `snake_case` naming и ключами, которые поддержат будущие upsert/idempotent flows. (AC: 4)
-- [ ] Добавить в worker jobs/orchestration entrypoint для сценария “обновление соревнований за период”, даже если вызов из API пока остаётся тонким extension point. (AC: 1, 3)
-- [ ] Проверить TypeScript checks для `apps/worker` и smoke-level проверку интеграционного клиента/fixtures без реального UI. (AC: 1, 2, 3)
+- [x] Добавить в `apps/worker/src/integration/discgolfmetrix/` клиент для получения списка соревнований за период, не смешивая transport, parsing и persistence в одном файле. (AC: 1, 2)
+- [x] Определить request params/value objects для периода (`dateFrom`, `dateTo` или эквивалент) и явно зафиксировать mapping между admin/API contract и worker integration layer. (AC: 1, 2)
+- [x] Подготовить raw response typing/parsing boundary, чтобы результат DiscGolfMetrix был пригоден для story `2.2`, но без преждевременного доменного маппинга всех полей в этой истории. (AC: 2)
+- [x] Добавить предсказуемый error handling для network/HTTP/parse ошибок внешнего источника и включить эти ошибки в общий update-result contract, а не только в console logs. (AC: 3)
+- [x] Создать migration(и) в `supabase/migrations/` для таблиц `competitions` и `courses` с `snake_case` naming и ключами, которые поддержат будущие upsert/idempotent flows. (AC: 4)
+- [x] Добавить в worker jobs/orchestration entrypoint для сценария “обновление соревнований за период”, даже если вызов из API пока остаётся тонким extension point. (AC: 1, 3)
+- [x] Проверить TypeScript checks для `apps/worker` и smoke-level проверку интеграционного клиента/fixtures без реального UI. (AC: 1, 2, 3)
 
 ## Dev Notes
 
@@ -80,3 +80,40 @@ so that система могла запускать сценарий обнов
 ## Change Log
 
 - 2026-03-20: Created implementation-ready story file for Story 2.1 and advanced sprint status from `backlog` to `ready-for-dev`.
+- 2026-03-21: Added DiscGolfMetrix competitions client, predictable worker error handling, raw response boundary, and schema foundation for `competitions`/`courses`.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+GPT-5 Codex
+
+### Debug Log References
+
+- Added a dedicated DiscGolfMetrix integration layer in `apps/worker` with separate files for transport, parsing, types, and error mapping.
+- Added a worker job/orchestration entrypoint for competitions updates that reports upstream failures through the shared update result contract.
+- Validation completed successfully with `npm test --workspace @metrix-parser/worker`, `npm run check --workspace @metrix-parser/worker`, and `npm run build`.
+
+### Completion Notes List
+
+- Added `apps/worker/src/integration/discgolfmetrix/` with a request URL builder, fetch client, raw payload parser, and predictable `network/http/parse` error mapping.
+- Explicitly mapped the shared `UpdatePeriod` contract to the worker integration request layer so admin/API `dateFrom/dateTo` flow reaches DiscGolfMetrix consistently.
+- Added `runCompetitionsUpdateJob` and `executeCompetitionsUpdate` as extension points for the “competitions by period” worker scenario.
+- Returned external API failures through the shared update result shape with `issues`, `summary.errors`, and `finalStatus` instead of relying on logs only.
+- Added `supabase/migrations/0002_competitions_and_courses.sql` with `snake_case` tables and idempotency-friendly keys for `competitions` and `courses`.
+- Added worker smoke tests for request building, successful raw fetch handling, and external API failure propagation.
+
+### File List
+
+- apps/worker/src/config/env.ts
+- apps/worker/src/integration/discgolfmetrix/index.ts
+- apps/worker/src/integration/discgolfmetrix/types.ts
+- apps/worker/src/integration/discgolfmetrix/errors.ts
+- apps/worker/src/integration/discgolfmetrix/parser.ts
+- apps/worker/src/integration/discgolfmetrix/client.ts
+- apps/worker/src/integration/discgolfmetrix/client.test.ts
+- apps/worker/src/jobs/competitions-update-job.ts
+- apps/worker/src/jobs/competitions-update-job.test.ts
+- apps/worker/src/orchestration/competitions-update.ts
+- apps/worker/package.json
+- supabase/migrations/0002_competitions_and_courses.sql

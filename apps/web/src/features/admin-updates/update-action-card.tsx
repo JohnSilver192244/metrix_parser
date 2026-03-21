@@ -37,7 +37,7 @@ export function UpdateActionCard({ scenario }: UpdateActionCardProps) {
 
     try {
       const response = await triggerUpdate(scenario.operation, submittedPeriod ?? {});
-      setPhase(response.finalStatus === "completed" ? "success" : "error");
+      setPhase(response.finalStatus === "failed" ? "error" : "success");
       setResult(response);
     } catch (error) {
       setPhase("error");
@@ -129,6 +129,10 @@ export function UpdateActionCard({ scenario }: UpdateActionCardProps) {
             </div>
             <div>
               <dt>Skipped</dt>
+              <dd>...</dd>
+            </div>
+            <div>
+              <dt>Errors</dt>
               <dd>...</dd>
             </div>
           </dl>

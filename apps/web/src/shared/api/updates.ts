@@ -4,17 +4,9 @@ import type {
   UpdateOperationResult,
   UpdateOperation,
   UpdatePeriod,
-  UpdateSummary,
 } from "@metrix-parser/shared-types";
 
 import { ApiClientError, requestJson } from "./http";
-
-const EMPTY_SUMMARY: UpdateSummary = {
-  found: 0,
-  created: 0,
-  updated: 0,
-  skipped: 0,
-};
 
 export function triggerUpdate(
   operation: UpdateOperation,
@@ -40,6 +32,7 @@ export function createFailedUpdateResult(
     message,
     requestedAt: timestamp,
     finishedAt: timestamp,
+    issues: [],
     period,
   };
 }
