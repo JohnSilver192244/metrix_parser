@@ -2,6 +2,8 @@ import { DiscGolfMetrixClientError } from "./errors";
 import type {
   DiscGolfMetrixCompetitionsPayload,
   DiscGolfMetrixRawCompetitionRecord,
+  DiscGolfMetrixCoursePayload,
+  DiscGolfMetrixRawCourseRecord,
 } from "./types";
 
 function isCompetitionRecord(value: unknown): value is DiscGolfMetrixRawCompetitionRecord {
@@ -25,6 +27,27 @@ export function parseDiscGolfMetrixCompetitionsPayload(
 
   throw new DiscGolfMetrixClientError(
     "DiscGolfMetrix competitions payload has unsupported structure.",
+    "discgolfmetrix_parse_error",
+  );
+}
+
+function isCoursePayload(value: unknown): value is DiscGolfMetrixCoursePayload {
+  return isCompetitionRecord(value);
+}
+
+export function parseDiscGolfMetrixCoursePayload(
+  payload: unknown,
+): DiscGolfMetrixCoursePayload {
+  if (isCoursePayload(payload)) {
+    if (isCompetitionRecord(payload.course)) {
+      return payload.course as DiscGolfMetrixRawCourseRecord;
+    }
+
+    return payload;
+  }
+
+  throw new DiscGolfMetrixClientError(
+    "DiscGolfMetrix course payload has unsupported structure.",
     "discgolfmetrix_parse_error",
   );
 }

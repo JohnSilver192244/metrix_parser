@@ -1,6 +1,6 @@
 # Story 2.5: Сохранение парков и расчёт course_par
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -17,12 +17,12 @@ so that по каждому парку была доступна полная с
 
 ## Tasks / Subtasks
 
-- [ ] Реализовать worker-side mapping/persistence flow для park records, который принимает raw course payloads из story `2.4` и превращает их в валидные записи для `courses`. (AC: 1, 3)
-- [ ] Зафиксировать и реализовать upsert strategy для `courses` по устойчивому идентификатору парка, чтобы повторные запуски обновляли существующие записи без дублей. (AC: 1)
-- [ ] Добавить вычисление суммарного `course_par` на основе структуры лунок/сегментов в ответе DiscGolfMetrix и сохранять агрегированное значение вместе с park record. (AC: 2, 3)
-- [ ] Встроить результат сохранения парков в общий update summary contract из story `1.6`, различая как минимум `found`, `added`, `updated`, `skipped`. (AC: 1, 4)
-- [ ] Обработать неполные или битые course payloads как skipped/problematic без падения всего park update job. (AC: 1, 2, 4)
-- [ ] Добавить тесты/fixtures для сценариев: новый парк, повторное сохранение того же парка, изменение данных существующего парка, неполный payload, корректный расчёт `course_par`. (AC: 1, 2, 3, 4)
+- [x] Реализовать worker-side mapping/persistence flow для park records, который принимает raw course payloads из story `2.4` и превращает их в валидные записи для `courses`. (AC: 1, 3)
+- [x] Зафиксировать и реализовать upsert strategy для `courses` по устойчивому идентификатору парка, чтобы повторные запуски обновляли существующие записи без дублей. (AC: 1)
+- [x] Добавить вычисление суммарного `course_par` на основе структуры лунок/сегментов в ответе DiscGolfMetrix и сохранять агрегированное значение вместе с park record. (AC: 2, 3)
+- [x] Встроить результат сохранения парков в общий update summary contract из story `1.6`, различая как минимум `found`, `added`, `updated`, `skipped`. (AC: 1, 4)
+- [x] Обработать неполные или битые course payloads как skipped/problematic без падения всего park update job. (AC: 1, 2, 4)
+- [x] Добавить тесты/fixtures для сценариев: новый парк, повторное сохранение того же парка, изменение данных существующего парка, неполный payload, корректный расчёт `course_par`. (AC: 1, 2, 3, 4)
 
 ## Dev Notes
 
@@ -87,3 +87,43 @@ so that по каждому парку была доступна полная с
 ## Change Log
 
 - 2026-03-21: Created implementation-ready story file for Story 2.5 and advanced sprint status from `backlog` to `ready-for-dev`.
+- 2026-03-21: Added course mapping, `course_par` calculation, duplicate-safe `courses` persistence, runtime `/updates/courses` execution, and DB migration for park fields.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+GPT-5 Codex
+
+### Debug Log References
+
+- Added `packages/shared-types/src/domain/course.ts` and exported it through `packages/shared-types/src/domain/index.ts`.
+- Added `apps/worker/src/mapping/courses.ts` plus fixtures/tests for raw DiscGolfMetrix course mapping and `course_par` calculation.
+- Added `apps/worker/src/persistence/courses-repository.ts`, `courses-repository.test.ts`, and `supabase-courses-adapter.ts` for duplicate-safe course upserts.
+- Added `supabase/migrations/0003_expand_courses_for_park_sync.sql` to extend `courses` with the required park fields and source-tracing columns.
+- Updated `apps/api/src/modules/updates/execution.ts` and `apps/api/src/app.test.ts` so `/updates/courses` now uses the real worker runtime path instead of a stub.
+
+### Completion Notes List
+
+- Реализован mapping raw course payload -> нормализованный `Course` record с явным DB-boundary в `snake_case`.
+- `courses` теперь сохраняются через устойчивый upsert по `course_id`, повторные запуски обновляют существующую запись без дублей.
+- Добавлен расчёт `course_par` из структуры лунок/сегментов с поддержкой nested payload shapes.
+- Частично битые payloads и ошибки отдельных парков отражаются как `skipped`/`errors` в общем update summary без падения всего job.
+- Контракт `/updates/courses` переведён на runtime worker execution, так что административный сценарий получает живую статистику обработки парков.
+
+### File List
+
+- apps/api/src/app.test.ts
+- apps/api/src/modules/updates/execution.ts
+- apps/worker/src/jobs/courses-update-job.test.ts
+- apps/worker/src/jobs/courses-update-job.ts
+- apps/worker/src/mapping/__fixtures__/courses.ts
+- apps/worker/src/mapping/courses.test.ts
+- apps/worker/src/mapping/courses.ts
+- apps/worker/src/orchestration/courses-update.ts
+- apps/worker/src/persistence/courses-repository.test.ts
+- apps/worker/src/persistence/courses-repository.ts
+- apps/worker/src/persistence/supabase-courses-adapter.ts
+- packages/shared-types/src/domain/course.ts
+- packages/shared-types/src/domain/index.ts
+- supabase/migrations/0003_expand_courses_for_park_sync.sql

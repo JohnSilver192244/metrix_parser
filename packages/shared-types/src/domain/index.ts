@@ -3,3 +3,4 @@ export interface DomainEntity {
 }
 
 export * from "./competition";
+export * from "./course";

@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-20 21:32:49
-last_updated: 2026-03-21 23:48:00
+last_updated: 2026-03-21 22:31:22
 project: metrixParser
 project_key: NOKEY
 tracking_system: file-system
@@ -55,8 +55,8 @@ development_status:
   2-1-integratsiya-worker-s-discgolfmetrix-dlya-polucheniya-sorevnovaniy: done
   2-2-filtratsiya-i-mapping-sorevnovaniy-dlya-sohraneniya-v-sisteme: done
   2-3-sohranenie-i-obnovlenie-sorevnovaniy-bez-dubley: done
-  2-4-poluchenie-dannyh-o-parkah-po-sorevnovaniyam: ready-for-dev
-  2-5-sohranenie-parkov-i-raschet-course-par: ready-for-dev
+  2-4-poluchenie-dannyh-o-parkah-po-sorevnovaniyam: review
+  2-5-sohranenie-parkov-i-raschet-course-par: review
   epic-2-retrospective: optional
 
   epic-3: in-progress

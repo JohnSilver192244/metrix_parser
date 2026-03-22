@@ -13,6 +13,7 @@ import {
 } from "@metrix-parser/shared-types";
 
 import { executeCompetitionsUpdate as executeWorkerCompetitionsUpdate } from "../../../../worker/src/orchestration/competitions-update";
+import { executeCoursesUpdate as executeWorkerCoursesUpdate } from "../../../../worker/src/orchestration/courses-update";
 
 interface DemoRecord {
   recordKey: string;
@@ -90,12 +91,17 @@ export interface UpdatesExecutionDependencies {
   executeCompetitionsUpdate?: (
     period: UpdatePeriod,
   ) => Promise<TriggerUpdateResponse>;
+  executeCoursesUpdate?: () => Promise<TriggerUpdateResponse>;
 }
 
 async function executeRuntimeCompetitionsUpdate(
   period: UpdatePeriod,
 ): Promise<TriggerUpdateResponse> {
   return executeWorkerCompetitionsUpdate(period, loadCompetitionsExecutionEnv());
+}
+
+async function executeRuntimeCoursesUpdate(): Promise<TriggerUpdateResponse> {
+  return executeWorkerCoursesUpdate(loadCompetitionsExecutionEnv());
 }
 
 export function createAcceptedResponse(
@@ -148,6 +154,13 @@ export async function executeUpdateOperation(
       dependencies.executeCompetitionsUpdate ?? executeRuntimeCompetitionsUpdate;
 
     return executeCompetitionsUpdate(period as UpdatePeriod);
+  }
+
+  if (operation === "courses") {
+    const executeCoursesUpdate =
+      dependencies.executeCoursesUpdate ?? executeRuntimeCoursesUpdate;
+
+    return executeCoursesUpdate();
   }
 
   return createAcceptedResponse(operation, period);

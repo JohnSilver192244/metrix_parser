@@ -5,7 +5,10 @@ import type { CompetitionDbRecord } from "@metrix-parser/shared-types";
 
 import { runCompetitionsUpdateJob } from "./competitions-update-job";
 import { createMockResponse } from "../test-support/mock-response";
-import { createCompetitionsRepository } from "../persistence/competitions-repository";
+import {
+  createCompetitionsRepository,
+  type StoredCompetitionRecord,
+} from "../persistence/competitions-repository";
 
 class InMemoryRepositoryAdapter {
   private rows: Array<CompetitionDbRecord & { id: number }> = [];
@@ -19,13 +22,13 @@ class InMemoryRepositoryAdapter {
     return this.rows.find((row) => row.metrix_id === metrixId) ?? null;
   }
 
-  async insert(record: CompetitionDbRecord) {
+  async insert(record: StoredCompetitionRecord) {
     const created = { id: this.nextId++, ...record };
     this.rows.push(created);
     return created;
   }
 
-  async update(id: number, record: CompetitionDbRecord) {
+  async update(id: number, record: StoredCompetitionRecord) {
     const index = this.rows.findIndex((row) => row.id === id);
     const updated = { id, ...record };
     this.rows[index] = updated;

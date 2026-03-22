@@ -1,11 +1,17 @@
 import type { UpdatePeriod } from "@metrix-parser/shared-types";
 
 import { DiscGolfMetrixClientError } from "./errors";
-import { parseDiscGolfMetrixCompetitionsPayload } from "./parser";
+import {
+  parseDiscGolfMetrixCompetitionsPayload,
+  parseDiscGolfMetrixCoursePayload,
+} from "./parser";
 import type {
   DiscGolfMetrixCompetitionQueryParams,
   DiscGolfMetrixCompetitionsRequest,
   DiscGolfMetrixCompetitionsResponse,
+  DiscGolfMetrixCourseQueryParams,
+  DiscGolfMetrixCourseRequest,
+  DiscGolfMetrixCourseResponse,
 } from "./types";
 
 export interface DiscGolfMetrixClientDependencies {
@@ -29,6 +35,17 @@ function buildCompetitionQueryParams(
   };
 }
 
+function buildCourseQueryParams(
+  courseId: string,
+  apiCode: string,
+): DiscGolfMetrixCourseQueryParams {
+  return {
+    content: "course",
+    courseId,
+    apiCode,
+  };
+}
+
 export function buildCompetitionsRequestUrl(
   baseUrl: string,
   countryCode: string,
@@ -42,6 +59,21 @@ export function buildCompetitionsRequestUrl(
   url.searchParams.set("country_code", params.countryCode);
   url.searchParams.set("date1", params.date1);
   url.searchParams.set("date2", params.date2);
+  url.searchParams.set("code", params.apiCode);
+
+  return url.toString();
+}
+
+export function buildCourseRequestUrl(
+  baseUrl: string,
+  apiCode: string,
+  request: DiscGolfMetrixCourseRequest,
+): string {
+  const url = new URL("/api.php", baseUrl);
+  const params = buildCourseQueryParams(request.courseId, apiCode);
+
+  url.searchParams.set("content", params.content);
+  url.searchParams.set("course_id", params.courseId);
   url.searchParams.set("code", params.apiCode);
 
   return url.toString();
@@ -123,6 +155,80 @@ export function createDiscGolfMetrixClient({
         sourceUrl,
         fetchedAt,
         records: parsedPayload.competitions,
+        rawPayload: parsedPayload,
+      };
+    },
+
+    async fetchCourse(
+      request: DiscGolfMetrixCourseRequest,
+    ): Promise<DiscGolfMetrixCourseResponse> {
+      const sourceUrl = buildCourseRequestUrl(baseUrl, apiCode, request);
+
+      let response: Response;
+
+      try {
+        response = await fetchImpl(sourceUrl, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        });
+      } catch (error) {
+        throw new DiscGolfMetrixClientError(
+          error instanceof Error
+            ? `DiscGolfMetrix request failed: ${error.message}`
+            : "DiscGolfMetrix request failed.",
+          "discgolfmetrix_network_error",
+          { sourceUrl },
+        );
+      }
+
+      if (!response.ok) {
+        throw new DiscGolfMetrixClientError(
+          `DiscGolfMetrix returned HTTP ${response.status} for course request ${request.courseId}.`,
+          "discgolfmetrix_http_error",
+          { status: response.status, sourceUrl },
+        );
+      }
+
+      let responseBody: string;
+
+      try {
+        responseBody = await response.text();
+      } catch (error) {
+        throw new DiscGolfMetrixClientError(
+          error instanceof Error
+            ? `DiscGolfMetrix payload could not be read: ${error.message}`
+            : "DiscGolfMetrix payload could not be read.",
+          "discgolfmetrix_network_error",
+          { sourceUrl },
+        );
+      }
+
+      let payload: unknown;
+
+      try {
+        payload = JSON.parse(responseBody);
+      } catch (error) {
+        const responsePreview = responseBody.slice(0, 120).replace(/\s+/g, " ").trim();
+
+        throw new DiscGolfMetrixClientError(
+          error instanceof Error
+            ? `DiscGolfMetrix payload is not valid JSON: ${error.message}. Response preview: ${responsePreview}`
+            : `DiscGolfMetrix payload is not valid JSON. Response preview: ${responsePreview}`,
+          "discgolfmetrix_parse_error",
+          { sourceUrl },
+        );
+      }
+
+      const parsedPayload = parseDiscGolfMetrixCoursePayload(payload);
+      const fetchedAt = new Date().toISOString();
+
+      return {
+        sourceUrl,
+        fetchedAt,
+        courseId: request.courseId,
+        record: parsedPayload,
         rawPayload: parsedPayload,
       };
     },

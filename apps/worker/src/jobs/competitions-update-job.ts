@@ -49,7 +49,24 @@ export async function runCompetitionsUpdateJob(
       operation: "competitions",
       items: mappingResult.competitions.map((competition) => ({
         recordKey: `competition:${competition.competitionId}`,
-        payload: competition,
+        payload: {
+          competition,
+          rawPayload:
+            fetchedPayload.records.find((record) => {
+              const competitionId = String(
+                record.competitionId ?? record.competition_id ?? record.id ?? "",
+              );
+              const metrixId = String(
+                record.metrixId ?? record.metrix_id ?? record.eventId ?? record.event_id ?? "",
+              );
+
+              return (
+                competitionId === competition.competitionId ||
+                (competition.metrixId !== null && metrixId === competition.metrixId)
+              );
+            }) ?? null,
+          sourceFetchedAt: fetchedPayload.fetchedAt,
+        },
       })),
       processItem: (item) => repository.saveCompetition(item.payload),
       message:

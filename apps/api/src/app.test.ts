@@ -136,13 +136,44 @@ test("POST /updates/competitions accepts a period-based update command", async (
 });
 
 test("POST /updates/courses accepts a period-free update command", async () => {
-  const response = await invokeRequest("/updates/courses", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
+  const response = await invokeRequest(
+    "/updates/courses",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({}),
     },
-    body: JSON.stringify({}),
-  });
+    {
+      updates: {
+        executeCoursesUpdate: async () => ({
+          operation: "courses",
+          finalStatus: "completed_with_issues",
+          source: "runtime",
+          message: "Worker discovered course ids and persisted valid park records.",
+          requestedAt: "2026-03-21T10:00:00.000Z",
+          finishedAt: "2026-03-21T10:00:01.000Z",
+          summary: {
+            found: 3,
+            created: 1,
+            updated: 1,
+            skipped: 1,
+            errors: 1,
+          },
+          issues: [
+            {
+              code: "invalid_course_record",
+              message: "broken payload",
+              recoverable: true,
+              stage: "validation",
+              recordKey: "course:course-bad",
+            },
+          ],
+        }),
+      },
+    },
+  );
   const payload = JSON.parse(response.body) as {
     data: {
       operation: string;
@@ -163,7 +194,7 @@ test("POST /updates/courses accepts a period-free update command", async () => {
   assert.equal(response.statusCode, 202);
   assert.equal(payload.data.operation, "courses");
   assert.equal(payload.data.finalStatus, "completed_with_issues");
-  assert.equal(payload.data.source, "stub");
+  assert.equal(payload.data.source, "runtime");
   assert.deepEqual(payload.data.summary, {
     found: 3,
     created: 1,
@@ -172,7 +203,7 @@ test("POST /updates/courses accepts a period-free update command", async () => {
     errors: 1,
   });
   assert.equal(payload.data.issues.length, 1);
-  assert.equal(payload.data.issues[0]?.recordKey, "course-bad");
+  assert.equal(payload.data.issues[0]?.recordKey, "course:course-bad");
   assert.equal(payload.data.period, undefined);
 });
 

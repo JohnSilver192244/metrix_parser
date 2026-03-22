@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   DiscGolfMetrixClientError,
+  buildCourseRequestUrl,
   buildCompetitionsRequestUrl,
   createDiscGolfMetrixClient,
 } from "./index";
@@ -24,6 +25,17 @@ test("buildCompetitionsRequestUrl maps shared period fields to DiscGolfMetrix re
   assert.equal(
     url,
     "https://discgolfmetrix.com/api.php?content=competitions&country_code=EE&date1=2026-01-01&date2=2026-01-31&code=secret-code",
+  );
+});
+
+test("buildCourseRequestUrl maps course id to DiscGolfMetrix request params", () => {
+  const url = buildCourseRequestUrl("https://discgolfmetrix.com", "secret-code", {
+    courseId: "course-101",
+  });
+
+  assert.equal(
+    url,
+    "https://discgolfmetrix.com/api.php?content=course&course_id=course-101&code=secret-code",
   );
 });
 
@@ -84,6 +96,38 @@ test("client throws predictable HTTP errors for DiscGolfMetrix failures", async 
       error instanceof DiscGolfMetrixClientError &&
       error.code === "discgolfmetrix_http_error",
   );
+});
+
+test("client returns raw course records in a parsing-ready envelope", async () => {
+  const client = createDiscGolfMetrixClient({
+    baseUrl: "https://discgolfmetrix.com",
+    countryCode: "EE",
+    apiCode: "secret-code",
+    fetchImpl: async () =>
+      createMockResponse(
+        JSON.stringify({
+          course: {
+            id: "course-101",
+            name: "Tiraz Park",
+            holes: [{ par: 3 }, { par: 4 }],
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      ),
+  });
+
+  const result = await client.fetchCourse({
+    courseId: "course-101",
+  });
+
+  assert.equal(result.courseId, "course-101");
+  assert.equal(result.record.id, "course-101");
+  assert.ok(result.sourceUrl.includes("course_id=course-101"));
 });
 
 test("client throws predictable parse errors for non-JSON DiscGolfMetrix payloads", async () => {
