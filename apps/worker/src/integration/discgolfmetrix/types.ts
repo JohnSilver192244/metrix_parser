@@ -12,6 +12,11 @@ export interface DiscGolfMetrixCourseRequest {
   courseId: string;
 }
 
+export interface DiscGolfMetrixResultsRequest {
+  competitionId: string;
+  metrixId?: string | null;
+}
+
 export interface DiscGolfMetrixCompetitionQueryParams {
   content: "competitions";
   countryCode: string;
@@ -26,9 +31,18 @@ export interface DiscGolfMetrixCourseQueryParams {
   apiCode: string;
 }
 
+export interface DiscGolfMetrixResultsQueryParams {
+  content: "results";
+  competitionId: string;
+  metrixId?: string | null;
+  apiCode: string;
+}
+
 export interface DiscGolfMetrixRawCompetitionRecord extends DiscGolfMetrixSourceRecord {}
 
 export interface DiscGolfMetrixRawCourseRecord extends DiscGolfMetrixSourceRecord {}
+
+export interface DiscGolfMetrixRawResultsRecord extends DiscGolfMetrixSourceRecord {}
 
 export interface DiscGolfMetrixCompetitionsPayload {
   competitions: DiscGolfMetrixRawCompetitionRecord[];
@@ -36,6 +50,10 @@ export interface DiscGolfMetrixCompetitionsPayload {
 }
 
 export interface DiscGolfMetrixCoursePayload extends DiscGolfMetrixRawCourseRecord {}
+
+export interface DiscGolfMetrixResultsPayload extends DiscGolfMetrixRawResultsRecord {
+  results?: DiscGolfMetrixSourceRecord[];
+}
 
 export interface DiscGolfMetrixCompetitionsResponse {
   sourceUrl: string;
@@ -50,4 +68,13 @@ export interface DiscGolfMetrixCourseResponse {
   courseId: string;
   record: DiscGolfMetrixRawCourseRecord;
   rawPayload: DiscGolfMetrixCoursePayload;
+}
+
+export interface DiscGolfMetrixResultsResponse {
+  sourceUrl: string;
+  fetchedAt: string;
+  competitionId: string;
+  metrixId: string | null;
+  record: DiscGolfMetrixRawResultsRecord;
+  rawPayload: DiscGolfMetrixResultsPayload;
 }

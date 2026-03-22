@@ -82,9 +82,9 @@ export const UPDATE_IDENTITY_RULES: Record<UpdateEntityIdentity, UpdateIdentityR
   result: {
     entity: "result",
     strategy: "composite-key",
-    matchFields: ["competition_id", "player_id", "round_number"],
+    matchFields: ["competition_id", "player_id", "order_number"],
     description:
-      "Results use a composite source key so reruns update the same competitive outcome instead of inserting duplicates.",
+      "Results use a composite source key based on competition, player, and finishing order so reruns update the same outcome instead of inserting duplicates.",
   },
 };
 

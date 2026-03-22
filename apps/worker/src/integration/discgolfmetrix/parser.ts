@@ -4,6 +4,7 @@ import type {
   DiscGolfMetrixRawCompetitionRecord,
   DiscGolfMetrixCoursePayload,
   DiscGolfMetrixRawCourseRecord,
+  DiscGolfMetrixResultsPayload,
 } from "./types";
 
 function isCompetitionRecord(value: unknown): value is DiscGolfMetrixRawCompetitionRecord {
@@ -35,6 +36,17 @@ function isCoursePayload(value: unknown): value is DiscGolfMetrixCoursePayload {
   return isCompetitionRecord(value);
 }
 
+function hasResultsCollection(
+  value: Record<string, unknown>,
+): value is DiscGolfMetrixResultsPayload {
+  const candidates = ["results", "players", "standings", "scorecards"];
+
+  return candidates.some((key) => {
+    const collection = value[key];
+    return Array.isArray(collection) && collection.every(isCompetitionRecord);
+  });
+}
+
 export function parseDiscGolfMetrixCoursePayload(
   payload: unknown,
 ): DiscGolfMetrixCoursePayload {
@@ -48,6 +60,23 @@ export function parseDiscGolfMetrixCoursePayload(
 
   throw new DiscGolfMetrixClientError(
     "DiscGolfMetrix course payload has unsupported structure.",
+    "discgolfmetrix_parse_error",
+  );
+}
+
+export function parseDiscGolfMetrixResultsPayload(
+  payload: unknown,
+): DiscGolfMetrixResultsPayload {
+  if (Array.isArray(payload) && payload.every(isCompetitionRecord)) {
+    return { results: payload };
+  }
+
+  if (isCompetitionRecord(payload) && hasResultsCollection(payload)) {
+    return payload;
+  }
+
+  throw new DiscGolfMetrixClientError(
+    "DiscGolfMetrix results payload has unsupported structure.",
     "discgolfmetrix_parse_error",
   );
 }

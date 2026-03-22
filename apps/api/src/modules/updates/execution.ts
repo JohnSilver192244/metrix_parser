@@ -14,6 +14,7 @@ import {
 
 import { executeCompetitionsUpdate as executeWorkerCompetitionsUpdate } from "../../../../worker/src/orchestration/competitions-update";
 import { executeCoursesUpdate as executeWorkerCoursesUpdate } from "../../../../worker/src/orchestration/courses-update";
+import { executeResultsUpdate as executeWorkerResultsUpdate } from "../../../../worker/src/orchestration/results-update";
 
 interface DemoRecord {
   recordKey: string;
@@ -92,6 +93,9 @@ export interface UpdatesExecutionDependencies {
     period: UpdatePeriod,
   ) => Promise<TriggerUpdateResponse>;
   executeCoursesUpdate?: () => Promise<TriggerUpdateResponse>;
+  executeResultsUpdate?: (
+    period: UpdatePeriod,
+  ) => Promise<TriggerUpdateResponse>;
 }
 
 async function executeRuntimeCompetitionsUpdate(
@@ -102,6 +106,12 @@ async function executeRuntimeCompetitionsUpdate(
 
 async function executeRuntimeCoursesUpdate(): Promise<TriggerUpdateResponse> {
   return executeWorkerCoursesUpdate(loadCompetitionsExecutionEnv());
+}
+
+async function executeRuntimeResultsUpdate(
+  period: UpdatePeriod,
+): Promise<TriggerUpdateResponse> {
+  return executeWorkerResultsUpdate(period, loadCompetitionsExecutionEnv());
 }
 
 export function createAcceptedResponse(
@@ -161,6 +171,13 @@ export async function executeUpdateOperation(
       dependencies.executeCoursesUpdate ?? executeRuntimeCoursesUpdate;
 
     return executeCoursesUpdate();
+  }
+
+  if (operation === "results") {
+    const executeResultsUpdate =
+      dependencies.executeResultsUpdate ?? executeRuntimeResultsUpdate;
+
+    return executeResultsUpdate(period as UpdatePeriod);
   }
 
   return createAcceptedResponse(operation, period);

@@ -207,6 +207,85 @@ test("POST /updates/courses accepts a period-free update command", async () => {
   assert.equal(payload.data.period, undefined);
 });
 
+test("POST /updates/results accepts a period-based update command", async () => {
+  const response = await invokeRequest(
+    "/updates/results",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        dateFrom: "2026-04-01",
+        dateTo: "2026-04-30",
+      }),
+    },
+    {
+      updates: {
+        executeResultsUpdate: async (period) => ({
+          operation: "results",
+          finalStatus: "completed_with_issues",
+          source: "runtime",
+          message: "Worker selected competitions and fetched raw result payloads.",
+          requestedAt: "2026-03-22T10:00:00.000Z",
+          finishedAt: "2026-03-22T10:00:02.000Z",
+          summary: {
+            found: 2,
+            created: 0,
+            updated: 0,
+            skipped: 1,
+            errors: 1,
+          },
+          issues: [
+            {
+              code: "discgolfmetrix_http_error",
+              message: "upstream unavailable",
+              recoverable: true,
+              stage: "transport",
+              recordKey: "competition:competition-102",
+            },
+          ],
+          period,
+        }),
+      },
+    },
+  );
+  const payload = JSON.parse(response.body) as {
+    data: {
+      operation: string;
+      finalStatus: string;
+      source: string;
+      summary: {
+        found: number;
+        created: number;
+        updated: number;
+        skipped: number;
+        errors: number;
+      };
+      issues: Array<{ code: string; recordKey?: string }>;
+      period?: { dateFrom: string; dateTo: string };
+    };
+  };
+
+  assert.equal(response.statusCode, 202);
+  assert.equal(payload.data.operation, "results");
+  assert.equal(payload.data.finalStatus, "completed_with_issues");
+  assert.equal(payload.data.source, "runtime");
+  assert.deepEqual(payload.data.summary, {
+    found: 2,
+    created: 0,
+    updated: 0,
+    skipped: 1,
+    errors: 1,
+  });
+  assert.equal(payload.data.issues.length, 1);
+  assert.equal(payload.data.issues[0]?.recordKey, "competition:competition-102");
+  assert.deepEqual(payload.data.period, {
+    dateFrom: "2026-04-01",
+    dateTo: "2026-04-30",
+  });
+});
+
 test("period-based update routes validate missing date fields", async () => {
   const response = await invokeRequest("/updates/results", {
     method: "POST",

@@ -1,6 +1,6 @@
 # Story 3.1: Получение результатов соревнований по сохранённым соревнованиям
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -17,11 +17,11 @@ so that обновление игроков и результатов работ
 
 ## Tasks / Subtasks
 
-- [ ] Добавить read-side выборку сохранённых `competitions` по периоду, чтобы сценарий игроков/результатов использовал только релевантные записи из БД. (AC: 1, 2)
-- [ ] Реализовать worker integration path для загрузки result payloads по набору `competition_id`/`metrix_id` без ручного ввода идентификаторов. (AC: 2, 3)
-- [ ] Подготовить raw result payload boundary для следующих stories `3.2` и `3.4`, не смешивая здесь финальный parsing/persistence игроков и результатов. (AC: 3)
-- [ ] Создать или зафиксировать migration scope для таблиц `players` и `competition_results`, если они ещё отсутствуют в схеме. (AC: 4)
-- [ ] Добавить тесты/fixtures для сценариев: пустой набор соревнований за период, несколько соревнований, частично неуспешный fetch результатов. (AC: 1, 2, 3)
+- [x] Добавить read-side выборку сохранённых `competitions` по периоду, чтобы сценарий игроков/результатов использовал только релевантные записи из БД. (AC: 1, 2)
+- [x] Реализовать worker integration path для загрузки result payloads по набору `competition_id`/`metrix_id` без ручного ввода идентификаторов. (AC: 2, 3)
+- [x] Подготовить raw result payload boundary для следующих stories `3.2` и `3.4`, не смешивая здесь финальный parsing/persistence игроков и результатов. (AC: 3)
+- [x] Создать или зафиксировать migration scope для таблиц `players` и `competition_results`, если они ещё отсутствуют в схеме. (AC: 4)
+- [x] Добавить тесты/fixtures для сценариев: пустой набор соревнований за период, несколько соревнований, частично неуспешный fetch результатов. (AC: 1, 2, 3)
 
 ## Dev Notes
 
@@ -83,3 +83,42 @@ so that обновление игроков и результатов работ
 ## Change Log
 
 - 2026-03-21: Created implementation-ready story file for Story 3.1 and advanced sprint status from `backlog` to `ready-for-dev`.
+- 2026-03-22: Added period-based competition read-side selection, DiscGolfMetrix results fetch flow, runtime `/updates/results` execution, and migration scope for `players` plus `competition_results`.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+GPT-5 Codex
+
+### Debug Log References
+
+- Added `apps/worker/src/read-side/competitions-for-results.ts` and `apps/worker/src/read-side/competitions-for-results.test.ts` to load saved competitions for a requested period and derive the identifiers used for results fetches.
+- Extended `apps/worker/src/integration/discgolfmetrix/client.ts`, `types.ts`, `parser.ts`, and `client.test.ts` with a dedicated results request/response path and raw payload boundary.
+- Added `apps/worker/src/jobs/results-update-job.ts`, `apps/worker/src/jobs/results-update-job.test.ts`, and `apps/worker/src/orchestration/results-update.ts` to fetch result payloads per competition with partial-failure isolation.
+- Updated `apps/api/src/modules/updates/execution.ts` and `apps/api/src/app.test.ts` so `/updates/results` now calls the real worker runtime path instead of the generic stub.
+- Added `supabase/migrations/0004_players_and_competition_results.sql` to establish schema scope for future player/result persistence stories.
+
+### Completion Notes List
+
+- Сценарий результатов теперь выбирает сохранённые соревнования только за запрошенный период и больше не зависит от ручного ввода идентификаторов.
+- Worker умеет отдельно запрашивать raw result payloads по каждому соревнованию, используя `competition_id` и при наличии `metrix_id`.
+- Ошибка одного соревнования не останавливает остальные fetch-операции; она отражается в `skipped`/`errors` общей сводки.
+- Raw result payload boundary подготовлен отдельно от последующего parsing/persistence, чтобы истории `3.2` и `3.4` могли переиспользовать те же данные.
+- В схему добавлены таблицы `players` и `competition_results`, но их финальное заполнение остаётся scope следующих историй.
+
+### File List
+
+- apps/api/src/app.test.ts
+- apps/api/src/modules/updates/execution.ts
+- apps/worker/package.json
+- apps/worker/src/integration/discgolfmetrix/client.test.ts
+- apps/worker/src/integration/discgolfmetrix/client.ts
+- apps/worker/src/integration/discgolfmetrix/parser.ts
+- apps/worker/src/integration/discgolfmetrix/types.ts
+- apps/worker/src/jobs/results-update-job.test.ts
+- apps/worker/src/jobs/results-update-job.ts
+- apps/worker/src/orchestration/results-update.ts
+- apps/worker/src/read-side/competitions-for-results.test.ts
+- apps/worker/src/read-side/competitions-for-results.ts
+- supabase/migrations/0004_players_and_competition_results.sql
