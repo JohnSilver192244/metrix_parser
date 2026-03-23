@@ -55,7 +55,7 @@ function buildResultsQueryParams(
   apiCode: string,
 ): DiscGolfMetrixResultsQueryParams {
   return {
-    content: "results",
+    content: "result",
     competitionId: request.competitionId,
     metrixId: request.metrixId ?? null,
     apiCode,
@@ -89,7 +89,7 @@ export function buildCourseRequestUrl(
   const params = buildCourseQueryParams(request.courseId, apiCode);
 
   url.searchParams.set("content", params.content);
-  url.searchParams.set("course_id", params.courseId);
+  url.searchParams.set("id", params.courseId);
   url.searchParams.set("code", params.apiCode);
 
   return url.toString();
@@ -104,11 +104,7 @@ export function buildResultsRequestUrl(
   const params = buildResultsQueryParams(request, apiCode);
 
   url.searchParams.set("content", params.content);
-  url.searchParams.set("competition_id", params.competitionId);
-
-  if (params.metrixId) {
-    url.searchParams.set("metrix_id", params.metrixId);
-  }
+  url.searchParams.set("id", params.competitionId);
 
   url.searchParams.set("code", params.apiCode);
 

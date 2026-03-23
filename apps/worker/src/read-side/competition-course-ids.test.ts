@@ -7,9 +7,9 @@ import {
 } from "./competition-course-ids";
 
 test("extractCourseIdFromCompetitionPayload supports flat and nested payload shapes", () => {
-  assert.equal(extractCourseIdFromCompetitionPayload({ courseId: "course-101" }), "course-101");
+  assert.equal(extractCourseIdFromCompetitionPayload({ CourceID: "course-101" }), "course-101");
   assert.equal(
-    extractCourseIdFromCompetitionPayload({ course: { id: "course-202" } }),
+    extractCourseIdFromCompetitionPayload({ course: { ID: "course-202" } }),
     "course-202",
   );
 });
@@ -20,11 +20,11 @@ test("competition course id reader deduplicates course ids and reports missing r
       return [
         {
           competition_id: "competition-101",
-          raw_payload: { courseId: "course-101" },
+          raw_payload: { CourceID: "course-101" },
         },
         {
           competition_id: "competition-102",
-          raw_payload: { course: { id: "course-101" } },
+          raw_payload: { course: { ID: "course-101" } },
         },
         {
           competition_id: "competition-103",

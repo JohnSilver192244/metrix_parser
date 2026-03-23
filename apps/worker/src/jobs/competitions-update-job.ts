@@ -15,6 +15,7 @@ import {
 import { createWorkerSupabaseAdminClient } from "../lib/supabase-admin";
 import { mapDiscGolfMetrixCompetitions } from "../mapping/competitions";
 import { executeUpdatePlan } from "../orchestration/update-execution";
+import { readOptionalStringField } from "../parsing/competition-record";
 import {
   createCompetitionsRepository,
   type CompetitionsRepository,
@@ -53,12 +54,15 @@ export async function runCompetitionsUpdateJob(
           competition,
           rawPayload:
             fetchedPayload.records.find((record) => {
-              const competitionId = String(
-                record.competitionId ?? record.competition_id ?? record.id ?? "",
-              );
-              const metrixId = String(
-                record.metrixId ?? record.metrix_id ?? record.eventId ?? record.event_id ?? "",
-              );
+              const competitionId =
+                readOptionalStringField(record, [
+                  "competitionId",
+                  "competition_id",
+                  "id",
+                  "ID",
+                ]) ?? "";
+              const metrixId =
+                readOptionalStringField(record, ["metrixId", "metrix_id"]) ?? "";
 
               return (
                 competitionId === competition.competitionId ||
@@ -70,7 +74,7 @@ export async function runCompetitionsUpdateJob(
       })),
       processItem: (item) => repository.saveCompetition(item.payload),
       message:
-        "Worker fetched competitions from DiscGolfMetrix, filtered to Russian events, and persisted valid records.",
+        "Worker fetched competitions from DiscGolfMetrix and persisted valid records.",
       period,
       requestedAt,
     });
@@ -89,7 +93,7 @@ export async function runCompetitionsUpdateJob(
       finalStatus: resolveUpdateFinalStatus(summary),
       source: "runtime",
       message:
-        "Worker fetched competitions from DiscGolfMetrix, filtered to Russian events, and persisted valid records without creating duplicates.",
+        "Worker fetched competitions from DiscGolfMetrix and persisted valid records without creating duplicates.",
       requestedAt,
       finishedAt: new Date().toISOString(),
       summary,

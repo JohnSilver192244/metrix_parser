@@ -1,16 +1,32 @@
 import type { RouteDefinition } from "../lib/router";
 
-import { competitionsRoutes } from "./competitions";
-import { coursesRoutes } from "./courses";
+import {
+  getCoursesRoutes,
+  type CoursesRouteDependencies,
+} from "./courses";
+import {
+  getCompetitionsRoutes,
+  type CompetitionsRouteDependencies,
+} from "./competitions";
 import { healthRoutes } from "./health";
-import { playersRoutes } from "./players";
-import { resultsRoutes } from "./results";
+import {
+  getPlayersRoutes,
+  type PlayersRouteDependencies,
+} from "./players";
+import {
+  getResultsRoutes,
+  type ResultsRouteDependencies,
+} from "./results";
 import {
   getUpdatesRoutes,
   type UpdatesRouteDependencies,
 } from "./updates";
 
 export interface ApiModuleDependencies {
+  competitions?: CompetitionsRouteDependencies;
+  courses?: CoursesRouteDependencies;
+  players?: PlayersRouteDependencies;
+  results?: ResultsRouteDependencies;
   updates?: UpdatesRouteDependencies;
 }
 
@@ -20,9 +36,9 @@ export function getRegisteredRoutes(
   return [
     ...healthRoutes,
     ...getUpdatesRoutes(dependencies.updates),
-    ...competitionsRoutes,
-    ...coursesRoutes,
-    ...playersRoutes,
-    ...resultsRoutes,
+    ...getCompetitionsRoutes(dependencies.competitions),
+    ...getCoursesRoutes(dependencies.courses),
+    ...getPlayersRoutes(dependencies.players),
+    ...getResultsRoutes(dependencies.results),
   ];
 }

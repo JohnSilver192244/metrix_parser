@@ -39,7 +39,12 @@ function readNestedCourseId(payload: Record<string, unknown>): string | undefine
     return undefined;
   }
 
-  return readOptionalStringField(course as Record<string, unknown>, ["id", "courseId", "course_id"]);
+  return readOptionalStringField(course as Record<string, unknown>, [
+    "ID",
+    "id",
+    "courseId",
+    "course_id",
+  ]);
 }
 
 export function extractCourseIdFromCompetitionPayload(
@@ -51,6 +56,8 @@ export function extractCourseIdFromCompetitionPayload(
 
   return (
     readOptionalStringField(payload, [
+      "CourceID",
+      "CourseID",
       "courseId",
       "course_id",
       "courseid",

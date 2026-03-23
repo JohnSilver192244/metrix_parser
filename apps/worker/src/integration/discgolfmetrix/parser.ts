@@ -36,10 +36,33 @@ function isCoursePayload(value: unknown): value is DiscGolfMetrixCoursePayload {
   return isCompetitionRecord(value);
 }
 
+function isRecordObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getDocumentedResultsCollection(
+  value: Record<string, unknown>,
+): unknown[] | null {
+  const competition = value.Competition;
+
+  if (!isRecordObject(competition)) {
+    return null;
+  }
+
+  const results = competition.Results;
+  return Array.isArray(results) ? results : null;
+}
+
 function hasResultsCollection(
   value: Record<string, unknown>,
 ): value is DiscGolfMetrixResultsPayload {
   const candidates = ["results", "players", "standings", "scorecards"];
+
+  const documentedResults = getDocumentedResultsCollection(value);
+
+  if (documentedResults && documentedResults.every(isCompetitionRecord)) {
+    return true;
+  }
 
   return candidates.some((key) => {
     const collection = value[key];
@@ -51,10 +74,6 @@ export function parseDiscGolfMetrixCoursePayload(
   payload: unknown,
 ): DiscGolfMetrixCoursePayload {
   if (isCoursePayload(payload)) {
-    if (isCompetitionRecord(payload.course)) {
-      return payload.course as DiscGolfMetrixRawCourseRecord;
-    }
-
     return payload;
   }
 

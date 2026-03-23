@@ -45,12 +45,14 @@ test("runCoursesUpdateJob discovers course ids, persists valid courses, and repo
     fetchImpl: async (input) => {
       const url = String(input);
 
-      if (url.includes("course_id=course-101")) {
+      if (url.includes("id=course-101")) {
         return createMockResponse(
           JSON.stringify({
-            id: "course-101",
-            name: "Tiraz Park",
-            holes: [{ par: 3 }, { par: 4 }, { par: 5 }],
+            course: {
+              ID: "course-101",
+              Name: "Tiraz Park",
+            },
+            baskets: [{ Par: "3" }, { Par: "4" }, { Par: "5" }],
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         );
@@ -58,10 +60,12 @@ test("runCoursesUpdateJob discovers course ids, persists valid courses, and repo
 
       return createMockResponse(
         JSON.stringify({
-          id: "course-202",
-          name: "Primorsky Park",
-          layout: {
-            holes: [{ par: 3 }, { par: 3 }, { par: 4 }],
+          course: {
+            ID: "course-202",
+            Name: "Primorsky Park",
+            layout: {
+              holes: [{ Par: "3" }, { Par: "3" }, { Par: "4" }],
+            },
           },
         }),
         { status: 200, headers: { "content-type": "application/json" } },
@@ -104,23 +108,27 @@ test("runCoursesUpdateJob isolates broken course fetches and incomplete payloads
     fetchImpl: async (input) => {
       const url = String(input);
 
-      if (url.includes("course_id=course-101")) {
+      if (url.includes("id=course-101")) {
         return createMockResponse(
           JSON.stringify({
-            id: "course-101",
-            name: "Tiraz Park",
-            holes: [{ par: 3 }, { par: 4 }],
+            course: {
+              ID: "course-101",
+              Name: "Tiraz Park",
+            },
+            baskets: [{ Par: "3" }, { Par: "4" }],
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         );
       }
 
-      if (url.includes("course_id=course-bad")) {
+      if (url.includes("id=course-bad")) {
         return createMockResponse(
           JSON.stringify({
-            id: "course-bad",
-            fullname: "Broken course",
-            holes: [{ length: 70 }],
+            course: {
+              ID: "course-bad",
+              Fullname: "Broken course",
+            },
+            baskets: [{ Length: "70" }],
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         );

@@ -19,6 +19,14 @@ export function readOptionalStringField(
 ): string | undefined {
   const value = readField(record, fieldNames);
 
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (typeof value === "bigint") {
+    return String(value);
+  }
+
   if (typeof value !== "string") {
     return undefined;
   }

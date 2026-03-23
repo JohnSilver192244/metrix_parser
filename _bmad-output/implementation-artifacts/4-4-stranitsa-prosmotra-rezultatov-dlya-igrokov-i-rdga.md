@@ -1,6 +1,6 @@
 # Story 4.4: Страница просмотра результатов для игроков и РДГА
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -17,11 +17,11 @@ so that я могу быстро найти и понять результаты
 
 ## Tasks / Subtasks
 
-- [ ] Реализовать API read endpoint/module для `competition_results`, возвращающий UI-friendly `camelCase` payload с полями результата. (AC: 1, 2, 3)
-- [ ] Добавить frontend feature/page для отображения results list с явным показом `dnf` state. (AC: 1, 2, 4)
-- [ ] Определить MVP presentation для результатов так, чтобы игрок и сотрудник РДГА могли быстро понять outcome без сложной аналитики. (AC: 2, 4)
-- [ ] Реализовать loading/error/empty states и аккуратное отображение `DNF` как отдельного состояния, а не как сломанного значения. (AC: 1, 2, 4)
-- [ ] Добавить smoke-tests/checks для result read contract и рендеринга results page. (AC: 1, 2, 3, 4)
+- [x] Реализовать API read endpoint/module для `competition_results`, возвращающий UI-friendly `camelCase` payload с полями результата. (AC: 1, 2, 3)
+- [x] Добавить frontend feature/page для отображения results list с явным показом `dnf` state. (AC: 1, 2, 4)
+- [x] Определить MVP presentation для результатов так, чтобы игрок и сотрудник РДГА могли быстро понять outcome без сложной аналитики. (AC: 2, 4)
+- [x] Реализовать loading/error/empty states и аккуратное отображение `DNF` как отдельного состояния, а не как сломанного значения. (AC: 1, 2, 4)
+- [x] Добавить smoke-tests/checks для result read contract и рендеринга results page. (AC: 1, 2, 3, 4)
 
 ## Dev Notes
 
@@ -81,3 +81,48 @@ so that я могу быстро найти и понять результаты
 ## Change Log
 
 - 2026-03-21: Created implementation-ready story file for Story 4.4 and advanced sprint status from `backlog` to `ready-for-dev`.
+- 2026-03-22: Added the competition results read-side API contract, frontend results page with explicit DNF state, and smoke coverage for API and rendering.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+GPT-5 Codex
+
+### Implementation Plan
+
+- Add a backend `results` read endpoint that returns persisted `competition_results` through the standard `{ data, meta }` envelope and maps DB fields into UI-friendly `camelCase`.
+- Extend shared API types with a typed results list contract reused by backend and frontend.
+- Build a dedicated frontend results page that foregrounds the key outcome fields and treats `DNF` as a distinct result state rather than a broken numeric value.
+- Add smoke-tests for the API contract and results page rendering, then run targeted tests and full workspace checks.
+
+### Debug Log References
+
+- Implemented `apps/api/src/modules/results/index.ts` with a read-side `/results` route, Supabase-backed list query, explicit DB-to-domain mapping, and `meta.count`.
+- Updated `apps/api/src/modules/index.ts` and `apps/api/src/app.test.ts` so the new results route is registered and validated by the API contract test suite.
+- Extended `packages/shared-types/src/api/index.ts` with shared results list response/meta types.
+- Added `apps/web/src/shared/api/results.ts` and `apps/web/src/shared/api/results.test.ts` for typed frontend API access and envelope smoke coverage.
+- Added `apps/web/src/features/results/results-page.tsx` and `apps/web/src/features/results/results-page.test.tsx` for the results page, including explicit DNF presentation and loading/error/empty/data states.
+- Updated `apps/web/src/app/router.tsx` and `apps/web/src/styles/global.css` to expose and style the new `/results` page and result cards.
+- Validation completed with `./node_modules/.bin/tsx --test apps/api/src/app.test.ts`, `./node_modules/.bin/tsx --test apps/web/src/shared/api/results.test.ts apps/web/src/features/results/results-page.test.tsx`, `npm run check --workspace @metrix-parser/shared-types`, `npm run check --workspace @metrix-parser/api`, `npm run check --workspace @metrix-parser/web`, and `npm run check`.
+
+### Completion Notes List
+
+- Added the read-side results API so the frontend now reads persisted `competition_results` through backend only.
+- Kept the page focused on quick outcome understanding by showing `className`, `sum`, `diff`, `orderNumber`, and explicit result status without turning the page into a raw debug dump.
+- Rendered `DNF` as its own badge/state and replaced numeric score fields with `DNF` state messaging where appropriate, preserving the semantics from Epic 3.
+- Added loading, error, empty, and populated states for the results page.
+- Added smoke coverage for both the `/results` envelope contract and the UI rendering of regular and DNF results.
+
+### File List
+
+- packages/shared-types/src/api/index.ts
+- apps/api/src/modules/results/index.ts
+- apps/api/src/modules/index.ts
+- apps/api/src/app.test.ts
+- apps/web/src/shared/api/results.ts
+- apps/web/src/shared/api/results.test.ts
+- apps/web/src/features/results/results-page.tsx
+- apps/web/src/features/results/results-page.test.tsx
+- apps/web/src/app/router.tsx
+- apps/web/src/styles/global.css

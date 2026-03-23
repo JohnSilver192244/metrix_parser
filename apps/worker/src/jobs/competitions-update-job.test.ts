@@ -45,7 +45,7 @@ test("runCompetitionsUpdateJob reports fetched competitions in the shared update
     },
     {
       baseUrl: "https://discgolfmetrix.com",
-      countryCode: "EE",
+      countryCode: "RU",
       apiCode: "secret-code",
       repository,
       fetchImpl: async () =>
@@ -53,16 +53,16 @@ test("runCompetitionsUpdateJob reports fetched competitions in the shared update
           JSON.stringify({
             competitions: [
               {
-                competitionId: "101",
-                competitionName: "Moscow Open",
-                competitionDate: "2026-01-15",
-                countryCode: "RU",
+                ID: "101",
+                Name: "Moscow Open",
+                Date: "2026-01-15",
+                CountryCode: "RU",
               },
               {
-                competitionId: "102",
-                competitionName: "Winter Cup",
-                competitionDate: "2026-01-20",
-                countryCode: "EE",
+                ID: "102",
+                Name: "Winter Cup",
+                Date: "2026-01-20",
+                CountryCode: "RU",
               },
             ],
           }),
@@ -74,14 +74,14 @@ test("runCompetitionsUpdateJob reports fetched competitions in the shared update
   assert.equal(result.finalStatus, "completed");
   assert.deepEqual(result.summary, {
     found: 2,
-    created: 1,
+    created: 2,
     updated: 0,
     skipped: 0,
     errors: 0,
   });
   assert.equal(result.issues.length, 0);
   assert.equal(result.fetchedPayload?.records.length, 2);
-  assert.equal(result.mappedCompetitionsCount, 1);
+  assert.equal(result.mappedCompetitionsCount, 2);
 });
 
 test("runCompetitionsUpdateJob keeps valid Russian competitions and reports invalid Russian records as skipped", async () => {
@@ -101,21 +101,21 @@ test("runCompetitionsUpdateJob keeps valid Russian competitions and reports inva
           JSON.stringify({
             competitions: [
               {
-                competitionId: "101",
-                competitionName: "Moscow Open",
-                competitionDate: "2026-01-15",
-                countryCode: "RU",
+                ID: "101",
+                Name: "Moscow Open",
+                Date: "2026-01-15",
+                CountryCode: "RU",
               },
               {
-                competitionId: "bad-1",
-                competitionName: "Broken Cup",
-                countryCode: "RU",
+                ID: "bad-1",
+                Name: "Broken Cup",
+                CountryCode: "RU",
               },
               {
-                competitionId: "201",
-                competitionName: "Tallinn Open",
-                competitionDate: "2026-01-22",
-                countryCode: "EE",
+                ID: "201",
+                Name: "Tallinn Open",
+                Date: "2026-01-22",
+                CountryCode: "EE",
               },
             ],
           }),
@@ -155,10 +155,10 @@ test("runCompetitionsUpdateJob reports repeat runs as updates instead of duplica
           JSON.stringify({
             competitions: [
               {
-                competitionId: "101",
-                competitionName: "Moscow Open",
-                competitionDate: "2026-01-15",
-                countryCode: "RU",
+                ID: "101",
+                Name: "Moscow Open",
+                Date: "2026-01-15",
+                CountryCode: "RU",
               },
             ],
           }),
@@ -182,10 +182,10 @@ test("runCompetitionsUpdateJob reports repeat runs as updates instead of duplica
           JSON.stringify({
             competitions: [
               {
-                competitionId: "101",
-                competitionName: "Moscow Open Updated",
-                competitionDate: "2026-01-15",
-                countryCode: "RU",
+                ID: "101",
+                Name: "Moscow Open Updated",
+                Date: "2026-01-15",
+                CountryCode: "RU",
               },
             ],
           }),

@@ -14,6 +14,7 @@ import {
 
 import { executeCompetitionsUpdate as executeWorkerCompetitionsUpdate } from "../../../../worker/src/orchestration/competitions-update";
 import { executeCoursesUpdate as executeWorkerCoursesUpdate } from "../../../../worker/src/orchestration/courses-update";
+import { executePlayersUpdate as executeWorkerPlayersUpdate } from "../../../../worker/src/orchestration/players-update";
 import { executeResultsUpdate as executeWorkerResultsUpdate } from "../../../../worker/src/orchestration/results-update";
 
 interface DemoRecord {
@@ -93,6 +94,9 @@ export interface UpdatesExecutionDependencies {
     period: UpdatePeriod,
   ) => Promise<TriggerUpdateResponse>;
   executeCoursesUpdate?: () => Promise<TriggerUpdateResponse>;
+  executePlayersUpdate?: (
+    period: UpdatePeriod,
+  ) => Promise<TriggerUpdateResponse>;
   executeResultsUpdate?: (
     period: UpdatePeriod,
   ) => Promise<TriggerUpdateResponse>;
@@ -106,6 +110,12 @@ async function executeRuntimeCompetitionsUpdate(
 
 async function executeRuntimeCoursesUpdate(): Promise<TriggerUpdateResponse> {
   return executeWorkerCoursesUpdate(loadCompetitionsExecutionEnv());
+}
+
+async function executeRuntimePlayersUpdate(
+  period: UpdatePeriod,
+): Promise<TriggerUpdateResponse> {
+  return executeWorkerPlayersUpdate(period, loadCompetitionsExecutionEnv());
 }
 
 async function executeRuntimeResultsUpdate(
@@ -171,6 +181,13 @@ export async function executeUpdateOperation(
       dependencies.executeCoursesUpdate ?? executeRuntimeCoursesUpdate;
 
     return executeCoursesUpdate();
+  }
+
+  if (operation === "players") {
+    const executePlayersUpdate =
+      dependencies.executePlayersUpdate ?? executeRuntimePlayersUpdate;
+
+    return executePlayersUpdate(period as UpdatePeriod);
   }
 
   if (operation === "results") {

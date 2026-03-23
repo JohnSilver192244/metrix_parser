@@ -11,20 +11,6 @@ import {
   readOptionalStringField,
 } from "../parsing/competition-record";
 
-const RUSSIAN_COUNTRY_CODES = new Set(["RU", "RUS"]);
-const RUSSIAN_COUNTRY_NAMES = new Set([
-  "russia",
-  "russian federation",
-  "rossiya",
-  "rossiyskaya federatsiya",
-  "россия",
-  "российская федерация",
-]);
-
-function normalizeCountryToken(value: string): string {
-  return value.trim().toLowerCase();
-}
-
 function buildRecordKey(
   record: DiscGolfMetrixRawCompetitionRecord,
   index: number,
@@ -33,36 +19,12 @@ function buildRecordKey(
     "competitionId",
     "competition_id",
     "id",
+    "ID",
     "metrixId",
     "metrix_id",
   ]);
 
   return candidateId ? `competition:${candidateId}` : `competition:index-${index}`;
-}
-
-export function isDiscGolfMetrixCompetitionInRussia(
-  record: DiscGolfMetrixRawCompetitionRecord,
-): boolean {
-  const countryCode = readOptionalStringField(record, [
-    "countryCode",
-    "country_code",
-  ]);
-
-  if (countryCode) {
-    return RUSSIAN_COUNTRY_CODES.has(countryCode.toUpperCase());
-  }
-
-  const countryName = readOptionalStringField(record, [
-    "country",
-    "countryName",
-    "country_name",
-  ]);
-
-  if (!countryName) {
-    return false;
-  }
-
-  return RUSSIAN_COUNTRY_NAMES.has(normalizeCountryToken(countryName));
 }
 
 function toInvalidCompetitionIssue(
@@ -85,6 +47,48 @@ export interface CompetitionMappingResult {
   issues: UpdateProcessingIssue[];
 }
 
+const RUSSIAN_COUNTRY_CODES = new Set(["RU", "RUS"]);
+const RUSSIAN_COUNTRY_NAMES = new Set([
+  "russia",
+  "russian federation",
+  "rossiya",
+  "rossiyskaya federatsiya",
+  "россия",
+  "российская федерация",
+]);
+
+function normalizeCountryValue(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function isRussianCompetitionRecord(
+  record: DiscGolfMetrixRawCompetitionRecord,
+): boolean {
+  const explicitCountryCode = readOptionalStringField(record, [
+    "CountryCode",
+    "countryCode",
+    "country_code",
+  ]);
+
+  if (explicitCountryCode) {
+    return RUSSIAN_COUNTRY_CODES.has(explicitCountryCode.trim().toUpperCase());
+  }
+
+  const explicitCountryName = readOptionalStringField(record, [
+    "Country",
+    "country",
+    "countryName",
+    "country_name",
+    "CountryName",
+  ]);
+
+  if (explicitCountryName) {
+    return RUSSIAN_COUNTRY_NAMES.has(normalizeCountryValue(explicitCountryName));
+  }
+
+  return false;
+}
+
 export function mapDiscGolfMetrixCompetitionRecord(
   record: DiscGolfMetrixRawCompetitionRecord,
   index = 0,
@@ -96,6 +100,7 @@ export function mapDiscGolfMetrixCompetitionRecord(
     "competitionId",
     "competition_id",
     "id",
+    "ID",
   ]);
 
   if (!competitionId) {
@@ -106,6 +111,7 @@ export function mapDiscGolfMetrixCompetitionRecord(
     "competitionName",
     "competition_name",
     "name",
+    "Name",
   ]);
 
   if (!competitionName) {
@@ -116,8 +122,10 @@ export function mapDiscGolfMetrixCompetitionRecord(
     "competitionDate",
     "competition_date",
     "date",
+    "Date",
     "startDate",
     "start_date",
+    "TourDateStart",
   ]);
 
   if (!competitionDate) {
@@ -131,9 +139,19 @@ export function mapDiscGolfMetrixCompetitionRecord(
       competitionName,
       competitionDate,
       courseName:
-        readOptionalStringField(record, ["courseName", "course_name", "course"]) ?? null,
+        readOptionalStringField(record, [
+          "courseName",
+          "course_name",
+          "course",
+          "Coursename",
+        ]) ?? null,
       recordType:
-        readOptionalStringField(record, ["recordType", "record_type", "type"]) ?? null,
+        readOptionalStringField(record, [
+          "recordType",
+          "record_type",
+          "type",
+          "RecordType",
+        ]) ?? null,
       playersCount:
         readOptionalNumberField(record, [
           "playersCount",
@@ -141,10 +159,9 @@ export function mapDiscGolfMetrixCompetitionRecord(
           "playerCount",
           "player_count",
           "players",
+          "PlayersCount",
         ]) ?? null,
-      metrixId:
-        readOptionalStringField(record, ["metrixId", "metrix_id", "eventId", "event_id"]) ??
-        null,
+      metrixId: readOptionalStringField(record, ["metrixId", "metrix_id"]) ?? null,
     },
   };
 }
@@ -158,7 +175,7 @@ export function mapDiscGolfMetrixCompetitions(
   let skippedCount = 0;
 
   records.forEach((record, index) => {
-    if (!isDiscGolfMetrixCompetitionInRussia(record)) {
+    if (!isRussianCompetitionRecord(record)) {
       filteredOutCount += 1;
       return;
     }

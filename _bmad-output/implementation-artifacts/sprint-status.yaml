@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-20 21:32:49
-last_updated: 2026-03-22 21:23:51
+last_updated: 2026-03-22 22:45:00
 project: metrixParser
 project_key: NOKEY
 tracking_system: file-system
@@ -61,16 +61,16 @@ development_status:
 
   epic-3: in-progress
   3-1-poluchenie-rezultatov-sorevnovaniy-po-sohranennym-sorevnovaniyam: review
-  3-2-razbor-i-vydelenie-igrokov-iz-rezultatov-sorevnovaniy: ready-for-dev
-  3-3-sohranenie-i-obnovlenie-igrokov-bez-dubley: ready-for-dev
-  3-4-sohranenie-rezultatov-sorevnovaniy-s-obrabotkoy-dnf: ready-for-dev
-  3-5-chastichno-ustoychivoe-obnovlenie-rezultatov-i-itogovaya-diagnostika: ready-for-dev
+  3-2-razbor-i-vydelenie-igrokov-iz-rezultatov-sorevnovaniy: review
+  3-3-sohranenie-i-obnovlenie-igrokov-bez-dubley: review
+  3-4-sohranenie-rezultatov-sorevnovaniy-s-obrabotkoy-dnf: review
+  3-5-chastichno-ustoychivoe-obnovlenie-rezultatov-i-itogovaya-diagnostika: done
   epic-3-retrospective: optional
 
   epic-4: in-progress
-  4-1-stranitsa-prosmotra-sorevnovaniy: ready-for-dev
-  4-2-stranitsa-prosmotra-parkov: ready-for-dev
-  4-3-stranitsa-prosmotra-igrokov: ready-for-dev
-  4-4-stranitsa-prosmotra-rezultatov-dlya-igrokov-i-rdga: ready-for-dev
-  4-5-bazovaya-navigatsiya-mezhdu-stranitsami-prosmotra-i-administrativnym-razdelom: ready-for-dev
+  4-1-stranitsa-prosmotra-sorevnovaniy: review
+  4-2-stranitsa-prosmotra-parkov: review
+  4-3-stranitsa-prosmotra-igrokov: review
+  4-4-stranitsa-prosmotra-rezultatov-dlya-igrokov-i-rdga: review
+  4-5-bazovaya-navigatsiya-mezhdu-stranitsami-prosmotra-i-administrativnym-razdelom: review
   epic-4-retrospective: optional

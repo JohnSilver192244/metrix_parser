@@ -1,6 +1,6 @@
 # Story 3.3: Сохранение и обновление игроков без дублей
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -17,11 +17,11 @@ so that база игроков оставалась согласованной 
 
 ## Tasks / Subtasks
 
-- [ ] Реализовать persistence layer для `players`, который принимает уже валидные mapped player records из story `3.2`. (AC: 1, 2, 3)
-- [ ] Зафиксировать upsert strategy по `player_id`, чтобы повторные запуски обновляли существующего игрока без создания дублей. (AC: 2, 3)
-- [ ] На уровне persistence outcome различать create/update/skip и включать их в единый update summary contract. (AC: 1, 4)
-- [ ] Обработать конфликтные или неполные player records как skipped/problematic без падения всего job. (AC: 3, 4)
-- [ ] Добавить тесты/fixtures для сценариев: новый игрок, повторный игрок, обновление имени игрока, битая player запись. (AC: 1, 2, 3, 4)
+- [x] Реализовать persistence layer для `players`, который принимает уже валидные mapped player records из story `3.2`. (AC: 1, 2, 3)
+- [x] Зафиксировать upsert strategy по `player_id`, чтобы повторные запуски обновляли существующего игрока без создания дублей. (AC: 2, 3)
+- [x] На уровне persistence outcome различать create/update/skip и включать их в единый update summary contract. (AC: 1, 4)
+- [x] Обработать конфликтные или неполные player records как skipped/problematic без падения всего job. (AC: 3, 4)
+- [x] Добавить тесты/fixtures для сценариев: новый игрок, повторный игрок, обновление имени игрока, битая player запись. (AC: 1, 2, 3, 4)
 
 ## Dev Notes
 
@@ -81,3 +81,46 @@ so that база игроков оставалась согласованной 
 ## Change Log
 
 - 2026-03-21: Created implementation-ready story file for Story 3.3 and advanced sprint status from `backlog` to `ready-for-dev`.
+- 2026-03-22: Added worker-side player persistence, `player_id` upsert flow, Supabase adapter, and end-to-end update summary coverage for create/update/skip outcomes.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+GPT-5 Codex
+
+### Implementation Plan
+
+- Add a worker persistence repository for `players` that accepts validated `Player` entities from story `3.2` and writes explicit `snake_case` DB records.
+- Implement a Supabase adapter and `player_id` lookup/update flow that prevents duplicates on repeat runs.
+- Extend the `players` update job to persist mapped players, merge persistence outcomes into the shared update summary, and preserve partial-failure behavior.
+- Add repository and job tests for create, repeat-run update, changed player name, and invalid player record scenarios.
+- Keep the existing result boundary compatible with documented DiscGolfMetrix `Competition.Results` payloads used by the player pipeline.
+
+### Debug Log References
+
+- Added `apps/worker/src/persistence/players-repository.ts` and `apps/worker/src/persistence/supabase-players-adapter.ts` to persist `players` with `player_id`-based upsert behavior.
+- Extended `apps/worker/src/jobs/players-update-job.ts` so the runtime now persists mapped players and reports create/update/skip outcomes through the shared update summary contract.
+- Added `apps/worker/src/persistence/players-repository.test.ts` and extended `apps/worker/src/jobs/players-update-job.test.ts` with create, repeat-run, update-name, and problematic-record coverage.
+- Updated `apps/worker/src/parsing/result-player.ts`, `apps/worker/src/mapping/players.test.ts`, and `apps/worker/src/integration/discgolfmetrix/client.test.ts` so the player flow accepts documented DiscGolfMetrix `Competition.Results` payloads and `UserID`/`Name` fields.
+- Validation completed with `./node_modules/.bin/tsx --test apps/worker/src/persistence/players-repository.test.ts apps/worker/src/jobs/players-update-job.test.ts apps/worker/src/mapping/players.test.ts apps/worker/src/integration/discgolfmetrix/client.test.ts`, `npm run check --workspace @metrix-parser/worker`, `npm run check --workspace @metrix-parser/api`, `npm run check --workspace @metrix-parser/shared-types`, `npm test --workspace @metrix-parser/worker`, and `npm test --workspace @metrix-parser/api`.
+
+### Completion Notes List
+
+- Added a dedicated `players` persistence layer in the worker that accepts already validated mapped player entities instead of re-parsing raw result payloads.
+- Implemented deterministic upsert by `player_id`, so new players are inserted and repeat runs update the existing row without creating duplicates.
+- The `players` job now merges persistence outcomes into the shared update summary and distinguishes create/update/skip paths while preserving partially tolerant execution semantics.
+- Invalid player records with missing `player_id` or `player_name` are treated as recoverable skipped items and do not stop the rest of the batch.
+- Covered the story with repository and job tests for new player creation, repeat-run update, renamed player update, invalid player skipping, and full runtime summary behavior.
+
+### File List
+
+- apps/worker/src/persistence/players-repository.ts
+- apps/worker/src/persistence/players-repository.test.ts
+- apps/worker/src/persistence/supabase-players-adapter.ts
+- apps/worker/src/jobs/players-update-job.ts
+- apps/worker/src/jobs/players-update-job.test.ts
+- apps/worker/src/parsing/result-player.ts
+- apps/worker/src/mapping/players.test.ts
+- apps/worker/src/integration/discgolfmetrix/client.test.ts
+- apps/worker/package.json

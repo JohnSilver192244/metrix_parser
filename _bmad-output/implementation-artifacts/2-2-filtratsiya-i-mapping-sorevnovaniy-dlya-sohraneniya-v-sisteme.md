@@ -75,6 +75,7 @@ so that в БД сохранялись только релевантные за�
 - 2026-03-20: Created implementation-ready story file for Story 2.2 and advanced sprint status from `backlog` to `ready-for-dev`.
 - 2026-03-21: Added worker-side competition parsing and mapping, Russian-only filtering, explicit domain-to-DB shape conversion, and fixture-based tests for mapping and skipped records.
 - 2026-03-21: Code review fixed date validation in the parsing boundary so impossible calendar dates are skipped instead of being normalized into persisted records.
+- 2026-03-22: Restored the explicit Russia-only competition filter in the worker mapper and aligned competition fixtures/job tests with real DiscGolfMetrix field names.
 
 ## Dev Agent Record
 
@@ -95,7 +96,8 @@ GPT-5 Codex
 - Added `apps/worker/src/mapping/competitions.ts` with deterministic Russian filtering and recoverable validation issues for broken records.
 - Extended the worker job result to expose `mappedCompetitions` and return a mapping-stage final status based on successfully prepared records.
 - Added Node 16-compatible mock response helpers so the worker tests can run in the current local environment.
-- Validation completed with `./node_modules/.bin/tsx --test apps/worker/src/orchestration/update-execution.test.ts apps/worker/src/integration/discgolfmetrix/client.test.ts apps/worker/src/mapping/competitions.test.ts apps/worker/src/jobs/competitions-update-job.test.ts`, `npm run check --workspace @metrix-parser/worker`, and `npm run check --workspace @metrix-parser/shared-types`.
+- 2026-03-22 regression fix: restored the dedicated Russia-filter helper in `apps/worker/src/mapping/competitions.ts`, updated competition fixtures to documented raw field names (`ID`, `Name`, `Date`, `CountryCode`/`Country`), and adjusted job-level expectations for filtered non-Russian records.
+- Validation completed with `./node_modules/.bin/tsx --test apps/worker/src/mapping/competitions.test.ts apps/worker/src/jobs/competitions-update-job.test.ts`, `npm test --workspace @metrix-parser/worker`, `npm run check --workspace @metrix-parser/worker`, and `npm run check --workspace @metrix-parser/shared-types`.
 
 ### Completion Notes List
 
@@ -104,6 +106,8 @@ GPT-5 Codex
 - Added shared domain types for `Competition` and an explicit `toCompetitionDbRecord` mapper to keep `camelCase` and `snake_case` boundaries separate.
 - Ensured invalid Russian records are skipped with recoverable validation issues while valid records continue through the batch.
 - Added fixture-based tests for Russian vs non-Russian filtering, required field mapping, DB-shape conversion, and skipped broken records.
+- Fixed a regression where non-Russian competitions could pass through mapping because the dedicated country filter was no longer applied before validation/persistence.
+- Tightened worker tests so the competition pipeline now proves three cases explicitly: Russian records are mapped, non-Russian records are filtered out, and malformed Russian records are skipped with issues.
 
 ### File List
 

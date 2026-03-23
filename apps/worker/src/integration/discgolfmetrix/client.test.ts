@@ -36,7 +36,7 @@ test("buildCourseRequestUrl maps course id to DiscGolfMetrix request params", ()
 
   assert.equal(
     url,
-    "https://discgolfmetrix.com/api.php?content=course&course_id=course-101&code=secret-code",
+    "https://discgolfmetrix.com/api.php?content=course&id=course-101&code=secret-code",
   );
 });
 
@@ -48,7 +48,7 @@ test("buildResultsRequestUrl maps competition identifiers to DiscGolfMetrix requ
 
   assert.equal(
     url,
-    "https://discgolfmetrix.com/api.php?content=results&competition_id=competition-101&metrix_id=metrix-101&code=secret-code",
+    "https://discgolfmetrix.com/api.php?content=result&id=competition-101&code=secret-code",
   );
 });
 
@@ -61,8 +61,8 @@ test("client returns raw competition records in a parsing-ready envelope", async
       createMockResponse(
         JSON.stringify({
           competitions: [
-            { competitionId: 101, name: "Moscow Open" },
-            { competitionId: 102, name: "Saint Petersburg Cup" },
+            { ID: 101, Name: "Moscow Open" },
+            { ID: 102, Name: "Saint Petersburg Cup" },
           ],
           page: 1,
         }),
@@ -84,7 +84,7 @@ test("client returns raw competition records in a parsing-ready envelope", async
 
   assert.equal(result.records.length, 2);
   assert.equal(result.rawPayload.page, 1);
-  assert.equal(result.records[0]?.competitionId, 101);
+  assert.equal(result.records[0]?.ID, 101);
   assert.ok(result.sourceUrl.includes("date1=2026-01-01"));
   assert.ok(result.sourceUrl.includes("country_code=EE"));
 });
@@ -120,10 +120,10 @@ test("client returns raw course records in a parsing-ready envelope", async () =
       createMockResponse(
         JSON.stringify({
           course: {
-            id: "course-101",
-            name: "Tiraz Park",
-            holes: [{ par: 3 }, { par: 4 }],
+            ID: "course-101",
+            Name: "Tiraz Park",
           },
+          baskets: [{ Par: "3" }, { Par: "4" }],
         }),
         {
           status: 200,
@@ -138,9 +138,10 @@ test("client returns raw course records in a parsing-ready envelope", async () =
     courseId: "course-101",
   });
 
+  const nestedCourse = result.record.course as { ID?: string } | undefined;
   assert.equal(result.courseId, "course-101");
-  assert.equal(result.record.id, "course-101");
-  assert.ok(result.sourceUrl.includes("course_id=course-101"));
+  assert.equal(nestedCourse?.ID, "course-101");
+  assert.ok(result.sourceUrl.includes("id=course-101"));
 });
 
 test("client returns raw results payloads in a parsing-ready envelope", async () => {
@@ -151,10 +152,12 @@ test("client returns raw results payloads in a parsing-ready envelope", async ()
     fetchImpl: async () =>
       createMockResponse(
         JSON.stringify({
-          results: [
-            { playerId: "player-1", playerName: "Ivan" },
-            { playerId: "player-2", playerName: "Petr" },
-          ],
+          Competition: {
+            Results: [
+              { UserID: "player-1", Name: "Ivan" },
+              { UserID: "player-2", Name: "Petr" },
+            ],
+          },
         }),
         {
           status: 200,
@@ -172,8 +175,17 @@ test("client returns raw results payloads in a parsing-ready envelope", async ()
 
   assert.equal(result.competitionId, "competition-101");
   assert.equal(result.metrixId, "metrix-101");
-  assert.equal(result.rawPayload.results?.length, 2);
-  assert.ok(result.sourceUrl.includes("competition_id=competition-101"));
+  const competitionSection = result.rawPayload.Competition as
+    | { Results?: unknown[] }
+    | undefined;
+  assert.equal(
+    Array.isArray(competitionSection?.Results)
+      ? competitionSection.Results.length
+      : 0,
+    2,
+  );
+  assert.ok(result.sourceUrl.includes("content=result"));
+  assert.ok(result.sourceUrl.includes("id=competition-101"));
 });
 
 test("client rejects results payloads without a recognizable results collection", async () => {

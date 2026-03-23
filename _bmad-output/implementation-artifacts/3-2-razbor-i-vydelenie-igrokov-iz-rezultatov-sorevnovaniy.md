@@ -1,6 +1,6 @@
 # Story 3.2: Разбор и выделение игроков из результатов соревнований
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -16,11 +16,11 @@ so that данные игроков можно было хранить и пер
 
 ## Tasks / Subtasks
 
-- [ ] Реализовать parser/mapping слой, который преобразует raw result payloads из `3.1` в внутреннюю player-модель, не смешивая её с persistence. (AC: 1, 2)
-- [ ] Зафиксировать validation rules для обязательных player fields, чтобы неполные записи не считались валидными players. (AC: 1, 2)
-- [ ] Обеспечить, чтобы извлечение игроков происходило автоматически в рамках result-processing flow и не зависело от ручной донастройки пользователем. (AC: 3)
-- [ ] Подготовить boundary между player parsing и stories `3.3`/`3.4`, чтобы одни и те же result payloads можно было использовать и для игроков, и для результатов. (AC: 1, 3)
-- [ ] Добавить fixtures/tests для сценариев: несколько игроков в одном соревновании, повторяющийся игрок в разных result payloads, неполный player fragment. (AC: 1, 2, 3)
+- [x] Реализовать parser/mapping слой, который преобразует raw result payloads из `3.1` в внутреннюю player-модель, не смешивая её с persistence. (AC: 1, 2)
+- [x] Зафиксировать validation rules для обязательных player fields, чтобы неполные записи не считались валидными players. (AC: 1, 2)
+- [x] Обеспечить, чтобы извлечение игроков происходило автоматически в рамках result-processing flow и не зависело от ручной донастройки пользователем. (AC: 3)
+- [x] Подготовить boundary между player parsing и stories `3.3`/`3.4`, чтобы одни и те же result payloads можно было использовать и для игроков, и для результатов. (AC: 1, 3)
+- [x] Добавить fixtures/tests для сценариев: несколько игроков в одном соревновании, повторяющийся игрок в разных result payloads, неполный player fragment. (AC: 1, 2, 3)
 
 ## Dev Notes
 
@@ -78,3 +78,49 @@ so that данные игроков можно было хранить и пер
 ## Change Log
 
 - 2026-03-21: Created implementation-ready story file for Story 3.2 and advanced sprint status from `backlog` to `ready-for-dev`.
+- 2026-03-22: Added worker-side player parsing and mapping, automatic `players` runtime flow on top of fetched result payloads, and fixture-based coverage for repeated and incomplete player fragments.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+GPT-5 Codex
+
+### Implementation Plan
+
+- Add a dedicated result-player parsing helper so raw DiscGolfMetrix result entries are normalized separately from persistence.
+- Add worker-side player mapping with required-field validation, duplicate collapse by `playerId`, and recoverable skipped issues for incomplete fragments.
+- Introduce a shared `Player` domain model plus explicit `player_id`/`player_name` DB-shape mapper for the `3.3` persistence boundary.
+- Add a `players` update job/orchestration path that reuses the `3.1` raw results fetch flow and keeps raw payloads available for `3.4`.
+- Cover multi-player, repeated-player, incomplete-fragment, worker job, and API trigger scenarios with tests.
+
+### Debug Log References
+
+- Added `apps/worker/src/parsing/result-player.ts` to extract normalized player fragments from supported DiscGolfMetrix result payload collections.
+- Added `apps/worker/src/mapping/players.ts` and fixtures/tests to validate required player fields, deduplicate by `playerId`, and keep partial-failure semantics.
+- Added `apps/worker/src/jobs/players-update-job.ts` and `apps/worker/src/orchestration/players-update.ts` so the runtime can fetch results and automatically prepare reusable player records without manual identifiers.
+- Extended `apps/api/src/modules/updates/execution.ts` and `apps/api/src/app.test.ts` so `/updates/players` now uses the real worker runtime path instead of the stub fallback.
+- Validation completed with `./node_modules/.bin/tsx --test apps/worker/src/mapping/players.test.ts apps/worker/src/jobs/players-update-job.test.ts apps/api/src/app.test.ts`, `npm run check --workspace @metrix-parser/worker`, `npm run check --workspace @metrix-parser/api`, `npm run check --workspace @metrix-parser/shared-types`, `npm test --workspace @metrix-parser/worker`, and `npm test --workspace @metrix-parser/api`.
+
+### Completion Notes List
+
+- Added a shared `Player` domain model with explicit `player_id`/`player_name` mapping so `3.3` can consume validated player entities without re-parsing raw results.
+- Implemented a dedicated parsing and mapping layer for raw result payloads that extracts valid players, rejects incomplete fragments, and reports recoverable validation issues.
+- Added automatic `players` runtime execution that reuses the existing result-fetch flow from `3.1`, so player extraction no longer depends on manual identifiers or user-side tuning.
+- Kept `fetchedResults` in the `players` job result so the same raw payload boundary remains reusable for both future player persistence and competition result mapping.
+- Added fixtures and tests for multiple players in one competition, repeated players across payloads, incomplete fragments, worker job behavior, and API update triggering.
+
+### File List
+
+- packages/shared-types/src/domain/index.ts
+- packages/shared-types/src/domain/player.ts
+- apps/worker/src/parsing/result-player.ts
+- apps/worker/src/mapping/__fixtures__/players.ts
+- apps/worker/src/mapping/players.ts
+- apps/worker/src/mapping/players.test.ts
+- apps/worker/src/jobs/players-update-job.ts
+- apps/worker/src/jobs/players-update-job.test.ts
+- apps/worker/src/orchestration/players-update.ts
+- apps/worker/package.json
+- apps/api/src/modules/updates/execution.ts
+- apps/api/src/app.test.ts

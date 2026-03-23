@@ -21,3 +21,7 @@ metadata so the repository shape remains compatible with workspace-aware tooling
 1. Install dependencies with your preferred package manager.
 2. Run the web app and verify the workspace resolves all packages.
 3. Continue with Story `1.2` to wire Supabase and migrations.
+
+## Deployment
+
+Deployment instructions for Amvera are available in [docs/amvera-deploy.md](docs/amvera-deploy.md).

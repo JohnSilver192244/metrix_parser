@@ -22,6 +22,17 @@ export interface UpdateSummary {
   errors: number;
 }
 
+export interface UpdateDiagnosticsSection {
+  summary: UpdateSummary;
+  issues: UpdateProcessingIssue[];
+}
+
+export interface UpdateDiagnostics {
+  transport?: UpdateDiagnosticsSection;
+  players?: UpdateDiagnosticsSection;
+  results?: UpdateDiagnosticsSection;
+}
+
 export interface UpdateProcessingIssue {
   code: string;
   message: string;
@@ -52,6 +63,7 @@ export interface UpdateOperationResult {
   finishedAt: string;
   summary?: UpdateSummary;
   issues: UpdateProcessingIssue[];
+  diagnostics?: UpdateDiagnostics;
   period?: UpdatePeriod;
 }
 

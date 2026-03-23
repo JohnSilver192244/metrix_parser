@@ -7,7 +7,7 @@
     "dev": "tsx watch src/main.ts",
     "build": "tsc --noEmit -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx --test ./src/app.test.ts"
+    "test": "tsx --test ./src/app.test.ts"
   },
   "dependencies": {
     "@metrix-parser/shared-types": "0.1.0",

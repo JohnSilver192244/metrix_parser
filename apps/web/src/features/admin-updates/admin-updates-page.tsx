@@ -1,3 +1,5 @@
+import React from "react";
+
 import { UpdateActionCard } from "./update-action-card";
 import { updateScenarios } from "./update-scenarios";
 

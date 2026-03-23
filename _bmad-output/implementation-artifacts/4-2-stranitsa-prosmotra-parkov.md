@@ -1,6 +1,6 @@
 # Story 4.2: Страница просмотра парков
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -16,11 +16,11 @@ so that я могу видеть структурированную информ
 
 ## Tasks / Subtasks
 
-- [ ] Реализовать read-side API endpoint/module для списка `courses`, включая `coursePar` и другие ключевые поля в `camelCase`. (AC: 1, 2, 3)
-- [ ] Добавить frontend feature/page для отображения списка парков и рассчитанного `course_par` через backend API. (AC: 1, 2, 3)
-- [ ] Определить минимальный набор park fields для MVP-таблицы/списка без перегрузки интерфейса второстепенными деталями. (AC: 2)
-- [ ] Реализовать loading/error/empty states и базовую доступность списка парков. (AC: 1, 2, 3)
-- [ ] Добавить smoke-tests/checks для API contract и рендеринга course list page. (AC: 1, 2, 3)
+- [x] Реализовать read-side API endpoint/module для списка `courses`, включая `coursePar` и другие ключевые поля в `camelCase`. (AC: 1, 2, 3)
+- [x] Добавить frontend feature/page для отображения списка парков и рассчитанного `course_par` через backend API. (AC: 1, 2, 3)
+- [x] Определить минимальный набор park fields для MVP-таблицы/списка без перегрузки интерфейса второстепенными деталями. (AC: 2)
+- [x] Реализовать loading/error/empty states и базовую доступность списка парков. (AC: 1, 2, 3)
+- [x] Добавить smoke-tests/checks для API contract и рендеринга course list page. (AC: 1, 2, 3)
 
 ## Dev Notes
 
@@ -76,3 +76,47 @@ so that я могу видеть структурированную информ
 ## Change Log
 
 - 2026-03-21: Created implementation-ready story file for Story 4.2 and advanced sprint status from `backlog` to `ready-for-dev`.
+- 2026-03-22: Added the parks read-side API contract, frontend park list page with persisted `coursePar`, and smoke coverage for API and rendering.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+GPT-5 Codex
+
+### Implementation Plan
+
+- Add a backend `courses` read endpoint that returns persisted park records via the standard `{ data, meta }` envelope and maps DB `snake_case` fields to API `camelCase`.
+- Extend shared API types with a typed courses list contract so API and web use the same response shape.
+- Build a dedicated frontend parks page that fetches through backend API only, highlights persisted `coursePar`, and keeps the MVP field set focused on useful park metadata.
+- Add smoke-tests for the API contract and parks page rendering, then run targeted test commands and workspace checks.
+
+### Debug Log References
+
+- Implemented `apps/api/src/modules/courses/index.ts` with a read-side `/courses` route, Supabase-backed listing, explicit DB-to-domain mapping, and `meta.count`.
+- Updated `apps/api/src/modules/index.ts` and `apps/api/src/app.test.ts` so the new courses read endpoint is registered and covered by the API contract test suite.
+- Extended `packages/shared-types/src/api/index.ts` with shared courses list response/meta types.
+- Added `apps/web/src/shared/api/courses.ts` and `apps/web/src/shared/api/courses.test.ts` for typed API access and envelope smoke coverage.
+- Added `apps/web/src/features/courses/courses-page.tsx` and `apps/web/src/features/courses/courses-page.test.tsx` for the parks page, including persisted `coursePar`, loading/error/empty/data states, and accessible list rendering.
+- Updated `apps/web/src/app/router.tsx` to expose the new `/courses` page in the app navigation.
+- Validation completed with `./node_modules/.bin/tsx --test apps/api/src/app.test.ts`, `./node_modules/.bin/tsx --test apps/web/src/shared/api/courses.test.ts apps/web/src/features/courses/courses-page.test.tsx`, `npm run check --workspace @metrix-parser/shared-types`, `npm run check --workspace @metrix-parser/api`, `npm run check --workspace @metrix-parser/web`, and `npm run check`.
+
+### Completion Notes List
+
+- Added the read-side parks API so the frontend now loads saved course records strictly through backend API, not directly from Supabase.
+- Exposed `coursePar` from persisted data without recalculating it on the client, keeping the page aligned with the sync pipeline from story `2.5`.
+- Chose a compact MVP field set for parks: name, full name, area, type, country code, `coursePar`, and the two persisted rating summaries.
+- Added loading, error, empty, and populated states so the parks page follows the same lifecycle pattern as the competitions page.
+- Added smoke coverage for both the `/courses` envelope contract and the page rendering of saved park data.
+
+### File List
+
+- packages/shared-types/src/api/index.ts
+- apps/api/src/modules/courses/index.ts
+- apps/api/src/modules/index.ts
+- apps/api/src/app.test.ts
+- apps/web/src/shared/api/courses.ts
+- apps/web/src/shared/api/courses.test.ts
+- apps/web/src/features/courses/courses-page.tsx
+- apps/web/src/features/courses/courses-page.test.tsx
+- apps/web/src/app/router.tsx

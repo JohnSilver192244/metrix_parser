@@ -1,36 +1,34 @@
 import type { DiscGolfMetrixRawCompetitionRecord } from "../../integration/discgolfmetrix";
 
 export const russianCompetitionFixture: DiscGolfMetrixRawCompetitionRecord = {
-  competitionId: "101",
-  competitionName: "Moscow Open",
-  competitionDate: "2026-04-12",
-  courseName: "Tiraz Park",
-  recordType: "tournament",
-  playersCount: 72,
-  metrixId: "metrix-101",
-  countryCode: "RU",
+  ID: 101,
+  Name: "Moscow Open",
+  Date: "2026-04-12",
+  Coursename: "Tiraz Park",
+  RecordType: 4,
+  PlayersCount: 72,
+  CountryCode: "RU",
 };
 
 export const russianCompetitionByCountryNameFixture: DiscGolfMetrixRawCompetitionRecord = {
   competition_id: "102",
-  name: "Saint Petersburg Cup",
-  date: "13.04.2026",
-  course_name: "Primorsky Park",
-  record_type: "league",
-  players_count: "54",
-  metrix_id: "metrix-102",
-  country: "Russia",
+  Name: "Saint Petersburg Cup",
+  Date: "13.04.2026",
+  Coursename: "Primorsky Park",
+  RecordType: "2",
+  PlayersCount: "54",
+  Country: "Russia",
 };
 
 export const nonRussianCompetitionFixture: DiscGolfMetrixRawCompetitionRecord = {
-  competitionId: "201",
-  competitionName: "Tallinn Open",
-  competitionDate: "2026-04-12",
-  countryCode: "EE",
+  ID: "201",
+  Name: "Tallinn Open",
+  Date: "2026-04-12",
+  CountryCode: "EE",
 };
 
 export const brokenRussianCompetitionFixture: DiscGolfMetrixRawCompetitionRecord = {
-  competitionId: "301",
-  competitionName: "Broken Russia Event",
-  countryCode: "RU",
+  ID: "301",
+  Name: "Broken Event",
+  CountryCode: "RU",
 };

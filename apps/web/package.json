@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node ./scripts/vite-runner.mjs",
     "build": "node ./scripts/vite-runner.mjs build",
-    "check": "tsc --noEmit -p tsconfig.json"
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test ./src/**/*.test.ts ./src/**/*.test.tsx"
   },
   "dependencies": {
     "@metrix-parser/shared-types": "0.1.0",

@@ -32,7 +32,7 @@ export interface DiscGolfMetrixCourseQueryParams {
 }
 
 export interface DiscGolfMetrixResultsQueryParams {
-  content: "results";
+  content: "result";
   competitionId: string;
   metrixId?: string | null;
   apiCode: string;

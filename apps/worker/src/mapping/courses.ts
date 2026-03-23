@@ -11,6 +11,7 @@ import {
 } from "../parsing/competition-record";
 
 const HOLE_COLLECTION_KEYS = new Set([
+  "baskets",
   "holes",
   "segments",
   "tracks",
@@ -48,7 +49,7 @@ function unwrapCourseRecord(
 
 function buildRecordKey(record: Record<string, unknown>, fallbackId: string): string {
   const courseId =
-    readOptionalStringField(record, ["id", "courseId", "course_id"]) ?? fallbackId;
+    readOptionalStringField(record, ["ID", "id", "courseId", "course_id"]) ?? fallbackId;
 
   return `course:${courseId}`;
 }
@@ -75,7 +76,12 @@ function sumParsFromNode(node: unknown): { sum: number; count: number } {
 
   let sum = 0;
   let count = 0;
-  const directPar = readOptionalNumberField(objectNode, ["par", "holePar", "hole_par"]);
+  const directPar = readOptionalNumberField(objectNode, [
+    "Par",
+    "par",
+    "holePar",
+    "hole_par",
+  ]);
 
   if (directPar !== undefined) {
     sum += directPar;
@@ -83,7 +89,10 @@ function sumParsFromNode(node: unknown): { sum: number; count: number } {
   }
 
   for (const [key, value] of Object.entries(objectNode)) {
-    if (directPar !== undefined && (key === "par" || key === "holePar" || key === "hole_par")) {
+    if (
+      directPar !== undefined &&
+      (key === "Par" || key === "par" || key === "holePar" || key === "hole_par")
+    ) {
       continue;
     }
 
@@ -107,12 +116,13 @@ function sumParsFromNode(node: unknown): { sum: number; count: number } {
 export function calculateCoursePar(
   record: DiscGolfMetrixRawCourseRecord,
 ): number | undefined {
-  const unwrapped = unwrapCourseRecord(record);
-  const nested = sumParsFromNode(unwrapped);
+  const nested = sumParsFromNode(record);
 
   if (nested.count > 0) {
     return nested.sum;
   }
+
+  const unwrapped = unwrapCourseRecord(record);
 
   return readOptionalNumberField(unwrapped, ["coursePar", "course_par", "par"]);
 }
@@ -126,13 +136,19 @@ export function mapDiscGolfMetrixCourseRecord(
   const unwrapped = unwrapCourseRecord(record);
   const recordKey = buildRecordKey(unwrapped, fallbackCourseId);
   const courseId =
-    readOptionalStringField(unwrapped, ["id", "courseId", "course_id"]) ?? fallbackCourseId;
+    readOptionalStringField(unwrapped, ["ID", "id", "courseId", "course_id"]) ??
+    fallbackCourseId;
 
   if (!courseId) {
     return { ok: false, issue: createCourseIssue(recordKey, "courseId") };
   }
 
-  const name = readOptionalStringField(unwrapped, ["name", "courseName", "course_name"]);
+  const name = readOptionalStringField(unwrapped, [
+    "Name",
+    "name",
+    "courseName",
+    "course_name",
+  ]);
 
   if (!name) {
     return { ok: false, issue: createCourseIssue(recordKey, "name") };
@@ -150,19 +166,37 @@ export function mapDiscGolfMetrixCourseRecord(
       courseId,
       name,
       fullname:
-        readOptionalStringField(unwrapped, ["fullname", "fullName", "full_name"]) ?? null,
-      type: readOptionalStringField(unwrapped, ["type", "courseType", "course_type"]) ?? null,
+        readOptionalStringField(unwrapped, [
+          "Fullname",
+          "fullname",
+          "fullName",
+          "full_name",
+        ]) ?? null,
+      type:
+        readOptionalStringField(unwrapped, ["Type", "type", "courseType", "course_type"]) ??
+        null,
       countryCode:
-        readOptionalStringField(unwrapped, ["countryCode", "country_code"]) ?? null,
-      area: readOptionalStringField(unwrapped, ["area", "region"]) ?? null,
+        readOptionalStringField(unwrapped, ["CountryCode", "countryCode", "country_code"]) ??
+        null,
+      area: readOptionalStringField(unwrapped, ["Area", "area", "region"]) ?? null,
       ratingValue1:
-        readOptionalNumberField(unwrapped, ["ratingValue1", "rating_value1"]) ?? null,
+        readOptionalNumberField(unwrapped, ["RatingValue1", "ratingValue1", "rating_value1"]) ??
+        null,
       ratingResult1:
-        readOptionalNumberField(unwrapped, ["ratingResult1", "rating_result1"]) ?? null,
+        readOptionalNumberField(unwrapped, [
+          "RatingResult1",
+          "ratingResult1",
+          "rating_result1",
+        ]) ?? null,
       ratingValue2:
-        readOptionalNumberField(unwrapped, ["ratingValue2", "rating_value2"]) ?? null,
+        readOptionalNumberField(unwrapped, ["RatingValue2", "ratingValue2", "rating_value2"]) ??
+        null,
       ratingResult2:
-        readOptionalNumberField(unwrapped, ["ratingResult2", "rating_result2"]) ?? null,
+        readOptionalNumberField(unwrapped, [
+          "RatingResult2",
+          "ratingResult2",
+          "rating_result2",
+        ]) ?? null,
       coursePar,
     },
   };
