@@ -33,7 +33,7 @@ function toInvalidPlayerIssue(
 ): UpdateProcessingIssue {
   return createUpdateIssue({
     code: "invalid_player_record",
-    message: `Player fragment is missing required field: ${missingField}.`,
+    message: `Во фрагменте игрока отсутствует обязательное поле: ${missingField}.`,
     recoverable: true,
     stage: "validation",
     recordKey,
@@ -48,7 +48,7 @@ function toPlayerNameConflictIssue(
   return createUpdateIssue({
     code: "player_name_conflict",
     message:
-      `Player ${playerId} has conflicting names: "${existingName}" vs "${incomingName}".`,
+      `Для игрока ${playerId} пришли конфликтующие имена: "${existingName}" и "${incomingName}".`,
     recoverable: true,
     stage: "matching",
     recordKey: `player:${playerId}`,

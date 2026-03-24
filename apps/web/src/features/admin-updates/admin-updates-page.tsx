@@ -17,6 +17,7 @@ const updateSkipConditions = [
   "Соревнования не импортируются, если запись не из РФ. Такие записи отфильтровываются и не попадают в импорт.",
   "Соревнования пропускаются, если у записи нет competitionId, competitionName, competitionDate или courseId.",
   "Соревнования пропускаются, если в записи меньше 8 игроков.",
+  "Соревнования не импортируются, если в названии есть «мастер-класс», «master class», «даблс» или «doubles» без учёта регистра.",
   "Парки пропускаются, если у сохранённого соревнования нельзя определить courseId.",
   "Парки пропускаются, если в payload курса нет courseId, name или course_par.",
   "Игроки пропускаются, если во фрагменте результата нет playerId или playerName.",
@@ -39,23 +40,23 @@ function PendingStatus({ scenario, period }: { scenario: UpdateScenarioDefinitio
       </p>
       <dl className="update-card__summary-grid">
         <div>
-          <dt>Found</dt>
+          <dt>Найдено</dt>
           <dd>...</dd>
         </div>
         <div>
-          <dt>Created</dt>
+          <dt>Создано</dt>
           <dd>...</dd>
         </div>
         <div>
-          <dt>Updated</dt>
+          <dt>Обновлено</dt>
           <dd>...</dd>
         </div>
         <div>
-          <dt>Skipped</dt>
+          <dt>Пропущено</dt>
           <dd>...</dd>
         </div>
         <div>
-          <dt>Errors</dt>
+          <dt>Ошибок</dt>
           <dd>...</dd>
         </div>
       </dl>

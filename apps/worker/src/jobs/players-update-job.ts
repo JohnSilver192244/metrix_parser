@@ -34,7 +34,7 @@ function toPlayersUpdateJobResult(
     ...result,
     operation: "players",
     message:
-      "Worker fetched result payloads for saved competitions, persisted players and competition results, and returned separate diagnostics for both entities.",
+      "Получили результаты по сохранённым соревнованиям, сохранили игроков и результаты и вернули раздельную диагностику по обеим сущностям.",
   };
 }
 

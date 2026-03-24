@@ -27,7 +27,8 @@ export interface UpdateExecutionPlan<TPayload> {
 }
 
 function toRecoverableIssue(error: unknown, recordKey: string): UpdateProcessingIssue {
-  const message = error instanceof Error ? error.message : "Unknown update processing error";
+  const message =
+    error instanceof Error ? error.message : "Неизвестная ошибка обработки обновления";
 
   return createUpdateIssue({
     code: "record_processing_failed",

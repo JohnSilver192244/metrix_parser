@@ -32,14 +32,15 @@ export function parseDiscGolfMetrixCompetitionsPayload(
     return payload;
   }
 
-  if (
-    isUppercaseCompetitionsPayload(payload) &&
-    payload.Competitions.every(isCompetitionRecord)
-  ) {
-    return {
-      ...payload,
-      competitions: payload.Competitions,
-    };
+  if (isUppercaseCompetitionsPayload(payload)) {
+    const competitions = payload.Competitions;
+
+    if (competitions?.every(isCompetitionRecord)) {
+      return {
+        ...payload,
+        competitions,
+      };
+    }
   }
 
   throw new DiscGolfMetrixClientError(

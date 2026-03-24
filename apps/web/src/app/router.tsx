@@ -19,6 +19,7 @@ export interface AppRouteDefinition {
   description: string;
   render: (context: AppRouteRenderContext) => ReactNode;
   activePath?: string;
+  requiresAuth?: boolean;
 }
 
 export const appRoutes: AppRouteDefinition[] = [
@@ -29,6 +30,7 @@ export const appRoutes: AppRouteDefinition[] = [
     title: "Административный контур",
     description: "Ручной запуск обновлений и контроль операций синхронизации.",
     render: () => <AdminUpdatesPage />,
+    requiresAuth: true,
   },
   {
     path: "/competitions",

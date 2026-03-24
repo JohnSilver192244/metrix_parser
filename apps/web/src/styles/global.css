@@ -48,6 +48,13 @@ body {
   border-bottom: 1px solid rgba(23, 33, 43, 0.12);
 }
 
+.app-topbar__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px 24px;
+}
+
 .app-topbar__brand {
   display: grid;
   gap: 6px;
@@ -68,6 +75,85 @@ body {
 .app-topbar__title {
   margin: 0;
   font-size: clamp(1.9rem, 2.2vw, 2.6rem);
+}
+
+.topbar-auth {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  max-width: 420px;
+}
+
+.topbar-auth--active,
+.topbar-auth--loading {
+  align-items: center;
+}
+
+.topbar-auth__popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 4;
+  width: min(440px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid rgba(23, 33, 43, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 36px rgba(35, 49, 64, 0.14);
+}
+
+.topbar-auth__form {
+  display: grid;
+  gap: 12px;
+}
+
+.topbar-auth__field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.topbar-auth__input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(23, 33, 43, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  color: inherit;
+  font: inherit;
+}
+
+.topbar-auth__input:focus {
+  outline: 2px solid rgba(29, 91, 136, 0.28);
+  outline-offset: 2px;
+}
+
+.topbar-auth__button {
+  min-height: 42px;
+  border-radius: 14px;
+}
+
+.topbar-auth__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.topbar-auth__status {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-soft);
+}
+
+.topbar-auth__status {
+  text-align: right;
+}
+
+.topbar-auth__status--error {
+  color: #7a2f2d;
 }
 
 .app-topbar__nav {
@@ -891,6 +977,15 @@ body {
   gap: 8px;
 }
 
+.players-table__notice {
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(23, 33, 43, 0.08);
+  background: rgba(29, 91, 136, 0.06);
+  color: var(--accent-strong);
+  font-size: 0.96rem;
+  line-height: 1.5;
+}
+
 .players-table__save-button {
   min-height: 40px;
   padding: 0 14px;
@@ -938,6 +1033,66 @@ body {
   outline-offset: 2px;
 }
 
+.competitions-page__filters {
+  margin-top: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.competitions-page__filter {
+  display: grid;
+  gap: 8px;
+  min-width: 220px;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.competitions-page__filter-control {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(23, 33, 43, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  color: inherit;
+  font: inherit;
+}
+
+.competitions-page__filter-control:focus {
+  outline: 2px solid rgba(29, 91, 136, 0.28);
+  outline-offset: 2px;
+}
+
+.courses-page__filters {
+  margin-top: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.courses-page__filter {
+  display: grid;
+  gap: 8px;
+  min-width: 220px;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.courses-page__filter-control {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(23, 33, 43, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  color: inherit;
+  font: inherit;
+}
+
+.courses-page__filter-control:focus {
+  outline: 2px solid rgba(29, 91, 136, 0.28);
+  outline-offset: 2px;
+}
+
 .page-back-link {
   display: inline-flex;
   align-items: center;
@@ -981,8 +1136,27 @@ body {
     align-items: flex-start;
   }
 
+  .app-topbar__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .app-topbar__nav {
     gap: 10px 16px;
+  }
+
+  .topbar-auth {
+    justify-content: flex-start;
+    max-width: none;
+  }
+
+  .topbar-auth__popover {
+    left: 0;
+    right: auto;
+  }
+
+  .topbar-auth__status {
+    text-align: left;
   }
 
   .data-table {
@@ -1001,6 +1175,19 @@ body {
 
   .app-topbar {
     align-items: stretch;
+  }
+
+  .topbar-auth__field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar-auth__popover {
+    width: min(100vw - 28px, 420px);
+  }
+
+  .topbar-auth__input,
+  .topbar-auth__submit {
+    width: 100%;
   }
 
   .update-card,

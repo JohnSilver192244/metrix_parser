@@ -8,6 +8,11 @@ import { readJsonBody, sendSuccess } from "../../lib/http";
 import { HttpError } from "../../lib/http-errors";
 import type { RouteDefinition } from "../../lib/router";
 import { createApiSupabaseAdminClient } from "../../lib/supabase-admin";
+import {
+  readSessionToken,
+  requireAuthenticatedUser,
+  type AuthGuardDependencies,
+} from "../auth/runtime";
 
 const APP_PUBLIC_SCHEMA = "app_public";
 const PLAYERS_SELECT_COLUMNS = [
@@ -126,7 +131,7 @@ function createSupabasePlayerWriteAdapter(): PlayerWriteAdapter {
 
   return {
     async updatePlayerFields(payload) {
-      let { data, error } = await supabase
+      const response = await supabase
         .schema(APP_PUBLIC_SCHEMA)
         .from("players")
         .update({
@@ -136,6 +141,9 @@ function createSupabasePlayerWriteAdapter(): PlayerWriteAdapter {
         .eq("player_id", payload.playerId)
         .select(PLAYERS_SELECT_COLUMNS)
         .single();
+
+      let data = response.data as unknown as PlayerDbRecord | null;
+      let error = response.error;
 
       if (isMissingRdgaColumnError(error)) {
         const legacyResponse = await supabase
@@ -148,12 +156,14 @@ function createSupabasePlayerWriteAdapter(): PlayerWriteAdapter {
           .select(PLAYERS_SELECT_COLUMNS_LEGACY)
           .single();
 
-        data = legacyResponse.data
+        const legacyData = legacyResponse.data as unknown as PlayerDbRecord | null;
+
+        data = legacyData
           ? {
-              ...legacyResponse.data,
+              ...legacyData,
               rdga: null,
             }
-          : legacyResponse.data;
+          : legacyData;
         error = legacyResponse.error;
       }
 
@@ -161,7 +171,7 @@ function createSupabasePlayerWriteAdapter(): PlayerWriteAdapter {
         throw new Error(`Failed to update player fields: ${error.message}`);
       }
 
-      return data as unknown as PlayerDbRecord;
+      return data as PlayerDbRecord;
     },
   };
 }
@@ -229,6 +239,7 @@ async function updatePlayerFromRuntime(payload: UpdatePlayerRequest): Promise<Pl
 
 export function getPlayersRoutes(
   dependencies: PlayersRouteDependencies = {},
+  authDependencies: AuthGuardDependencies = {},
 ): RouteDefinition[] {
   return [
     {
@@ -246,6 +257,8 @@ export function getPlayersRoutes(
       method: "PUT",
       path: "/players",
       handler: async ({ req, res }) => {
+        await requireAuthenticatedUser(readSessionToken(req), authDependencies);
+
         const body = await readJsonBody<UpdatePlayerRequest>(req);
         const payload = parseUpdatePlayerRequestBody(body);
         const player = await (dependencies.updatePlayer ?? updatePlayerFromRuntime)(

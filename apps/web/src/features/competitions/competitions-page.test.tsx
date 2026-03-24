@@ -53,6 +53,10 @@ test("CompetitionsPageView renders saved competitions with key fields", () => {
   );
 
   assert.match(markup, /<table/);
+  assert.match(markup, /Фильтры соревнований/);
+  assert.match(markup, /Поиск по названию/);
+  assert.match(markup, /Все парки/);
+  assert.match(markup, /type="date"/);
   assert.match(markup, /data-table__link-button/);
   assert.match(markup, /data-table__external-link/);
   assert.match(markup, new RegExp(resolveCompetitionExternalUrl("competition-701")));
@@ -62,7 +66,8 @@ test("CompetitionsPageView renders saved competitions with key fields", () => {
   assert.match(markup, /Yaroslavl → Park/);
   assert.match(markup, /52/);
   assert.match(markup, /Event/);
-  assert.match(markup, /metrix-701/);
+  assert.doesNotMatch(markup, /Metrix ID/);
+  assert.doesNotMatch(markup, /metrix-701/);
 });
 
 test("CompetitionsPageView prompts to update parks when course is missing in parks table", () => {

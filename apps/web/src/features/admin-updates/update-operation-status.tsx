@@ -30,6 +30,28 @@ function getDiagnosticsLabel(sectionKey: "transport" | "players" | "results"): s
   return "Результаты";
 }
 
+function getSummaryLabel(
+  summaryKey: "found" | "created" | "updated" | "skipped" | "errors",
+): string {
+  if (summaryKey === "found") {
+    return "Найдено";
+  }
+
+  if (summaryKey === "created") {
+    return "Создано";
+  }
+
+  if (summaryKey === "updated") {
+    return "Обновлено";
+  }
+
+  if (summaryKey === "skipped") {
+    return "Пропущено";
+  }
+
+  return "Ошибок";
+}
+
 export function UpdateOperationStatus({ result }: UpdateOperationStatusProps) {
   const statusModifier =
     result.finalStatus === "completed"
@@ -60,23 +82,23 @@ export function UpdateOperationStatus({ result }: UpdateOperationStatusProps) {
         <>
           <dl className="update-card__summary-grid">
             <div>
-              <dt>Found</dt>
+              <dt>{getSummaryLabel("found")}</dt>
               <dd>{result.summary.found}</dd>
             </div>
             <div>
-              <dt>Created</dt>
+              <dt>{getSummaryLabel("created")}</dt>
               <dd>{result.summary.created}</dd>
             </div>
             <div>
-              <dt>Updated</dt>
+              <dt>{getSummaryLabel("updated")}</dt>
               <dd>{result.summary.updated}</dd>
             </div>
             <div>
-              <dt>Skipped</dt>
+              <dt>{getSummaryLabel("skipped")}</dt>
               <dd>{result.summary.skipped}</dd>
             </div>
             <div>
-              <dt>Errors</dt>
+              <dt>{getSummaryLabel("errors")}</dt>
               <dd>{result.summary.errors}</dd>
             </div>
           </dl>
@@ -98,23 +120,23 @@ export function UpdateOperationStatus({ result }: UpdateOperationStatusProps) {
                     <h3>{getDiagnosticsLabel(sectionKey)}</h3>
                     <dl className="update-card__summary-grid">
                       <div>
-                        <dt>Found</dt>
+                        <dt>{getSummaryLabel("found")}</dt>
                         <dd>{section.summary.found}</dd>
                       </div>
                       <div>
-                        <dt>Created</dt>
+                        <dt>{getSummaryLabel("created")}</dt>
                         <dd>{section.summary.created}</dd>
                       </div>
                       <div>
-                        <dt>Updated</dt>
+                        <dt>{getSummaryLabel("updated")}</dt>
                         <dd>{section.summary.updated}</dd>
                       </div>
                       <div>
-                        <dt>Skipped</dt>
+                        <dt>{getSummaryLabel("skipped")}</dt>
                         <dd>{section.summary.skipped}</dd>
                       </div>
                       <div>
-                        <dt>Errors</dt>
+                        <dt>{getSummaryLabel("errors")}</dt>
                         <dd>{section.summary.errors}</dd>
                       </div>
                     </dl>

@@ -21,6 +21,12 @@ test("resolveAppRoute returns configured top-level route metadata", () => {
   assert.match(route?.description ?? "", /backend API/);
 });
 
+test("resolveAppRoute does not expose the hidden users page", () => {
+  const route = resolveAppRoute("/users");
+
+  assert.equal(route, null);
+});
+
 test("resolveAppRoute maps competition detail paths to the results detail page", () => {
   const route = resolveAppRoute(buildCompetitionResultsPath("competition-701"));
 

@@ -20,6 +20,10 @@ test("AdminUpdatesPage renders one shared period block and three update actions"
   assert.match(markup, /Причины пропуска записей при обновлении/);
   assert.match(markup, /Что может быть пропущено при обновлении/);
   assert.match(markup, /role="tooltip"/);
+  assert.match(markup, /мастер-класс/);
+  assert.match(markup, /master class/);
+  assert.match(markup, /даблс/);
+  assert.match(markup, /doubles/);
   assert.doesNotMatch(markup, />Игроки</);
   assert.doesNotMatch(markup, />Результаты</);
   assert.doesNotMatch(markup, /type="date"/);

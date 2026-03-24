@@ -74,7 +74,7 @@ export async function runCompetitionsUpdateJob(
       })),
       processItem: (item) => repository.saveCompetition(item.payload),
       message:
-        "Worker fetched competitions from DiscGolfMetrix and persisted valid records.",
+        "Получили соревнования из DiscGolfMetrix и сохранили корректные записи.",
       period,
       requestedAt,
     });
@@ -93,7 +93,7 @@ export async function runCompetitionsUpdateJob(
       finalStatus: resolveUpdateFinalStatus(summary),
       source: "runtime",
       message:
-        "Worker fetched competitions from DiscGolfMetrix and persisted valid records without creating duplicates.",
+        "Получили соревнования из DiscGolfMetrix и сохранили корректные записи без дублей.",
       requestedAt,
       finishedAt: new Date().toISOString(),
       summary,
@@ -111,7 +111,7 @@ export async function runCompetitionsUpdateJob(
       operation: "competitions",
       finalStatus: resolveUpdateFinalStatus(summary),
       source: "runtime",
-      message: "Worker could not fetch competitions from DiscGolfMetrix for the requested period.",
+      message: "Не удалось получить соревнования из DiscGolfMetrix за выбранный период.",
       requestedAt,
       finishedAt: new Date().toISOString(),
       summary,

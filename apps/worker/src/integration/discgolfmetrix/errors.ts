@@ -36,7 +36,8 @@ export function toDiscGolfMetrixIssue(
     });
   }
 
-  const message = error instanceof Error ? error.message : "Unexpected DiscGolfMetrix integration error";
+  const message =
+    error instanceof Error ? error.message : "Непредвиденная ошибка интеграции DiscGolfMetrix";
 
   return createUpdateIssue({
     code: "discgolfmetrix_network_error",

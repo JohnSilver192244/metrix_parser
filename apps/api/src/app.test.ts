@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 
 import { createApiRequestHandler } from "./app";
+import { HttpError } from "./lib/http-errors";
 import { createRouter, type RouteDefinition } from "./lib/router";
 import type { ApiModuleDependencies } from "./modules";
 
@@ -63,6 +64,22 @@ test("GET /health returns the success envelope", async () => {
   assert.equal(payload.data.service, "api");
   assert.equal(payload.data.status, "ok");
   assert.ok(Date.parse(payload.data.timestamp));
+});
+
+test("OPTIONS requests expose CORS headers for authorization", async () => {
+  const response = await invokeRequest("/players", {
+    method: "OPTIONS",
+  });
+
+  assert.equal(response.statusCode, 204);
+  assert.equal(
+    response.headers.get("Access-Control-Allow-Headers"),
+    "Content-Type, Authorization",
+  );
+  assert.equal(
+    response.headers.get("Access-Control-Allow-Methods"),
+    "GET,POST,PUT,OPTIONS",
+  );
 });
 
 test("GET /competitions returns persisted competitions via the API envelope", async () => {
@@ -314,6 +331,111 @@ test("GET /players returns persisted players via the API envelope", async () => 
   });
 });
 
+test("GET /auth/session returns the anonymous session when there is no token", async () => {
+  const response = await invokeRequest("/auth/session");
+  const payload = JSON.parse(response.body) as {
+    data: {
+      authenticated: boolean;
+      user: null;
+    };
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(payload.data, {
+    authenticated: false,
+    user: null,
+  });
+});
+
+test("POST /auth/login returns session token and authenticated user", async () => {
+  let receivedCredentials:
+    | {
+        login: string;
+        password: string;
+      }
+    | undefined;
+
+  const response = await invokeRequest(
+    "/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        login: "admin",
+        password: "secret",
+      }),
+    },
+    {
+      auth: {
+        login: async (credentials) => {
+          receivedCredentials = credentials;
+
+          return {
+            sessionToken: "session-100",
+            session: {
+              authenticated: true,
+              user: {
+                login: "admin",
+                createdAt: "2026-03-24T08:00:00.000Z",
+              },
+            },
+          };
+        },
+      },
+    },
+  );
+  const payload = JSON.parse(response.body) as {
+    data: {
+      sessionToken: string;
+      session: {
+        authenticated: boolean;
+        user: {
+          login: string;
+          createdAt: string;
+        };
+      };
+    };
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(receivedCredentials, {
+    login: "admin",
+    password: "secret",
+  });
+  assert.equal(payload.data.sessionToken, "session-100");
+  assert.equal(payload.data.session.authenticated, true);
+  assert.equal(payload.data.session.user.login, "admin");
+});
+
+test("POST /auth/logout forwards the current token and clears the session", async () => {
+  let receivedToken: string | null | undefined;
+
+  const response = await invokeRequest(
+    "/auth/logout",
+    {
+      method: "POST",
+      headers: {
+        authorization: "Bearer session-100",
+      },
+    },
+    {
+      auth: {
+        logout: async (sessionToken) => {
+          receivedToken = sessionToken;
+        },
+      },
+    },
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(receivedToken, "session-100");
+  assert.deepEqual(JSON.parse(response.body), {
+    data: {
+      authenticated: false,
+      user: null,
+    },
+  });
+});
+
 test("PUT /players updates editable player fields and returns the updated player", async () => {
   let receivedPayload:
     | {
@@ -327,6 +449,9 @@ test("PUT /players updates editable player fields and returns the updated player
     "/players",
     {
       method: "PUT",
+      headers: {
+        authorization: "Bearer session-100",
+      },
       body: JSON.stringify({
         playerId: "player-100",
         division: "MA2",
@@ -344,6 +469,15 @@ test("PUT /players updates editable player fields and returns the updated player
             division: payload.division,
             rdga: payload.rdga,
             competitionsCount: 3,
+          };
+        },
+      },
+      auth: {
+        requireAuthenticatedUser: async (sessionToken) => {
+          assert.equal(sessionToken, "session-100");
+
+          return {
+            login: "admin",
           };
         },
       },
@@ -371,6 +505,35 @@ test("PUT /players updates editable player fields and returns the updated player
     division: "MA2",
     rdga: false,
     competitionsCount: 3,
+  });
+});
+
+test("PUT /players rejects guest edits", async () => {
+  const response = await invokeRequest(
+    "/players",
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        playerId: "player-100",
+        division: "MA2",
+        rdga: false,
+      }),
+    },
+    {
+      auth: {
+        requireAuthenticatedUser: async () => {
+          throw new HttpError(401, "unauthorized", "Authentication required");
+        },
+      },
+    },
+  );
+
+  assert.equal(response.statusCode, 401);
+  assert.deepEqual(JSON.parse(response.body), {
+    error: {
+      code: "unauthorized",
+      message: "Authentication required",
+    },
   });
 });
 
@@ -510,6 +673,7 @@ test("POST /updates/competitions accepts a period-based update command", async (
     {
       method: "POST",
       headers: {
+        authorization: "Bearer session-100",
         "content-type": "application/json",
       },
       body: JSON.stringify({
@@ -523,7 +687,7 @@ test("POST /updates/competitions accepts a period-based update command", async (
           operation: "competitions",
           finalStatus: "completed",
           source: "runtime",
-          message: "Worker fetched and mapped competitions.",
+          message: "Получили и обработали соревнования.",
           requestedAt: "2026-03-21T10:00:00.000Z",
           finishedAt: "2026-03-21T10:00:01.000Z",
           summary: {
@@ -536,6 +700,15 @@ test("POST /updates/competitions accepts a period-based update command", async (
           issues: [],
           period,
         }),
+      },
+      auth: {
+        requireAuthenticatedUser: async (sessionToken) => {
+          assert.equal(sessionToken, "session-100");
+
+          return {
+            login: "admin",
+          };
+        },
       },
     },
   );
@@ -580,6 +753,7 @@ test("POST /updates/courses accepts a period-free update command", async () => {
     {
       method: "POST",
       headers: {
+        authorization: "Bearer session-100",
         "content-type": "application/json",
       },
       body: JSON.stringify({}),
@@ -590,7 +764,7 @@ test("POST /updates/courses accepts a period-free update command", async () => {
           operation: "courses",
           finalStatus: "completed_with_issues",
           source: "runtime",
-          message: "Worker discovered course ids and persisted valid park records.",
+          message: "Определили идентификаторы парков и сохранили корректные записи.",
           requestedAt: "2026-03-21T10:00:00.000Z",
           finishedAt: "2026-03-21T10:00:01.000Z",
           summary: {
@@ -609,6 +783,11 @@ test("POST /updates/courses accepts a period-free update command", async () => {
               recordKey: "course:course-bad",
             },
           ],
+        }),
+      },
+      auth: {
+        requireAuthenticatedUser: async () => ({
+          login: "admin",
         }),
       },
     },
@@ -652,6 +831,7 @@ test("POST /updates/results accepts a period-based update command", async () => 
     {
       method: "POST",
       headers: {
+        authorization: "Bearer session-100",
         "content-type": "application/json",
       },
       body: JSON.stringify({
@@ -665,7 +845,7 @@ test("POST /updates/results accepts a period-based update command", async () => 
           operation: "results",
           finalStatus: "completed_with_issues",
           source: "runtime",
-          message: "Worker resiliently persisted valid players and competition results.",
+          message: "Устойчиво сохранили корректных игроков и результаты соревнований.",
           requestedAt: "2026-03-22T10:00:00.000Z",
           finishedAt: "2026-03-22T10:00:02.000Z",
           summary: {
@@ -742,6 +922,11 @@ test("POST /updates/results accepts a period-based update command", async () => 
           period,
         }),
       },
+      auth: {
+        requireAuthenticatedUser: async () => ({
+          login: "admin",
+        }),
+      },
     },
   );
   const payload = JSON.parse(response.body) as {
@@ -792,6 +977,7 @@ test("POST /updates/players accepts a period-based update command", async () => 
     {
       method: "POST",
       headers: {
+        authorization: "Bearer session-100",
         "content-type": "application/json",
       },
       body: JSON.stringify({
@@ -806,7 +992,7 @@ test("POST /updates/players accepts a period-based update command", async () => 
           finalStatus: "completed_with_issues",
           source: "runtime",
           message:
-            "Worker fetched result payloads, persisted players and competition results, and returned separate diagnostics for both entities.",
+            "Получили результаты, сохранили игроков и результаты соревнований и вернули раздельную диагностику по обеим сущностям.",
           requestedAt: "2026-03-22T10:00:00.000Z",
           finishedAt: "2026-03-22T10:00:02.000Z",
           summary: {
@@ -873,6 +1059,11 @@ test("POST /updates/players accepts a period-based update command", async () => 
           period,
         }),
       },
+      auth: {
+        requireAuthenticatedUser: async () => ({
+          login: "admin",
+        }),
+      },
     },
   );
   const payload = JSON.parse(response.body) as {
@@ -917,16 +1108,70 @@ test("POST /updates/players accepts a period-based update command", async () => 
   });
 });
 
-test("period-based update routes validate missing date fields", async () => {
-  const response = await invokeRequest("/updates/results", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
+test("GET /users requires auth and returns the configured logins list", async () => {
+  const response = await invokeRequest(
+    "/users",
+    {
+      headers: {
+        authorization: "Bearer session-100",
+      },
     },
-    body: JSON.stringify({
-      dateFrom: "2026-01-01",
-    }),
-  });
+    {
+      auth: {
+        requireAuthenticatedUser: async (sessionToken) => {
+          assert.equal(sessionToken, "session-100");
+
+          return {
+            login: "admin",
+          };
+        },
+      },
+      users: {
+        listUsers: async () => [
+          {
+            login: "admin",
+            createdAt: "2026-03-24T08:00:00.000Z",
+          },
+        ],
+      },
+    },
+  );
+  const payload = JSON.parse(response.body) as {
+    data: Array<{
+      login: string;
+      createdAt: string;
+    }>;
+    meta: {
+      count: number;
+    };
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.meta.count, 1);
+  assert.equal(payload.data[0]?.login, "admin");
+});
+
+test("period-based update routes validate missing date fields", async () => {
+  const response = await invokeRequest(
+    "/updates/results",
+    {
+      method: "POST",
+      headers: {
+        authorization: "Bearer session-100",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        dateFrom: "2026-01-01",
+      }),
+    },
+    {
+      auth: {
+        requireAuthenticatedUser: async () => ({
+          login: "admin",
+        }),
+      },
+    },
+  );
 
   assert.equal(response.statusCode, 400);
   assert.deepEqual(JSON.parse(response.body), {
@@ -938,16 +1183,27 @@ test("period-based update routes validate missing date fields", async () => {
 });
 
 test("period-based update routes reject impossible calendar dates", async () => {
-  const response = await invokeRequest("/updates/competitions", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
+  const response = await invokeRequest(
+    "/updates/competitions",
+    {
+      method: "POST",
+      headers: {
+        authorization: "Bearer session-100",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        dateFrom: "2026-02-31",
+        dateTo: "2026-03-02",
+      }),
     },
-    body: JSON.stringify({
-      dateFrom: "2026-02-31",
-      dateTo: "2026-03-02",
-    }),
-  });
+    {
+      auth: {
+        requireAuthenticatedUser: async () => ({
+          login: "admin",
+        }),
+      },
+    },
+  );
 
   assert.equal(response.statusCode, 400);
   assert.deepEqual(JSON.parse(response.body), {

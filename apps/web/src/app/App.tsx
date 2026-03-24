@@ -4,6 +4,8 @@ import {
   appRoutes,
   resolveAppRoute,
 } from "./router";
+import { AuthProvider, useAuth } from "../features/auth/auth-context";
+import { TopbarAuthControls } from "../features/auth/topbar-auth-controls";
 
 interface HistoryLike {
   pushState(
@@ -59,17 +61,26 @@ export interface AppShellViewProps {
 }
 
 export function AppShellView({ pathname, onNavigate }: AppShellViewProps) {
+  const auth = useAuth();
   const route = resolveAppRoute(pathname);
+  const visibleRoutes = appRoutes.filter(
+    (appRoute) => !appRoute.requiresAuth || auth.status === "authenticated",
+  );
   const activePathname = route?.activePath ?? route?.path ?? pathname;
+  const canAccessRoute =
+    !route?.requiresAuth || auth.status === "authenticated";
 
   return (
     <main className="app-shell">
       <header className="app-topbar">
-        <div className="app-topbar__brand">
-          <h1 className="app-topbar__title">MetrixParser Admin</h1>
+        <div className="app-topbar__row">
+          <div className="app-topbar__brand">
+            <h1 className="app-topbar__title">MetrixParser</h1>
+          </div>
+          <TopbarAuthControls />
         </div>
         <nav className="app-topbar__nav" aria-label="Основная навигация">
-          {appRoutes.map((appRoute) => {
+          {visibleRoutes.map((appRoute) => {
             const isActive = appRoute.path === activePathname;
 
             return (
@@ -94,9 +105,41 @@ export function AppShellView({ pathname, onNavigate }: AppShellViewProps) {
       </header>
 
       <section className="app-content">
-        {route ? (
+        {route && route.requiresAuth && auth.status === "loading" ? (
+          <section className="state-panel state-panel--pending" aria-live="polite">
+            <p className="state-panel__eyebrow">loading</p>
+            <h2>Проверяем доступ</h2>
+            <p>Смотрим, есть ли активная сессия для административного раздела.</p>
+          </section>
+        ) : route && canAccessRoute ? (
           <section key={route.path}>
             {route.render({ onNavigate })}
+          </section>
+        ) : route ? (
+          <section className="state-panel">
+            <p className="state-panel__eyebrow">auth required</p>
+            <h2>Доступ к странице ограничен</h2>
+            <p>
+              Раздел «{route.label}» доступен только авторизованным пользователям.
+              Войдите через форму в правом верхнем углу или перейдите к открытому
+              списку игроков.
+            </p>
+            <p>
+              <a
+                className="app-topbar__link app-topbar__link--active"
+                href="/players"
+                onClick={(event) => {
+                  if (!shouldHandleInAppNavigation(event)) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  onNavigate("/players");
+                }}
+              >
+                Открыть игроков
+              </a>
+            </p>
           </section>
         ) : (
           <section className="not-found-panel">
@@ -124,7 +167,7 @@ export function AppShellView({ pathname, onNavigate }: AppShellViewProps) {
   );
 }
 
-export function App() {
+function AppShellController() {
   const [pathname, setPathname] = useState(getInitialPathname());
 
   useEffect(() => {
@@ -146,5 +189,13 @@ export function App() {
         navigateToAppPath(nextPathname, pathname, window.history, setPathname);
       }}
     />
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <AppShellController />
+    </AuthProvider>
   );
 }

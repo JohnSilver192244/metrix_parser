@@ -102,7 +102,7 @@ export function createCompetitionResultsRepository(
         matchedExisting: false,
         issue: createCompetitionResultIssue(
           "competition_result_missing_identity",
-          "Competition result must include competitionId and playerId before persistence.",
+          "Перед сохранением у результата должны быть competitionId и playerId.",
           "validation",
           recordKey,
         ),
@@ -115,7 +115,7 @@ export function createCompetitionResultsRepository(
         matchedExisting: false,
         issue: createCompetitionResultIssue(
           "competition_result_missing_order",
-          "Competition result must include orderNumber before persistence.",
+          "Перед сохранением у результата должен быть orderNumber.",
           "validation",
           recordKey,
         ),
@@ -128,7 +128,7 @@ export function createCompetitionResultsRepository(
         matchedExisting: false,
         issue: createCompetitionResultIssue(
           "competition_result_missing_score",
-          "Non-DNF competition result must include sum and diff before persistence.",
+          "Для результата без DNF перед сохранением должны быть sum и diff.",
           "validation",
           recordKey,
         ),
@@ -240,7 +240,7 @@ async function saveCompetitionResultValidation(
       matchedExisting: false,
       issue: createCompetitionResultIssue(
         "competition_result_missing_identity",
-        "Competition result must include competitionId and playerId before persistence.",
+        "Перед сохранением у результата должны быть competitionId и playerId.",
         "validation",
         recordKey,
       ),
@@ -253,7 +253,7 @@ async function saveCompetitionResultValidation(
       matchedExisting: false,
       issue: createCompetitionResultIssue(
         "competition_result_missing_order",
-        "Competition result must include orderNumber before persistence.",
+        "Перед сохранением у результата должен быть orderNumber.",
         "validation",
         recordKey,
       ),
@@ -266,7 +266,7 @@ async function saveCompetitionResultValidation(
       matchedExisting: false,
       issue: createCompetitionResultIssue(
         "competition_result_missing_score",
-        "Non-DNF competition result must include sum and diff before persistence.",
+        "Для результата без DNF перед сохранением должны быть sum и diff.",
         "validation",
         recordKey,
       ),

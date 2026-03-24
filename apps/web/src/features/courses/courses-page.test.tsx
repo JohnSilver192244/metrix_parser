@@ -47,6 +47,11 @@ test("CoursesPageView renders persisted parks including coursePar", () => {
   );
 
   assert.match(markup, /<table/);
+  assert.match(markup, /Фильтры парков/);
+  assert.match(markup, /Название парка/);
+  assert.match(markup, /Регион/);
+  assert.match(markup, /Все парки/);
+  assert.match(markup, /Все регионы/);
   assert.match(markup, /Moscow → Park/);
   assert.match(markup, /Par 60/);
   assert.match(markup, /Moscow Disc Golf → Park/);

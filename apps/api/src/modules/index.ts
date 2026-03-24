@@ -1,3 +1,7 @@
+import {
+  getAuthRoutes,
+  type AuthRouteDependencies,
+} from "./auth";
 import type { RouteDefinition } from "../lib/router";
 
 import {
@@ -25,14 +29,20 @@ import {
   getUpdatesRoutes,
   type UpdatesRouteDependencies,
 } from "./updates";
+import {
+  getUsersRoutes,
+  type UsersRouteDependencies,
+} from "./users";
 
 export interface ApiModuleDependencies {
+  auth?: AuthRouteDependencies;
   competitions?: CompetitionsRouteDependencies;
   courses?: CoursesRouteDependencies;
   divisions?: DivisionsRouteDependencies;
   players?: PlayersRouteDependencies;
   results?: ResultsRouteDependencies;
   updates?: UpdatesRouteDependencies;
+  users?: UsersRouteDependencies;
 }
 
 export function getRegisteredRoutes(
@@ -40,11 +50,13 @@ export function getRegisteredRoutes(
 ): RouteDefinition[] {
   return [
     ...healthRoutes,
-    ...getUpdatesRoutes(dependencies.updates),
+    ...getAuthRoutes(dependencies.auth),
+    ...getUpdatesRoutes(dependencies.updates, dependencies.auth),
     ...getCompetitionsRoutes(dependencies.competitions),
     ...getCoursesRoutes(dependencies.courses),
     ...getDivisionsRoutes(dependencies.divisions),
-    ...getPlayersRoutes(dependencies.players),
+    ...getPlayersRoutes(dependencies.players, dependencies.auth),
     ...getResultsRoutes(dependencies.results),
+    ...getUsersRoutes(dependencies.users, dependencies.auth),
   ];
 }

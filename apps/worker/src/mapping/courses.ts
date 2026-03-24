@@ -26,7 +26,7 @@ function createCourseIssue(
 ): UpdateProcessingIssue {
   return createUpdateIssue({
     code: "invalid_course_record",
-    message: `Course record is missing required field: ${missingField}.`,
+    message: `В записи парка отсутствует обязательное поле: ${missingField}.`,
     recoverable: true,
     stage: "validation",
     recordKey,

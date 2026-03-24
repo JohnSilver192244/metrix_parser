@@ -220,7 +220,7 @@ export async function runResultsPipelineUpdateJob(
     finalStatus: resolveResultsPipelineFinalStatus(summary, fetchResult),
     source: fetchResult.source,
     message:
-      "Worker fetched result payloads for saved competitions, resiliently persisted valid players and competition results, and returned structured diagnostics for skipped records.",
+      "Получили результаты по сохранённым соревнованиям, устойчиво сохранили корректных игроков и результаты и вернули структурированную диагностику по пропущенным записям.",
     requestedAt,
     finishedAt: new Date().toISOString(),
     summary,

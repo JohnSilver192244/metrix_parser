@@ -119,7 +119,7 @@ export async function runCoursesUpdateJob(
       items: mappedCourses,
       processItem: (item) => repository.saveCourse(item.payload),
       message:
-        "Worker discovered course ids from saved competitions, fetched course payloads from DiscGolfMetrix, and persisted normalized park records.",
+        "Определили идентификаторы парков по сохранённым соревнованиям, загрузили данные парков из DiscGolfMetrix и сохранили нормализованные записи.",
       requestedAt,
     });
 
@@ -149,7 +149,7 @@ export async function runCoursesUpdateJob(
       finalStatus: resolveUpdateFinalStatus(summary),
       source: "runtime",
       message:
-        "Worker derived park identifiers from saved competitions, fetched each park independently, and persisted valid courses with calculated course_par.",
+        "Определили идентификаторы парков по сохранённым соревнованиям, отдельно загрузили каждый парк и сохранили корректные курсы с рассчитанным course_par.",
       requestedAt,
       finishedAt: new Date().toISOString(),
       summary,
@@ -166,7 +166,7 @@ export async function runCoursesUpdateJob(
       operation: "courses",
       finalStatus: resolveUpdateFinalStatus(summary),
       source: "runtime",
-      message: "Worker could not complete the courses update pipeline.",
+      message: "Не удалось завершить сценарий обновления парков.",
       requestedAt,
       finishedAt: new Date().toISOString(),
       summary,

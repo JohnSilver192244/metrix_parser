@@ -31,7 +31,7 @@ function toInvalidCompetitionResultIssue(
 ): UpdateProcessingIssue {
   return createUpdateIssue({
     code: "invalid_competition_result_record",
-    message: `Competition result fragment is missing required field: ${missingField}.`,
+    message: `Во фрагменте результата отсутствует обязательное поле: ${missingField}.`,
     recoverable: true,
     stage: "validation",
     recordKey,

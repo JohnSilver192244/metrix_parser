@@ -8,6 +8,11 @@ import { sendSuccess, readJsonBody } from "../../lib/http";
 import { HttpError } from "../../lib/http-errors";
 import type { RouteDefinition } from "../../lib/router";
 import {
+  readSessionToken,
+  requireAuthenticatedUser,
+  type AuthGuardDependencies,
+} from "../auth/runtime";
+import {
   executeUpdateOperation,
   type UpdatesExecutionDependencies,
 } from "./execution";
@@ -66,11 +71,14 @@ export interface UpdatesRouteDependencies extends UpdatesExecutionDependencies {
 function createUpdateRoute(
   operation: UpdateOperation,
   dependencies: UpdatesRouteDependencies,
+  authDependencies: AuthGuardDependencies,
 ): RouteDefinition {
   return {
     method: "POST",
     path: `/updates/${operation}`,
     handler: async ({ req, res }) => {
+      await requireAuthenticatedUser(readSessionToken(req), authDependencies);
+
       const body = await readJsonBody<TriggerUpdateRequestBody>(req);
       const period = PERIOD_OPERATIONS.has(operation) ? resolvePeriod(body) : undefined;
       const result = await executeUpdateOperation(operation, period, dependencies);
@@ -82,11 +90,12 @@ function createUpdateRoute(
 
 export function getUpdatesRoutes(
   dependencies: UpdatesRouteDependencies = {},
+  authDependencies: AuthGuardDependencies = {},
 ): RouteDefinition[] {
   return [
-    createUpdateRoute("competitions", dependencies),
-    createUpdateRoute("courses", dependencies),
-    createUpdateRoute("players", dependencies),
-    createUpdateRoute("results", dependencies),
+    createUpdateRoute("competitions", dependencies, authDependencies),
+    createUpdateRoute("courses", dependencies, authDependencies),
+    createUpdateRoute("players", dependencies, authDependencies),
+    createUpdateRoute("results", dependencies, authDependencies),
   ];
 }

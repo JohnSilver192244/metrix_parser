@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  filterCompetitions,
   filterVisibleCompetitions,
   formatCompetitionRecordType,
   isVisibleCompetitionRecordType,
@@ -68,4 +69,69 @@ test("filterVisibleCompetitions keeps only listable competition types", () => {
   assert.equal(isVisibleCompetitionRecordType("4"), true);
   assert.equal(isVisibleCompetitionRecordType("1"), false);
   assert.equal(isVisibleCompetitionRecordType("5"), false);
+});
+
+test("filterCompetitions filters by name substring, date, and course name", () => {
+  const competitions = [
+    {
+      competitionId: "competition-1",
+      competitionName: "RDGA Spring Open",
+      competitionDate: "2026-04-10",
+      courseId: "course-1",
+      courseName: null,
+      recordType: "4",
+      playersCount: 24,
+      metrixId: null,
+    },
+    {
+      competitionId: "competition-2",
+      competitionName: "Autumn Cup",
+      competitionDate: "2026-04-11",
+      courseId: "course-2",
+      courseName: null,
+      recordType: "4",
+      playersCount: 18,
+      metrixId: null,
+    },
+  ];
+  const courseNamesById = {
+    "course-1": "Forest Park",
+    "course-2": "River Park",
+  };
+
+  assert.deepEqual(
+    filterCompetitions(competitions, courseNamesById, {
+      nameQuery: "spring",
+      date: "",
+      courseName: "",
+    }).map((competition) => competition.competitionId),
+    ["competition-1"],
+  );
+
+  assert.deepEqual(
+    filterCompetitions(competitions, courseNamesById, {
+      nameQuery: "",
+      date: "2026-04-11",
+      courseName: "",
+    }).map((competition) => competition.competitionId),
+    ["competition-2"],
+  );
+
+  assert.deepEqual(
+    filterCompetitions(competitions, courseNamesById, {
+      nameQuery: "",
+      date: "",
+      courseName: "Forest Park",
+    }).map((competition) => competition.competitionId),
+    ["competition-1"],
+  );
+
+  assert.deepEqual(
+    filterCompetitions(competitions, courseNamesById, {
+      nameQuery: "cup",
+      date: "2026-04-11",
+      courseName: "River Park",
+    }).map((competition) => competition.competitionId),
+    ["competition-2"],
+  );
 });

@@ -3,6 +3,7 @@ import type { CompetitionResult } from "../domain";
 import type { Course } from "../domain";
 import type { Division } from "../domain";
 import type { Player } from "../domain";
+import type { AppUser, AuthSession } from "../domain";
 
 export interface ApiMeta {
   [key: string]: unknown;
@@ -51,3 +52,11 @@ export interface ResultsListMeta extends ApiMeta {
 }
 
 export type ResultsListResponse = CompetitionResult[];
+
+export type AuthSessionResponse = AuthSession;
+
+export interface UsersListMeta extends ApiMeta {
+  count: number;
+}
+
+export type UsersListResponse = AppUser[];

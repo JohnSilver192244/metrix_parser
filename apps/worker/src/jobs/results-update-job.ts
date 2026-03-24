@@ -172,7 +172,7 @@ export async function runResultsUpdateJob(
         finalStatus,
         source: "runtime",
         message:
-          "Worker selected saved competitions for the requested period and fetched raw result payloads from DiscGolfMetrix without requiring manual identifiers.",
+          "Выбрали сохранённые соревнования за указанный период и загрузили сырые результаты из DiscGolfMetrix без ручного ввода идентификаторов.",
         requestedAt,
         finishedAt: new Date().toISOString(),
         summary,
@@ -218,7 +218,7 @@ export async function runResultsUpdateJob(
       finalStatus,
       source: "runtime",
       message:
-        "Worker fetched raw result payloads for saved competitions, mapped valid competition results, and persisted them without creating duplicates.",
+        "Получили сырые результаты по сохранённым соревнованиям, собрали корректные записи результатов и сохранили их без дублей.",
       requestedAt,
       finishedAt: new Date().toISOString(),
       summary,
@@ -243,7 +243,7 @@ export async function runResultsUpdateJob(
       operation: "results",
       finalStatus: "failed",
       source: "runtime",
-      message: "Worker could not complete the results fetch pipeline.",
+      message: "Не удалось завершить сценарий загрузки результатов.",
       requestedAt,
       finishedAt: new Date().toISOString(),
       summary,

@@ -87,6 +87,6 @@ test("competitions reader does not substitute metrix_id into competition_id", as
   assert.equal(result.skippedCount, 1);
   assert.equal(
     result.issues[0]?.message,
-    "Saved competition row is missing competition_id required for results fetch.",
+    "В сохранённой записи соревнования нет competition_id, необходимого для загрузки результатов.",
   );
 });

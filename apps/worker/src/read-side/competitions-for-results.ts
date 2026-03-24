@@ -58,7 +58,7 @@ export function createCompetitionsForResultsReader(
           issues.push(
             createCompetitionIssue(
               row.competition_date,
-              "Saved competition row is missing competition_id required for results fetch.",
+              "В сохранённой записи соревнования нет competition_id, необходимого для загрузки результатов.",
             ),
           );
           continue;
@@ -95,7 +95,7 @@ export function createSupabaseCompetitionsForResultsAdapter(
         .order("competition_id", { ascending: true });
 
       if (error) {
-        throw new Error(`Failed to load competitions for results update: ${error.message}`);
+        throw new Error(`Не удалось загрузить соревнования для обновления результатов: ${error.message}`);
       }
 
       return (data ?? []) as SavedCompetitionRow[];

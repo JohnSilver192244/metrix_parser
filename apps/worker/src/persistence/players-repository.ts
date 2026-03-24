@@ -84,7 +84,7 @@ export function createPlayersRepository(
         matchedExisting: false,
         issue: createPlayerIssue(
           "player_missing_identity",
-          "Player record must include playerId before persistence.",
+          "Перед сохранением у игрока должен быть playerId.",
           "validation",
           recordKey,
         ),
@@ -97,7 +97,7 @@ export function createPlayersRepository(
         matchedExisting: false,
         issue: createPlayerIssue(
           "player_missing_name",
-          "Player record must include playerName before persistence.",
+          "Перед сохранением у игрока должен быть playerName.",
           "validation",
           recordKey,
         ),
@@ -213,7 +213,7 @@ async function savePlayerValidation(
       matchedExisting: false,
       issue: createPlayerIssue(
         "player_missing_identity",
-        "Player record must include playerId before persistence.",
+        "Перед сохранением у игрока должен быть playerId.",
         "validation",
         recordKey,
       ),

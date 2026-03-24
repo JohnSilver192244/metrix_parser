@@ -90,7 +90,7 @@ export function createCompetitionCourseIdsReader(
           issues.push(
             createCompetitionIssue(
               row.competition_id,
-              "Competition source payload does not contain a course identifier.",
+              "В сохранённом payload соревнования нет идентификатора парка.",
             ),
           );
           continue;
@@ -120,7 +120,9 @@ export function createSupabaseCompetitionCourseIdsAdapter(
         .order("competition_id", { ascending: true });
 
       if (error) {
-        throw new Error(`Failed to load saved competitions for course discovery: ${error.message}`);
+        throw new Error(
+          `Не удалось загрузить сохранённые соревнования для поиска park/course идентификаторов: ${error.message}`,
+        );
       }
 
       return (data ?? []) as CompetitionSourceRow[];

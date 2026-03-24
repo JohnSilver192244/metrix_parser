@@ -89,6 +89,56 @@ test("mapDiscGolfMetrixCompetitions filters out non-Russian records before persi
   assert.equal(result.competitions[0]?.competitionId, "101");
 });
 
+test("mapDiscGolfMetrixCompetitions filters out competitions with excluded name fragments case-insensitively", () => {
+  const result = mapDiscGolfMetrixCompetitions([
+    {
+      ID: "801",
+      Name: "Весенний МАСТЕР-КЛАСС",
+      Date: "2026-03-22",
+      CountryCode: "RU",
+      PlayersCount: "24",
+      CourseID: "45380",
+    },
+    {
+      ID: "802",
+      Name: "Club Doubles Night",
+      Date: "2026-03-23",
+      CountryCode: "RU",
+      PlayersCount: "24",
+      CourseID: "45381",
+    },
+    russianCompetitionFixture,
+  ]);
+
+  assert.equal(result.filteredOutCount, 2);
+  assert.equal(result.skippedCount, 0);
+  assert.equal(result.errorCount, 0);
+  assert.equal(result.issues.length, 0);
+  assert.equal(result.competitions.length, 1);
+  assert.equal(result.competitions[0]?.competitionId, "101");
+});
+
+test("mapDiscGolfMetrixCompetitions filters out competitions with unicode dash variants in excluded names", () => {
+  const result = mapDiscGolfMetrixCompetitions([
+    {
+      ID: "803",
+      Name: "Мастер‑класс по технике",
+      Date: "2026-03-24",
+      CountryCode: "RU",
+      PlayersCount: "24",
+      CourseID: "45382",
+    },
+    russianCompetitionFixture,
+  ]);
+
+  assert.equal(result.filteredOutCount, 1);
+  assert.equal(result.skippedCount, 0);
+  assert.equal(result.errorCount, 0);
+  assert.equal(result.issues.length, 0);
+  assert.equal(result.competitions.length, 1);
+  assert.equal(result.competitions[0]?.competitionId, "101");
+});
+
 test("mapDiscGolfMetrixCompetitions keeps country-scoped records even when payload omits country fields", () => {
   const result = mapDiscGolfMetrixCompetitions([
     russianCompetitionWithoutCountryMetadataFixture,
@@ -150,7 +200,10 @@ test("mapDiscGolfMetrixCompetitions skips competitions without course ids", () =
   assert.equal(result.competitions.length, 1);
   assert.equal(result.issues.length, 1);
   assert.equal(result.issues[0]?.code, "invalid_competition_record");
-  assert.equal(result.issues[0]?.message, "Competition record is missing required field: courseId.");
+  assert.equal(
+    result.issues[0]?.message,
+    "В записи соревнования отсутствует обязательное поле: courseId.",
+  );
   assert.equal(result.issues[0]?.recordKey, "competition:602");
 });
 
@@ -201,7 +254,7 @@ test("mapDiscGolfMetrixCompetitions skips competitions with fewer than eight pla
   assert.equal(result.competitions.length, 2);
   assert.equal(result.issues.length, 1);
   assert.equal(result.issues[0]?.code, "competition_zero_players");
-  assert.equal(result.issues[0]?.message, "< 8 players");
+  assert.equal(result.issues[0]?.message, "Меньше 8 игроков");
   assert.equal(result.issues[0]?.recordKey, "competition:701");
   assert.equal(result.competitions[0]?.competitionId, "702");
   assert.equal(result.competitions[1]?.competitionId, "101");

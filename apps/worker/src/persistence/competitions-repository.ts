@@ -91,7 +91,7 @@ export function createCompetitionsRepository(
           matchedExisting: false,
           issue: createCompetitionIssue(
             "competition_missing_identity",
-            "Competition record must include competitionId or metrixId before persistence.",
+            "Перед сохранением у соревнования должен быть competitionId или metrixId.",
             "validation",
             recordKey,
           ),
@@ -115,7 +115,7 @@ export function createCompetitionsRepository(
           matchedExisting: false,
           issue: createCompetitionIssue(
             "competition_identity_conflict",
-            "Competition record matches different rows by competition_id and metrix_id.",
+            "Запись соревнования совпала с разными строками по competition_id и metrix_id.",
             "matching",
             recordKey,
           ),

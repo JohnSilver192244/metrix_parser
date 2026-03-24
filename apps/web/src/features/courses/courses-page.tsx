@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import type { Course } from "@metrix-parser/shared-types";
 
@@ -40,7 +40,52 @@ export interface CoursesPageViewProps {
   state: CoursesPageState;
 }
 
+function resolveCourseName(course: Course): string {
+  return decodeHtmlEntities(course.name);
+}
+
+function resolveCourseArea(course: Course): string {
+  return decodeHtmlEntities(course.area) || "Не указан";
+}
+
+function collectCourseFilterOptions(
+  courses: readonly Course[],
+  resolver: (course: Course) => string,
+): string[] {
+  return [...new Set(courses.map(resolver))].sort((left, right) =>
+    left.localeCompare(right),
+  );
+}
+
 export function CoursesPageView({ state }: CoursesPageViewProps) {
+  const [nameFilter, setNameFilter] = useState("");
+  const [regionFilter, setRegionFilter] = useState("");
+  const courses = state.status === "ready" ? state.courses : [];
+  const total = state.status === "ready" ? state.total : 0;
+  const nameOptions = useMemo(
+    () => collectCourseFilterOptions(courses, resolveCourseName),
+    [courses],
+  );
+  const regionOptions = useMemo(
+    () => collectCourseFilterOptions(courses, resolveCourseArea),
+    [courses],
+  );
+  const visibleCourses = useMemo(
+    () =>
+      courses.filter((course) => {
+        if (nameFilter && resolveCourseName(course) !== nameFilter) {
+          return false;
+        }
+
+        if (regionFilter && resolveCourseArea(course) !== regionFilter) {
+          return false;
+        }
+
+        return true;
+      }),
+    [courses, nameFilter, regionFilter],
+  );
+
   if (state.status === "loading") {
     return (
       <section className="data-page-shell" aria-labelledby="courses-page-title">
@@ -79,8 +124,6 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
     );
   }
 
-  const { courses, total } = state;
-
   return (
     <section className="data-page-shell" aria-labelledby="courses-page-title">
       <PageHeader
@@ -101,42 +144,89 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
           <p>Сначала запустите обновление парков в административном разделе.</p>
         </section>
       ) : (
-        <section className="data-table-panel" aria-label="Сохранённые парки">
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">ID</th>
-                  <th scope="col">Название</th>
-                  <th scope="col">Полное имя</th>
-                  <th scope="col">Регион</th>
-                  <th scope="col">Тип</th>
-                  <th scope="col">Страна</th>
-                  <th scope="col">Par</th>
-                  <th scope="col">Рейтинг 1</th>
-                  <th scope="col">Рейтинг 2</th>
-                </tr>
-              </thead>
-              <tbody>
-                {courses.map((course) => {
-                  return (
-                    <tr key={course.courseId}>
-                      <td className="data-table__cell-primary">{course.courseId}</td>
-                      <td className="data-table__cell-primary">{decodeHtmlEntities(course.name)}</td>
-                      <td>{decodeHtmlEntities(course.fullname) || "Не указано"}</td>
-                      <td>{decodeHtmlEntities(course.area) || "Не указан"}</td>
-                      <td>{decodeHtmlEntities(course.type) || "Не указан"}</td>
-                      <td>{course.countryCode ?? "Не указана"}</td>
-                      <td>{formatCoursePar(course.coursePar)}</td>
-                      <td>{formatRating(course.ratingValue1, course.ratingResult1)}</td>
-                      <td>{formatRating(course.ratingValue2, course.ratingResult2)}</td>
+        <>
+          <section className="courses-page__filters" aria-label="Фильтры парков">
+            <label className="courses-page__filter">
+              <span>Название парка</span>
+              <select
+                className="courses-page__filter-control"
+                value={nameFilter}
+                onChange={(event) => {
+                  setNameFilter(event.target.value);
+                }}
+              >
+                <option value="">Все парки</option>
+                {nameOptions.map((courseName) => (
+                  <option key={courseName} value={courseName}>
+                    {courseName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="courses-page__filter">
+              <span>Регион</span>
+              <select
+                className="courses-page__filter-control"
+                value={regionFilter}
+                onChange={(event) => {
+                  setRegionFilter(event.target.value);
+                }}
+              >
+                <option value="">Все регионы</option>
+                {regionOptions.map((regionName) => (
+                  <option key={regionName} value={regionName}>
+                    {regionName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
+
+          {visibleCourses.length === 0 ? (
+            <section className="state-panel" aria-live="polite">
+              <p className="state-panel__eyebrow">filtered</p>
+              <h2>По текущим фильтрам парков ничего нет</h2>
+              <p>Попробуйте выбрать другой парк или регион.</p>
+            </section>
+          ) : (
+            <section className="data-table-panel" aria-label="Сохранённые парки">
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">ID</th>
+                      <th scope="col">Название</th>
+                      <th scope="col">Полное имя</th>
+                      <th scope="col">Регион</th>
+                      <th scope="col">Тип</th>
+                      <th scope="col">Страна</th>
+                      <th scope="col">Par</th>
+                      <th scope="col">Рейтинг 1</th>
+                      <th scope="col">Рейтинг 2</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                  </thead>
+                  <tbody>
+                    {visibleCourses.map((course) => {
+                      return (
+                        <tr key={course.courseId}>
+                          <td className="data-table__cell-primary">{course.courseId}</td>
+                          <td className="data-table__cell-primary">{resolveCourseName(course)}</td>
+                          <td>{decodeHtmlEntities(course.fullname) || "Не указано"}</td>
+                          <td>{resolveCourseArea(course)}</td>
+                          <td>{decodeHtmlEntities(course.type) || "Не указан"}</td>
+                          <td>{course.countryCode ?? "Не указана"}</td>
+                          <td>{formatCoursePar(course.coursePar)}</td>
+                          <td>{formatRating(course.ratingValue1, course.ratingResult1)}</td>
+                          <td>{formatRating(course.ratingValue2, course.ratingResult2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </>
       )}
     </section>
   );

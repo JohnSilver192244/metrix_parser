@@ -33,7 +33,7 @@ function toInvalidCompetitionIssue(
 ): UpdateProcessingIssue {
   return createUpdateIssue({
     code: "invalid_competition_record",
-    message: `Competition record is missing required field: ${missingField}.`,
+    message: `В записи соревнования отсутствует обязательное поле: ${missingField}.`,
     recoverable: true,
     stage: "validation",
     recordKey,
@@ -47,7 +47,7 @@ function toTooFewPlayersCompetitionIssue(
 ): UpdateProcessingIssue {
   return createUpdateIssue({
     code: "competition_zero_players",
-    message: `< ${MIN_COMPETITION_PLAYERS} players`,
+    message: `Меньше ${MIN_COMPETITION_PLAYERS} игроков`,
     recoverable: true,
     stage: "validation",
     recordKey,
@@ -71,9 +71,47 @@ const RUSSIAN_COUNTRY_NAMES = new Set([
   "россия",
   "российская федерация",
 ]);
+const EXCLUDED_COMPETITION_NAME_FRAGMENTS = [
+  "мастер-класс",
+  "master class",
+  "даблс",
+  "doubles",
+] as const;
+const COMPETITION_NAME_DASH_PATTERN = /[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g;
+const COMPETITION_NAME_WHITESPACE_PATTERN = /\s+/g;
 
 function normalizeCountryValue(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function normalizeCompetitionNameForFiltering(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(COMPETITION_NAME_DASH_PATTERN, "-")
+    .replace(COMPETITION_NAME_WHITESPACE_PATTERN, " ")
+    .trim();
+}
+
+function hasExcludedCompetitionName(
+  record: DiscGolfMetrixRawCompetitionRecord,
+): boolean {
+  const competitionName = readOptionalStringField(record, [
+    "competitionName",
+    "competition_name",
+    "name",
+    "Name",
+  ]);
+
+  if (!competitionName) {
+    return false;
+  }
+
+  const normalizedName = normalizeCompetitionNameForFiltering(competitionName);
+
+  return EXCLUDED_COMPETITION_NAME_FRAGMENTS.some((fragment) =>
+    normalizedName.includes(fragment),
+  );
 }
 
 function isRussianCompetitionRecord(
@@ -224,6 +262,11 @@ export function mapDiscGolfMetrixCompetitions(
 
   records.forEach((record, index) => {
     if (!isRussianCompetitionRecord(record)) {
+      filteredOutCount += 1;
+      return;
+    }
+
+    if (hasExcludedCompetitionName(record)) {
       filteredOutCount += 1;
       return;
     }

@@ -39,6 +39,12 @@ export function filterVisibleCompetitions(
   });
 }
 
+export interface CompetitionFilters {
+  nameQuery: string;
+  date: string;
+  courseName: string;
+}
+
 export function createCourseNamesById(
   courses: readonly Course[],
 ): Readonly<Record<string, string>> {
@@ -61,4 +67,38 @@ export function resolveCompetitionCourseName(
   }
 
   return decodeHtmlEntities(courseNamesById[competition.courseId]) || COMPETITION_COURSE_FALLBACK;
+}
+
+function normalizeFilterValue(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function filterCompetitions(
+  competitions: readonly Competition[],
+  courseNamesById: Readonly<Record<string, string>>,
+  filters: CompetitionFilters,
+): Competition[] {
+  const normalizedNameQuery = normalizeFilterValue(filters.nameQuery);
+
+  return competitions.filter((competition) => {
+    const competitionName = decodeHtmlEntities(competition.competitionName);
+    const courseName = resolveCompetitionCourseName(competition, courseNamesById);
+
+    if (
+      normalizedNameQuery &&
+      !normalizeFilterValue(competitionName).includes(normalizedNameQuery)
+    ) {
+      return false;
+    }
+
+    if (filters.date && competition.competitionDate !== filters.date) {
+      return false;
+    }
+
+    if (filters.courseName && courseName !== filters.courseName) {
+      return false;
+    }
+
+    return true;
+  });
 }

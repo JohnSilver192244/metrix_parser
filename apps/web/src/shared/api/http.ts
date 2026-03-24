@@ -4,6 +4,8 @@ import type {
   ApiMeta,
 } from "@metrix-parser/shared-types";
 
+import { getStoredSessionToken } from "../../features/auth/auth-storage";
+
 const apiBaseUrl = import.meta.env?.VITE_API_BASE_URL ?? "http://localhost:3001";
 
 export class ApiClientError extends Error {
@@ -20,13 +22,7 @@ export async function requestJson<TResponse>(
   path: string,
   init: RequestInit,
 ): Promise<TResponse> {
-  const response = await fetch(new URL(path, apiBaseUrl), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
+  const response = await fetch(new URL(path, apiBaseUrl), withAuthHeaders(init));
   const text = await response.text();
   const payload = parseJsonPayload<TResponse>(text);
 
@@ -45,13 +41,7 @@ export async function requestEnvelope<TResponse, TMeta extends ApiMeta = ApiMeta
   path: string,
   init: RequestInit,
 ): Promise<ApiEnvelope<TResponse, TMeta>> {
-  const response = await fetch(new URL(path, apiBaseUrl), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
+  const response = await fetch(new URL(path, apiBaseUrl), withAuthHeaders(init));
   const text = await response.text();
   const payload = parseJsonPayload<TResponse>(text);
 
@@ -68,6 +58,23 @@ export async function requestEnvelope<TResponse, TMeta extends ApiMeta = ApiMeta
   }
 
   return payload as ApiEnvelope<TResponse, TMeta>;
+}
+
+function withAuthHeaders(init: RequestInit): RequestInit {
+  const sessionToken = getStoredSessionToken();
+
+  return {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(sessionToken
+        ? {
+            Authorization: `Bearer ${sessionToken}`,
+          }
+        : {}),
+      ...(init.headers ?? {}),
+    },
+  };
 }
 
 function parseJsonPayload<TResponse>(

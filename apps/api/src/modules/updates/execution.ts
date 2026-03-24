@@ -57,7 +57,7 @@ function createDemoRecordResult(record: DemoRecord): UpdateRecordResult {
       matchedExisting: false,
       issue: createUpdateIssue({
         code: "incomplete_source_record",
-        message: `Record ${record.recordKey} is incomplete and was skipped.`,
+        message: `Запись ${record.recordKey} неполная и была пропущена.`,
         recoverable: true,
         stage: "validation",
         recordKey: record.recordKey,

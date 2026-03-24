@@ -44,6 +44,23 @@ npm install
 - `DISCGOLFMETRIX_COUNTRY_CODE`
 - `DISCGOLFMETRIX_API_CODE`
 
+## 2.1. Создать пользователя для входа
+
+Авторизация теперь хранится в таблице `app_public.app_users`. Пользователей можно заводить вручную прямо в базе:
+
+```sql
+insert into app_public.app_users (login, password)
+values ('admin', 'secret');
+```
+
+Пароль сейчас сравнивается как обычный текст, без хеширования.
+
+После входа в web:
+
+- страница `Обновления` становится доступной только авторизованным пользователям
+- страница `Пользователи` показывает список логинов из `app_public.app_users`
+- на странице `Игроки` только авторизованный пользователь может менять `division` и `rdga`
+
 ## 3. Запустить API
 
 ```bash
@@ -101,9 +118,20 @@ curl http://localhost:3001/health
 
 ### Пример update-запроса
 
+Сначала получите токен сессии:
+
+```bash
+curl -X POST "http://localhost:3001/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"login":"admin","password":"secret"}'
+```
+
+Далее используйте `sessionToken` из ответа как `Bearer`-токен:
+
 ```bash
 curl -X POST "http://localhost:3001/updates/players" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <sessionToken>" \
   -d '{"dateFrom":"2026-03-01","dateTo":"2026-03-31"}'
 ```
 

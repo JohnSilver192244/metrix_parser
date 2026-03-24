@@ -69,7 +69,7 @@ export function createCoursesRepository(
           matchedExisting: false,
           issue: createCourseIssue(
             "course_missing_identity",
-            "Course record must include courseId before persistence.",
+            "Перед сохранением у парка должен быть courseId.",
             "validation",
             recordKey,
           ),

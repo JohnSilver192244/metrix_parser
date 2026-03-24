@@ -7,3 +7,4 @@ export * from "./competition-result";
 export * from "./course";
 export * from "./division";
 export * from "./player";
+export * from "./user";

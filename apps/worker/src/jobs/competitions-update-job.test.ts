@@ -140,6 +140,69 @@ test("runCompetitionsUpdateJob keeps valid Russian competitions and reports inva
   assert.equal(result.issues[0]?.code, "invalid_competition_record");
 });
 
+test("runCompetitionsUpdateJob filters out competitions with excluded name fragments", async () => {
+  const repository = createCompetitionsRepository(new InMemoryRepositoryAdapter());
+  const result = await runCompetitionsUpdateJob(
+    {
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-31",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      repository,
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            competitions: [
+              {
+                ID: "101",
+                Name: "Moscow Open",
+                Date: "2026-01-15",
+                CountryCode: "RU",
+                CourseID: "45374",
+              },
+              {
+                ID: "105",
+                Name: "Winter Master Class",
+                Date: "2026-01-18",
+                CountryCode: "RU",
+                CourseID: "45378",
+              },
+              {
+                ID: "106",
+                Name: "Парный ДАБЛС уикенд",
+                Date: "2026-01-19",
+                CountryCode: "RU",
+                CourseID: "45379",
+              },
+              {
+                ID: "107",
+                Name: "Мастер‑класс по паттингу",
+                Date: "2026-01-20",
+                CountryCode: "RU",
+                CourseID: "45380",
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
+  assert.equal(result.finalStatus, "completed");
+  assert.deepEqual(result.summary, {
+    found: 4,
+    created: 1,
+    updated: 0,
+    skipped: 0,
+    errors: 0,
+  });
+  assert.equal(result.mappedCompetitionsCount, 1);
+  assert.equal(result.issues.length, 0);
+});
+
 test("runCompetitionsUpdateJob skips competitions with fewer than eight players and keeps competitions with eight players", async () => {
   const repository = createCompetitionsRepository(new InMemoryRepositoryAdapter());
   const result = await runCompetitionsUpdateJob(
@@ -198,7 +261,7 @@ test("runCompetitionsUpdateJob skips competitions with fewer than eight players 
   assert.equal(result.mappedCompetitionsCount, 2);
   assert.equal(result.issues.length, 1);
   assert.equal(result.issues[0]?.code, "competition_zero_players");
-  assert.equal(result.issues[0]?.message, "< 8 players");
+  assert.equal(result.issues[0]?.message, "Меньше 8 игроков");
   assert.equal(result.issues[0]?.recordKey, "competition:103");
 });
 

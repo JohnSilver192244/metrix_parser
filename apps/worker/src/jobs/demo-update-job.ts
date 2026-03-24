@@ -49,7 +49,7 @@ function processDemoItem(
       matchedExisting: false,
       issue: createUpdateIssue({
         code: "incomplete_source_record",
-        message: `Record ${item.recordKey} is incomplete and was skipped.`,
+        message: `Запись ${item.recordKey} неполная и была пропущена.`,
         recoverable: true,
         stage: "validation",
         recordKey: item.recordKey,
@@ -73,7 +73,7 @@ export async function runDemoUpdateJob(
     period,
     source: "runtime",
     message:
-      "Worker demo pipeline aggregated per-record outcomes with idempotent create/update semantics and recoverable skips.",
+      "Демо-конвейер собрал итог по каждой записи с идемпотентной семантикой create/update и восстановимыми пропусками.",
     processItem: processDemoItem,
   });
 }

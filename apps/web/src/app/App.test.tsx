@@ -9,6 +9,30 @@ import {
   navigateToAppPath,
   shouldHandleInAppNavigation,
 } from "./App";
+import { AuthContext, type AuthContextValue } from "../features/auth/auth-context";
+
+function renderWithAuth(
+  pathname: string,
+  authValue: Partial<AuthContextValue> = {},
+): string {
+  const value: AuthContextValue = {
+    status: "authenticated",
+    user: {
+      login: "admin",
+    },
+    isSubmitting: false,
+    errorMessage: null,
+    signIn: async () => true,
+    signOut: async () => {},
+    ...authValue,
+  };
+
+  return renderToStaticMarkup(
+    <AuthContext.Provider value={value}>
+      <AppShellView pathname={pathname} onNavigate={() => {}} />
+    </AuthContext.Provider>,
+  );
+}
 
 test("navigateToAppPath updates history and state without reloading", () => {
   const calls: string[] = [];
@@ -53,30 +77,45 @@ test("navigateToAppPath is a no-op when user selects the current route", () => {
 });
 
 test("AppShellView renders project title and linear SPA navigation", () => {
-  const markup = renderToStaticMarkup(
-    <AppShellView pathname="/competitions/competition-100" onNavigate={() => {}} />,
-  );
+  const markup = renderWithAuth("/competitions/competition-100");
 
-  assert.match(markup, /MetrixParser Admin/);
+  assert.match(markup, /MetrixParser/);
   assert.match(markup, /Обновления/);
   assert.match(markup, /Соревнования/);
   assert.match(markup, /Парки/);
   assert.match(markup, /Игроки/);
   assert.match(markup, /Подтягиваем результаты соревнования/);
+  assert.match(markup, />Выйти</);
+  assert.doesNotMatch(markup, /Вы вошли как/);
+  assert.doesNotMatch(markup, /admin/);
+  assert.doesNotMatch(markup, /Пользователи/);
   assert.doesNotMatch(markup, /href="\/results"/);
   assert.match(markup, /app-topbar__link app-topbar__link--active/);
 });
 
 test("AppShellView renders only the active route so page data loads on demand", () => {
-  const markup = renderToStaticMarkup(
-    <AppShellView pathname="/competitions/competition-100" onNavigate={() => {}} />,
-  );
+  const markup = renderWithAuth("/competitions/competition-100");
 
   assert.match(markup, /Подтягиваем результаты соревнования/);
   assert.doesNotMatch(markup, /Обновление данных/);
   assert.doesNotMatch(markup, /Список соревнований/);
   assert.doesNotMatch(markup, /Список парков/);
   assert.doesNotMatch(markup, /Список игроков/);
+});
+
+test("AppShellView hides admin navigation for guests and blocks direct access", () => {
+  const markup = renderWithAuth("/", {
+    status: "anonymous",
+    user: null,
+  });
+
+  assert.doesNotMatch(markup, /href="\/users"/);
+  assert.doesNotMatch(markup, /href="\/">/);
+  assert.match(markup, />Войти</);
+  assert.doesNotMatch(markup, /topbar-login/);
+  assert.doesNotMatch(markup, /Редактирование и раздел обновлений доступны после входа/);
+  assert.match(markup, /Доступ к странице ограничен/);
+  assert.match(markup, /Открыть игроков/);
 });
 
 test("shouldHandleInAppNavigation ignores modified or non-primary clicks", () => {

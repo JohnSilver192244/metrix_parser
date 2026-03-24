@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 
 import type { Division, Player } from "@metrix-parser/shared-types";
 
+import { useAuth } from "../auth/auth-context";
 import { PageHeader } from "../../shared/page-header";
 import {
   listDivisions,
@@ -31,6 +32,8 @@ type PlayersPageState =
 
 export interface PlayersPageViewProps {
   state: PlayersPageState;
+  nameQuery?: string;
+  canEdit?: boolean;
   divisionDrafts?: Record<string, string>;
   rdgaDrafts?: Record<string, boolean | null>;
   saveState?: {
@@ -38,6 +41,7 @@ export interface PlayersPageViewProps {
     playerId: string | null;
     message: string | null;
   };
+  onNameQueryChange?: (value: string) => void;
   onDivisionChange?: (playerId: string, value: string) => void;
   onRdgaChange?: (playerId: string, value: boolean) => void;
   onDivisionSave?: (playerId: string) => void;
@@ -52,8 +56,14 @@ function normalizeDivisionValue(value: string): string | null {
   return normalizedValue.length > 0 ? normalizedValue : null;
 }
 
+function normalizeNameQuery(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 export function PlayersPageView({
   state,
+  nameQuery = "",
+  canEdit = false,
   divisionDrafts = {},
   rdgaDrafts = {},
   saveState = {
@@ -61,6 +71,7 @@ export function PlayersPageView({
     playerId: null,
     message: null,
   },
+  onNameQueryChange,
   onDivisionChange,
   onRdgaChange,
   onDivisionSave,
@@ -104,6 +115,10 @@ export function PlayersPageView({
   }
 
   const { divisions, players, total } = state;
+  const normalizedNameQuery = normalizeNameQuery(nameQuery);
+  const visiblePlayers = players.filter((player) =>
+    decodeHtmlEntities(player.playerName).toLowerCase().includes(normalizedNameQuery),
+  );
 
   return (
     <section className="data-page-shell" aria-labelledby="players-page-title">
@@ -125,126 +140,160 @@ export function PlayersPageView({
           <p>Сначала выполните обновление игроков или результатов в административном разделе.</p>
         </section>
       ) : (
-        <section className="data-table-panel" aria-label="Сохранённые игроки">
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">Metrix ID</th>
-                  <th scope="col">Игрок</th>
-                  <th scope="col">Дивизион</th>
-                  <th scope="col">RDGA</th>
-                  <th scope="col">Соревнований</th>
-                  <th scope="col">Действия</th>
-                </tr>
-              </thead>
-              <tbody>
-                {players.map((player) => {
-                  const draftDivision =
-                    divisionDrafts[player.playerId] ?? player.division ?? "";
-                  const draftRdga =
-                    player.playerId in rdgaDrafts
-                      ? (rdgaDrafts[player.playerId] ?? null)
-                      : (player.rdga ?? null);
-                  const normalizedDraftDivision =
-                    normalizeDivisionValue(draftDivision);
-                  const isSaving =
-                    saveState.status === "saving" &&
-                    saveState.playerId === player.playerId;
-                  const hasChanges =
-                    normalizedDraftDivision !== (player.division ?? null) ||
-                    draftRdga !== (player.rdga ?? null);
-                  const rowMessage =
-                    saveState.playerId === player.playerId ? saveState.message : null;
+        <>
+          <section className="competitions-page__filters" aria-label="Фильтр игроков">
+            <label className="competitions-page__filter">
+              <span>Имя игрока</span>
+              <input
+                className="competitions-page__filter-control"
+                type="search"
+                value={nameQuery}
+                placeholder="Поиск по имени"
+                onChange={(event) => {
+                  onNameQueryChange?.(event.target.value);
+                }}
+              />
+            </label>
+          </section>
 
-                  return (
-                    <tr key={player.playerId}>
-                      <td className="data-table__cell-primary">{player.playerId}</td>
-                      <td className="data-table__cell-primary">
-                        {decodeHtmlEntities(player.playerName)}
-                      </td>
-                      <td>
-                        <label className="sr-only" htmlFor={`player-division-${player.playerId}`}>
-                          Дивизион игрока {decodeHtmlEntities(player.playerName)}
-                        </label>
-                        <select
-                          id={`player-division-${player.playerId}`}
-                          className="players-table__division-select"
-                          value={draftDivision}
-                          onChange={(event) =>
-                            onDivisionChange?.(player.playerId, event.target.value)
-                          }
-                        >
-                          <option value="">Не выбран</option>
-                          {divisions.map((division) => (
-                            <option key={division.code} value={division.code}>
-                              {division.code}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <label className="sr-only" htmlFor={`player-rdga-${player.playerId}`}>
-                          Признак RDGA для игрока {decodeHtmlEntities(player.playerName)}
-                        </label>
-                        <input
-                          id={`player-rdga-${player.playerId}`}
-                          className="players-table__checkbox"
-                          type="checkbox"
-                          checked={draftRdga === true}
-                          ref={(input) => {
-                            if (input) {
-                              input.indeterminate = draftRdga === null;
-                            }
-                          }}
-                          onChange={(event) =>
-                            onRdgaChange?.(player.playerId, event.target.checked)
-                          }
-                        />
-                      </td>
-                      <td>{formatCompetitionsCount(player.competitionsCount)}</td>
-                      <td>
-                        <div className="players-table__actions">
-                          <button
-                            className="update-card__submit players-table__save-button"
-                            type="button"
-                            disabled={!hasChanges || isSaving}
-                            onClick={() => onDivisionSave?.(player.playerId)}
-                          >
-                            {isSaving ? "Сохраняем..." : "Сохранить"}
-                          </button>
-                          {rowMessage ? (
-                            <p
-                              className={
-                                saveState.status === "error"
-                                  ? "players-table__status players-table__status--error"
-                                  : "players-table__status"
-                              }
-                              role={saveState.status === "error" ? "alert" : undefined}
-                            >
-                              {rowMessage}
-                            </p>
-                          ) : null}
-                        </div>
-                      </td>
+          {visiblePlayers.length === 0 ? (
+            <section className="state-panel" aria-live="polite">
+              <p className="state-panel__eyebrow">filtered</p>
+              <h2>По текущему фильтру игроков нет</h2>
+              <p>Попробуйте изменить строку поиска по имени.</p>
+            </section>
+          ) : (
+            <section className="data-table-panel" aria-label="Сохранённые игроки">
+              {!canEdit ? (
+                <div className="players-table__notice" role="note">
+                  Войдите в систему, чтобы менять дивизион и RDGA. Без авторизации список остаётся только для просмотра.
+                </div>
+              ) : null}
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Metrix ID</th>
+                      <th scope="col">Игрок</th>
+                      <th scope="col">Дивизион</th>
+                      <th scope="col">RDGA</th>
+                      <th scope="col">Соревнований</th>
+                      <th scope="col">Действия</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                  </thead>
+                  <tbody>
+                    {visiblePlayers.map((player) => {
+                      const draftDivision =
+                        divisionDrafts[player.playerId] ?? player.division ?? "";
+                      const draftRdga =
+                        player.playerId in rdgaDrafts
+                          ? (rdgaDrafts[player.playerId] ?? null)
+                          : (player.rdga ?? null);
+                      const normalizedDraftDivision =
+                        normalizeDivisionValue(draftDivision);
+                      const isSaving =
+                        saveState.status === "saving" &&
+                        saveState.playerId === player.playerId;
+                      const hasChanges =
+                        normalizedDraftDivision !== (player.division ?? null) ||
+                        draftRdga !== (player.rdga ?? null);
+                      const rowMessage =
+                        saveState.playerId === player.playerId ? saveState.message : null;
+
+                      return (
+                        <tr key={player.playerId}>
+                          <td className="data-table__cell-primary">{player.playerId}</td>
+                          <td className="data-table__cell-primary">
+                            {decodeHtmlEntities(player.playerName)}
+                          </td>
+                          <td>
+                            <label className="sr-only" htmlFor={`player-division-${player.playerId}`}>
+                              Дивизион игрока {decodeHtmlEntities(player.playerName)}
+                            </label>
+                            <select
+                              id={`player-division-${player.playerId}`}
+                              className="players-table__division-select"
+                              value={draftDivision}
+                              disabled={!canEdit}
+                              onChange={(event) =>
+                                onDivisionChange?.(player.playerId, event.target.value)
+                              }
+                            >
+                              <option value="">Не выбран</option>
+                              {divisions.map((division) => (
+                                <option key={division.code} value={division.code}>
+                                  {division.code}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <label className="sr-only" htmlFor={`player-rdga-${player.playerId}`}>
+                              Признак RDGA для игрока {decodeHtmlEntities(player.playerName)}
+                            </label>
+                            <input
+                              id={`player-rdga-${player.playerId}`}
+                              className="players-table__checkbox"
+                              type="checkbox"
+                              checked={draftRdga === true}
+                              disabled={!canEdit}
+                              ref={(input) => {
+                                if (input) {
+                                  input.indeterminate = draftRdga === null;
+                                }
+                              }}
+                              onChange={(event) =>
+                                onRdgaChange?.(player.playerId, event.target.checked)
+                              }
+                            />
+                          </td>
+                          <td>{formatCompetitionsCount(player.competitionsCount)}</td>
+                          <td>
+                            <div className="players-table__actions">
+                              <button
+                                className="update-card__submit players-table__save-button"
+                                type="button"
+                                disabled={!canEdit || !hasChanges || isSaving}
+                                onClick={() => onDivisionSave?.(player.playerId)}
+                              >
+                                {isSaving ? "Сохраняем..." : "Сохранить"}
+                              </button>
+                              {rowMessage ? (
+                                <p
+                                  className={
+                                    saveState.status === "error"
+                                      ? "players-table__status players-table__status--error"
+                                      : "players-table__status"
+                                  }
+                                  role={saveState.status === "error" ? "alert" : undefined}
+                                >
+                                  {rowMessage}
+                                </p>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </>
       )}
     </section>
   );
 }
 
 export function PlayersPage() {
+  const { status: authStatus, user } = useAuth();
   const [state, setState] = useState<PlayersPageState>({
     status: "loading",
   });
   const [divisionDrafts, setDivisionDrafts] = useState<Record<string, string>>({});
   const [rdgaDrafts, setRdgaDrafts] = useState<Record<string, boolean | null>>({});
+  const [nameQuery, setNameQuery] = useState("");
   const [saveState, setSaveState] = useState<{
     status: "idle" | "saving" | "success" | "error";
     playerId: string | null;
@@ -375,9 +424,12 @@ export function PlayersPage() {
   return (
     <PlayersPageView
       state={state}
+      nameQuery={nameQuery}
+      canEdit={authStatus === "authenticated" && Boolean(user)}
       divisionDrafts={divisionDrafts}
       rdgaDrafts={rdgaDrafts}
       saveState={saveState}
+      onNameQueryChange={setNameQuery}
       onDivisionChange={(playerId, value) => {
         setDivisionDrafts((currentDrafts) => ({
           ...currentDrafts,
