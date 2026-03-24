@@ -27,6 +27,59 @@ function buildRecordKey(
   return candidateId ? `competition:${candidateId}` : `competition:index-${index}`;
 }
 
+function readCompetitionId(
+  record: DiscGolfMetrixRawCompetitionRecord,
+): string | null {
+  return (
+    readOptionalStringField(record, [
+      "competitionId",
+      "competition_id",
+      "id",
+      "ID",
+    ]) ?? null
+  );
+}
+
+function readCompetitionCourseId(
+  record: DiscGolfMetrixRawCompetitionRecord,
+): string | null {
+  return (
+    readOptionalStringField(record, [
+      "CourceID",
+      "CourseID",
+      "courseId",
+      "course_id",
+      "courseid",
+      "layoutId",
+      "layout_id",
+    ]) ?? null
+  );
+}
+
+function buildParentCompetitionCourseIds(
+  records: readonly DiscGolfMetrixRawCompetitionRecord[],
+): Map<string, string> {
+  const parentCompetitionCourseIds = new Map<string, string>();
+
+  records.forEach((record) => {
+    const parentId =
+      readOptionalStringField(record, [
+        "ParentID",
+        "parentId",
+        "parent_id",
+      ]) ?? null;
+    const courseId = readCompetitionCourseId(record);
+
+    if (!parentId || !courseId || parentCompetitionCourseIds.has(parentId)) {
+      return;
+    }
+
+    parentCompetitionCourseIds.set(parentId, courseId);
+  });
+
+  return parentCompetitionCourseIds;
+}
+
 function toInvalidCompetitionIssue(
   recordKey: string,
   missingField: string,
@@ -146,17 +199,13 @@ function isRussianCompetitionRecord(
 
 export function mapDiscGolfMetrixCompetitionRecord(
   record: DiscGolfMetrixRawCompetitionRecord,
+  parentCompetitionCourseIds: ReadonlyMap<string, string> = new Map(),
   index = 0,
 ):
   | { ok: true; competition: Competition }
   | { ok: false; issue: UpdateProcessingIssue } {
   const recordKey = buildRecordKey(record, index);
-  const competitionId = readOptionalStringField(record, [
-    "competitionId",
-    "competition_id",
-    "id",
-    "ID",
-  ]);
+  const competitionId = readCompetitionId(record);
 
   if (!competitionId) {
     return { ok: false, issue: toInvalidCompetitionIssue(recordKey, "competitionId") };
@@ -201,15 +250,8 @@ export function mapDiscGolfMetrixCompetitionRecord(
     return { ok: false, issue: toTooFewPlayersCompetitionIssue(recordKey) };
   }
 
-  const courseId = readOptionalStringField(record, [
-    "CourceID",
-    "CourseID",
-    "courseId",
-    "course_id",
-    "courseid",
-    "layoutId",
-    "layout_id",
-  ]);
+  const courseId =
+    readCompetitionCourseId(record) ?? parentCompetitionCourseIds.get(competitionId) ?? null;
 
   if (!courseId) {
     return { ok: false, issue: toInvalidCompetitionIssue(recordKey, "courseId") };
@@ -256,6 +298,7 @@ export function mapDiscGolfMetrixCompetitions(
 ): CompetitionMappingResult {
   const competitions: Competition[] = [];
   const issues: UpdateProcessingIssue[] = [];
+  const parentCompetitionCourseIds = buildParentCompetitionCourseIds(records);
   let filteredOutCount = 0;
   let skippedCount = 0;
   let errorCount = 0;
@@ -271,7 +314,11 @@ export function mapDiscGolfMetrixCompetitions(
       return;
     }
 
-    const mapped = mapDiscGolfMetrixCompetitionRecord(record, index + 1);
+    const mapped = mapDiscGolfMetrixCompetitionRecord(
+      record,
+      parentCompetitionCourseIds,
+      index + 1,
+    );
 
     if (!mapped.ok) {
       skippedCount += 1;

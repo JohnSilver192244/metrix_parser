@@ -54,6 +54,10 @@ test("CompetitionsPageView renders saved competitions with key fields", () => {
 
   assert.match(markup, /<table/);
   assert.match(markup, /Фильтры соревнований/);
+  assert.match(markup, /Правила отображения record_type на странице соревнований/);
+  assert.match(markup, /Правила record_type/);
+  assert.match(markup, /Показываем:[\s\S]*2 \(Single round event\), 4 \(Event\)/);
+  assert.match(markup, /Скрываем:[\s\S]*1 \(Round\), 3 \(Pool\), 5 \(Tour\)/);
   assert.match(markup, /Поиск по названию/);
   assert.match(markup, /Все парки/);
   assert.match(markup, /type="date"/);

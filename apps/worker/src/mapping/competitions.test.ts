@@ -207,6 +207,37 @@ test("mapDiscGolfMetrixCompetitions skips competitions without course ids", () =
   assert.equal(result.issues[0]?.recordKey, "competition:602");
 });
 
+test("mapDiscGolfMetrixCompetitions uses child competition course ids for parent competitions without own course ids", () => {
+  const result = mapDiscGolfMetrixCompetitions([
+    {
+      ID: "901",
+      Name: "Weekend Tour",
+      Date: "2026-03-22",
+      CountryCode: "RU",
+      PlayersCount: "16",
+    },
+    {
+      ID: "902",
+      Name: "Weekend Tour Round 1",
+      Date: "2026-03-22",
+      CountryCode: "RU",
+      PlayersCount: "12",
+      ParentID: "901",
+      CourseID: "55501",
+    },
+  ]);
+
+  assert.equal(result.filteredOutCount, 0);
+  assert.equal(result.skippedCount, 0);
+  assert.equal(result.errorCount, 0);
+  assert.equal(result.issues.length, 0);
+  assert.equal(result.competitions.length, 2);
+  assert.equal(result.competitions[0]?.competitionId, "901");
+  assert.equal(result.competitions[0]?.courseId, "55501");
+  assert.equal(result.competitions[1]?.competitionId, "902");
+  assert.equal(result.competitions[1]?.courseId, "55501");
+});
+
 test("mapDiscGolfMetrixCompetitions skips Russian records with impossible calendar dates", () => {
   const result = mapDiscGolfMetrixCompetitions([
     {

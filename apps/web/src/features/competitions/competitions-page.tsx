@@ -12,6 +12,7 @@ import {
 import { listCourses } from "../../shared/api/courses";
 import { decodeHtmlEntities } from "../../shared/text";
 import {
+  COMPETITION_RECORD_TYPE_LABELS,
   filterCompetitions,
   createCourseNamesById,
   filterVisibleCompetitions,
@@ -24,6 +25,8 @@ const discGolfMetrixBaseUrl =
   import.meta.env?.VITE_DISCGOLFMETRIX_BASE_URL ??
   import.meta.env?.DISCGOLFMETRIX_BASE_URL ??
   "https://discgolfmetrix.com";
+const visibleCompetitionRecordTypes = ["2", "4"] as const;
+const hiddenCompetitionRecordTypes = ["1", "3", "5"] as const;
 
 type CompetitionsPageState =
   | {
@@ -134,6 +137,40 @@ export function CompetitionsPageView({
         titleId="competitions-page-title"
         eyebrow="Данные"
         title="Список соревнований"
+        titleAction={
+          <span className="update-card__tooltip-anchor update-card__tooltip-anchor--info">
+            <button
+              type="button"
+              className="update-launcher__info-button"
+              aria-label="Правила отображения record_type на странице соревнований"
+            >
+              ?
+            </button>
+            <span
+              role="tooltip"
+              className="update-card__tooltip update-card__tooltip--info"
+            >
+              <strong>Правила record_type</strong>
+              <ul className="update-card__tooltip-list">
+                <li>
+                  Показываем:
+                  {" "}
+                  {visibleCompetitionRecordTypes
+                    .map((value) => `${value} (${COMPETITION_RECORD_TYPE_LABELS[value]})`)
+                    .join(", ")}
+                </li>
+                <li>
+                  Скрываем:
+                  {" "}
+                  {hiddenCompetitionRecordTypes
+                    .map((value) => `${value} (${COMPETITION_RECORD_TYPE_LABELS[value]})`)
+                    .join(", ")}
+                  , а также записи без `record_type`.
+                </li>
+              </ul>
+            </span>
+          </span>
+        }
         description={
           total > 0
             ? `В системе доступно ${total} соревнований для дальнейшей работы.`
