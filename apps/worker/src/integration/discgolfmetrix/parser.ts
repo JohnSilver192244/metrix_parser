@@ -15,6 +15,12 @@ function isCompetitionsPayload(value: unknown): value is DiscGolfMetrixCompetiti
   return isCompetitionRecord(value) && Array.isArray(value.competitions);
 }
 
+function isUppercaseCompetitionsPayload(
+  value: unknown,
+): value is DiscGolfMetrixCompetitionsPayload {
+  return isCompetitionRecord(value) && Array.isArray(value.Competitions);
+}
+
 export function parseDiscGolfMetrixCompetitionsPayload(
   payload: unknown,
 ): DiscGolfMetrixCompetitionsPayload {
@@ -24,6 +30,16 @@ export function parseDiscGolfMetrixCompetitionsPayload(
 
   if (isCompetitionsPayload(payload) && payload.competitions.every(isCompetitionRecord)) {
     return payload;
+  }
+
+  if (
+    isUppercaseCompetitionsPayload(payload) &&
+    payload.Competitions.every(isCompetitionRecord)
+  ) {
+    return {
+      ...payload,
+      competitions: payload.Competitions,
+    };
   }
 
   throw new DiscGolfMetrixClientError(

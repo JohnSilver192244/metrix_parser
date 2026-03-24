@@ -36,6 +36,10 @@ class InMemoryCompetitionResultsAdapter
     );
   }
 
+  async findByCompetitionIds(competitionIds: string[]): Promise<CompetitionResultRow[]> {
+    return this.rows.filter((row) => competitionIds.includes(row.competition_id));
+  }
+
   async insert(record: StoredCompetitionResultRecord): Promise<CompetitionResultRow> {
     const created = { id: this.nextId++, ...record };
     this.rows.push(created);
@@ -50,6 +54,28 @@ class InMemoryCompetitionResultsAdapter
     const updated = { id, ...record };
     this.rows[index] = updated;
     return updated;
+  }
+
+  async upsert(records: StoredCompetitionResultRecord[]): Promise<CompetitionResultRow[]> {
+    return records.map((record) => {
+      const existing = this.rows.find(
+        (row) =>
+          row.competition_id === record.competition_id &&
+          row.player_id === record.player_id &&
+          row.order_number === record.order_number,
+      );
+
+      if (existing) {
+        const updated = { id: existing.id, ...record };
+        const index = this.rows.findIndex((row) => row.id === existing.id);
+        this.rows[index] = updated;
+        return updated;
+      }
+
+      const created = { id: this.nextId++, ...record };
+      this.rows.push(created);
+      return created;
+    });
   }
 
   snapshot() {

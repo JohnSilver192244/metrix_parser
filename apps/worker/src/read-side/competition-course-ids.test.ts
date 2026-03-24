@@ -20,14 +20,17 @@ test("competition course id reader deduplicates course ids and reports missing r
       return [
         {
           competition_id: "competition-101",
-          raw_payload: { CourceID: "course-101" },
+          course_id: "course-101",
+          raw_payload: { CourceID: "course-legacy" },
         },
         {
           competition_id: "competition-102",
-          raw_payload: { course: { ID: "course-101" } },
+          course_id: null,
+          raw_payload: { CourceID: "course-101" },
         },
         {
           competition_id: "competition-103",
+          course_id: null,
           raw_payload: null,
         },
       ];

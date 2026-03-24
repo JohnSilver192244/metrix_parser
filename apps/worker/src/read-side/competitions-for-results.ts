@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createUpdateIssue, type UpdatePeriod, type UpdateProcessingIssue } from "@metrix-parser/shared-types";
 
+const APP_PUBLIC_SCHEMA = "app_public";
+
 export interface SavedCompetitionReference {
   competitionId: string;
   metrixId: string | null;
@@ -84,6 +86,7 @@ export function createSupabaseCompetitionsForResultsAdapter(
   return {
     async listCompetitionsForPeriod(period) {
       const { data, error } = await supabase
+        .schema(APP_PUBLIC_SCHEMA)
         .from("competitions")
         .select("competition_id, metrix_id, competition_date")
         .gte("competition_date", period.dateFrom)

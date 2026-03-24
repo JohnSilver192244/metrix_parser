@@ -1,0 +1,11 @@
+meta:
+  environment: node
+  toolchain:
+    name: browser
+    version: 20
+
+build:
+  # Replace the URL below with the public domain of your deployed API project.
+  additionalCommands: VITE_API_BASE_URL=https://replace-with-your-api-domain.amvera.io npm run build --workspace @metrix-parser/web
+  artifacts:
+    "apps/web/dist/*": /

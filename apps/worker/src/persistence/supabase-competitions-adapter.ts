@@ -7,7 +7,7 @@ import type {
 } from "./competitions-repository";
 
 const COMPETITIONS_SELECT_COLUMNS =
-  "id, competition_id, competition_name, competition_date, course_name, record_type, players_count, metrix_id, raw_payload, source_fetched_at";
+  "id, competition_id, competition_name, competition_date, parent_id, course_id, course_name, record_type, players_count, metrix_id, raw_payload, source_fetched_at";
 const APP_PUBLIC_SCHEMA = "app_public";
 
 export function createSupabaseCompetitionsAdapter(

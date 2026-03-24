@@ -17,7 +17,6 @@ import {
   mapDiscGolfMetrixCompetitionResults,
   type ExtractedCompetitionResultEntry,
 } from "../mapping/competition-results";
-import { executeUpdatePlan } from "../orchestration/update-execution";
 import {
   createCompetitionResultsRepository,
   type CompetitionResultsRepository,
@@ -45,6 +44,8 @@ export interface ResultsUpdateJobResult extends UpdateOperationResult {
   extractedResults?: ExtractedCompetitionResultEntry[];
 }
 
+const RESULTS_FETCH_CONCURRENCY = 4;
+
 async function fetchResultsPayloads(
   competitions: CompetitionsForResultsReadResult["competitions"],
   dependencies: DiscGolfMetrixClientDependencies,
@@ -54,25 +55,46 @@ async function fetchResultsPayloads(
   issues: UpdateProcessingIssue[];
 }> {
   const client = createDiscGolfMetrixClient(dependencies);
-  const payloads: DiscGolfMetrixResultsResponse[] = [];
+  const payloads = new Array<DiscGolfMetrixResultsResponse | null>(competitions.length).fill(null);
   const issues: UpdateProcessingIssue[] = [];
   let skippedCount = 0;
+  let nextIndex = 0;
 
-  for (const competition of competitions) {
-    try {
-      const payload = await client.fetchResults({
-        competitionId: competition.competitionId,
-        metrixId: competition.metrixId,
-      });
-      payloads.push(payload);
-    } catch (error) {
-      skippedCount += 1;
-      issues.push(toDiscGolfMetrixIssue(error, `competition:${competition.competitionId}`));
+  async function worker(): Promise<void> {
+    while (true) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+
+      if (currentIndex >= competitions.length) {
+        return;
+      }
+
+      const competition = competitions[currentIndex]!;
+
+      try {
+        const payload = await client.fetchResults({
+          competitionId: competition.competitionId,
+          metrixId: competition.metrixId,
+        });
+        payloads[currentIndex] = payload;
+      } catch (error) {
+        skippedCount += 1;
+        issues.push(toDiscGolfMetrixIssue(error, `competition:${competition.competitionId}`));
+      }
     }
   }
 
+  const workers = Array.from(
+    { length: Math.min(RESULTS_FETCH_CONCURRENCY, competitions.length) },
+    () => worker(),
+  );
+
+  await Promise.all(workers);
+
   return {
-    payloads,
+    payloads: payloads.filter(
+      (payload): payload is DiscGolfMetrixResultsResponse => payload !== null,
+    ),
     skippedCount,
     issues,
   };
@@ -169,21 +191,12 @@ export async function runResultsUpdateJob(
           supabase ?? createWorkerSupabaseAdminClient(),
         ),
       );
-    const persistenceResult = await executeUpdatePlan({
-      operation: "results",
-      items: createPersistableCompetitionResultRecords(
+    const persistenceResult = await repository.saveCompetitionResults(
+      createPersistableCompetitionResultRecords(
         mappingResult.extractedResults,
         fetchedResult.payloads,
-      ).map((record) => ({
-        recordKey: `competition:${record.result.competitionId}:player:${record.result.playerId}`,
-        payload: record,
-      })),
-      processItem: (item) => repository.saveCompetitionResult(item.payload),
-      message:
-        "Worker fetched result payloads, mapped competition results, and persisted valid records.",
-      period,
-      requestedAt,
-    });
+      ),
+    );
     const summary = {
       ...(persistenceResult.summary ?? createEmptyUpdateSummary()),
       found: mappingResult.results.length,

@@ -1,0 +1,12 @@
+meta:
+  environment: node
+  toolchain:
+    name: npm
+    version: 20
+
+build:
+  additionalCommands: npm run check --workspace @metrix-parser/api
+
+run:
+  command: node --import tsx apps/api/src/main.ts
+  containerPort: 3001

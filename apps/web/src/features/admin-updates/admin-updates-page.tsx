@@ -1,27 +1,168 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 
+import type {
+  UpdateLifecyclePhase,
+  UpdateOperationResult,
+  UpdatePeriod,
+} from "@metrix-parser/shared-types";
+
+import { mapUpdateError, triggerUpdate } from "../../shared/api/updates";
 import { UpdateActionCard } from "./update-action-card";
+import { createDefaultUpdatePeriod, UpdatePeriodPicker } from "./update-period-picker";
+import type { UpdateScenarioDefinition } from "./update-scenarios";
 import { updateScenarios } from "./update-scenarios";
+import { UpdateOperationStatus } from "./update-operation-status";
+
+const updateSkipConditions = [
+  "Соревнования не импортируются, если запись не из РФ. Такие записи отфильтровываются и не попадают в импорт.",
+  "Соревнования пропускаются, если у записи нет competitionId, competitionName, competitionDate или courseId.",
+  "Соревнования пропускаются, если в записи меньше 8 игроков.",
+  "Соревнования пропускаются при сохранении, если нет ни competitionId, ни metrixId, либо эти идентификаторы указывают на разные строки в базе.",
+  "Парки пропускаются, если у сохранённого соревнования нельзя определить courseId.",
+  "Парки пропускаются, если курс не удалось загрузить по courseId из DiscGolfMetrix.",
+  "Парки пропускаются, если в payload курса нет courseId, name или course_par.",
+  "Игроки и результаты пропускаются, если у сохранённого соревнования нет competition_id для запроса результатов.",
+  "Игроки и результаты пропускаются, если результаты соревнования не удалось загрузить из DiscGolfMetrix.",
+  "Игроки пропускаются, если во фрагменте результата нет playerId или playerName.",
+  "Игроки пропускаются при сохранении, если playerId или playerName пустые.",
+  "Результаты пропускаются, если во фрагменте результата нет playerId или orderNumber.",
+  "Результаты пропускаются, если запись не DNF и в ней нет sum или diff.",
+  "Результаты пропускаются при сохранении, если пусты competitionId или playerId, отсутствует целочисленный orderNumber, либо для не-DNF записи отсутствуют sum или diff.",
+] as const;
+
+function PendingStatus({ scenario, period }: { scenario: UpdateScenarioDefinition; period: UpdatePeriod }) {
+  return (
+    <div className="update-card__status update-card__status--pending" role="status">
+      <div className="update-card__status-heading">
+        <strong>Выполняется обновление: {scenario.title}</strong>
+        <span>Остальные кнопки временно заблокированы</span>
+      </div>
+      <p>Команда отправлена в backend API. Как только запрос завершится, здесь появится итоговая статистика.</p>
+      <p>
+        Период: {period.dateFrom} - {period.dateTo}
+      </p>
+      <dl className="update-card__summary-grid">
+        <div>
+          <dt>Found</dt>
+          <dd>...</dd>
+        </div>
+        <div>
+          <dt>Created</dt>
+          <dd>...</dd>
+        </div>
+        <div>
+          <dt>Updated</dt>
+          <dd>...</dd>
+        </div>
+        <div>
+          <dt>Skipped</dt>
+          <dd>...</dd>
+        </div>
+        <div>
+          <dt>Errors</dt>
+          <dd>...</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
 
 export function AdminUpdatesPage() {
+  const scenarios = useMemo(
+    () =>
+      updateScenarios.filter((scenario) =>
+        ["competitions", "courses", "players"].includes(scenario.operation),
+      ),
+    [],
+  );
+  const [period, setPeriod] = useState<UpdatePeriod>(() => createDefaultUpdatePeriod());
+  const [phase, setPhase] = useState<UpdateLifecyclePhase>("idle");
+  const [activeScenario, setActiveScenario] = useState<UpdateScenarioDefinition | null>(null);
+  const [result, setResult] = useState<UpdateOperationResult | null>(null);
+  const isSubmitting = phase === "submitting";
+  const disabledReason = isSubmitting
+    ? "Данные обновляются"
+    : null;
+
+  async function handleScenarioSubmit(scenario: UpdateScenarioDefinition) {
+    const submittedPeriod = { ...period };
+
+    setActiveScenario(scenario);
+    setPhase("submitting");
+    setResult(null);
+
+    try {
+      const response = await triggerUpdate(scenario.operation, submittedPeriod);
+      setPhase(response.finalStatus === "failed" ? "error" : "success");
+      setResult(response);
+    } catch (error) {
+      setPhase("error");
+      setResult(mapUpdateError(scenario.operation, error, submittedPeriod));
+    }
+  }
+
   return (
     <section className="admin-shell" aria-labelledby="admin-updates-title">
-      <section className="admin-hero">
-        <div>
-          <p className="admin-hero__eyebrow">metrixParser admin</p>
-          <h1 id="admin-updates-title">Ручной запуск обновлений данных</h1>
+      <section className="update-launcher" aria-label="Запуск обновлений">
+        <div className="update-launcher__panel">
+          <div className="update-launcher__intro">
+            <div className="update-launcher__title-row">
+              <h1 id="admin-updates-title">Обновление данных</h1>
+              <span className="update-card__tooltip-anchor update-card__tooltip-anchor--info">
+                <button
+                  type="button"
+                  className="update-launcher__info-button"
+                  aria-label="Причины пропуска записей при обновлении"
+                >
+                  ?
+                </button>
+                <span
+                  role="tooltip"
+                  className="update-card__tooltip update-card__tooltip--info"
+                >
+                  <strong>Что может быть пропущено при обновлении</strong>
+                  <ul className="update-card__tooltip-list">
+                    {updateSkipConditions.map((condition) => (
+                      <li key={condition}>{condition}</li>
+                    ))}
+                  </ul>
+                </span>
+              </span>
+            </div>
+            <p>Введите период и запустите нужное действие.</p>
+          </div>
+          <UpdatePeriodPicker value={period} onChange={setPeriod} />
+          <div className="update-launcher__actions" aria-label="Сценарии обновления">
+            {scenarios.map((scenario) => {
+              return (
+                <UpdateActionCard
+                  key={scenario.operation}
+                  scenario={scenario}
+                  disabled={isSubmitting}
+                  isActive={activeScenario?.operation === scenario.operation}
+                  disabledReason={disabledReason}
+                  onSubmit={handleScenarioSubmit}
+                />
+              );
+            })}
+          </div>
         </div>
-        <p className="admin-hero__body">
-          Выберите нужный сценарий, задайте период там, где он нужен, и отправьте
-          команду через backend API. Интерфейс разделяет сценарии, чтобы ими было
-          удобно управлять по отдельности.
-        </p>
       </section>
 
-      <section className="admin-grid" aria-label="Сценарии обновления">
-        {updateScenarios.map((scenario) => {
-          return <UpdateActionCard key={scenario.operation} scenario={scenario} />;
-        })}
+      <section className="update-launcher__status" aria-live="polite" aria-label="Статус обновления">
+        {phase === "submitting" && activeScenario ? (
+          <PendingStatus scenario={activeScenario} period={period} />
+        ) : null}
+        {phase !== "submitting" && result ? <UpdateOperationStatus result={result} /> : null}
+        {phase === "idle" && !result ? (
+          <div className="update-card__status update-card__status--idle">
+            <div className="update-card__status-heading">
+              <strong>Статистика появится здесь</strong>
+              <span>После запуска одного из обновлений</span>
+            </div>
+            <p>Выберите общий период и нажмите нужную кнопку. Новый запуск скроет предыдущую статистику до завершения запроса.</p>
+          </div>
+        ) : null}
       </section>
     </section>
   );

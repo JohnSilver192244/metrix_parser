@@ -84,7 +84,7 @@ export async function runCompetitionsUpdateJob(
       ...summary,
       found: fetchedPayload.records.length,
       skipped: summary.skipped + mappingResult.skippedCount,
-      errors: summary.errors + mappingResult.issues.length,
+      errors: summary.errors + mappingResult.errorCount,
     };
     const issues = [...mappingResult.issues, ...persistenceResult.issues];
 

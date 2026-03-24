@@ -1,10 +1,15 @@
 import React, { type ReactNode } from "react";
 
+import { resolveCompetitionResultsCompetitionId } from "./route-paths";
 import { AdminUpdatesPage } from "../features/admin-updates/admin-updates-page";
 import { CompetitionsPage } from "../features/competitions/competitions-page";
 import { CoursesPage } from "../features/courses/courses-page";
 import { PlayersPage } from "../features/players/players-page";
-import { ResultsPage } from "../features/results/results-page";
+import { CompetitionResultsPage } from "../features/results/competition-results-page";
+
+export interface AppRouteRenderContext {
+  onNavigate: (pathname: string) => void;
+}
 
 export interface AppRouteDefinition {
   path: string;
@@ -12,7 +17,8 @@ export interface AppRouteDefinition {
   group: "admin" | "browse";
   title: string;
   description: string;
-  element: ReactNode;
+  render: (context: AppRouteRenderContext) => ReactNode;
+  activePath?: string;
 }
 
 export const appRoutes: AppRouteDefinition[] = [
@@ -22,7 +28,7 @@ export const appRoutes: AppRouteDefinition[] = [
     group: "admin",
     title: "Административный контур",
     description: "Ручной запуск обновлений и контроль операций синхронизации.",
-    element: <AdminUpdatesPage />,
+    render: () => <AdminUpdatesPage />,
   },
   {
     path: "/competitions",
@@ -30,7 +36,7 @@ export const appRoutes: AppRouteDefinition[] = [
     group: "browse",
     title: "Список соревнований",
     description: "Просмотр сохранённых соревнований, загруженных через backend API.",
-    element: <CompetitionsPage />,
+    render: ({ onNavigate }) => <CompetitionsPage onNavigate={onNavigate} />,
   },
   {
     path: "/courses",
@@ -38,7 +44,7 @@ export const appRoutes: AppRouteDefinition[] = [
     group: "browse",
     title: "Список парков",
     description: "Просмотр park records и рассчитанного coursePar без повторных вычислений на клиенте.",
-    element: <CoursesPage />,
+    render: () => <CoursesPage />,
   },
   {
     path: "/players",
@@ -46,20 +52,37 @@ export const appRoutes: AppRouteDefinition[] = [
     group: "browse",
     title: "Список игроков",
     description: "Просмотр идентификационных данных игроков без привязки к отдельным результатам.",
-    element: <PlayersPage />,
-  },
-  {
-    path: "/results",
-    label: "Результаты",
-    group: "browse",
-    title: "Результаты соревнований",
-    description: "Просмотр итогов выступлений с отдельным состоянием для DNF.",
-    element: <ResultsPage />,
+    render: () => <PlayersPage />,
   },
 ];
 
+function resolveCompetitionResultsRoute(pathname: string): AppRouteDefinition | null {
+  const competitionId = resolveCompetitionResultsCompetitionId(pathname);
+  if (!competitionId) {
+    return null;
+  }
+
+  return {
+    path: pathname,
+    label: "Результаты соревнования",
+    group: "browse",
+    title: "Результаты соревнования",
+    description: "Просмотр итогов конкретного соревнования с отдельной сортировкой для DNF.",
+    activePath: "/competitions",
+    render: ({ onNavigate }) => (
+      <CompetitionResultsPage
+        competitionId={competitionId}
+        onNavigate={onNavigate}
+      />
+    ),
+  };
+}
+
 export function resolveAppRoute(pathname: string): AppRouteDefinition | null {
-  return appRoutes.find((route) => route.path === pathname) ?? null;
+  return (
+    appRoutes.find((route) => route.path === pathname) ??
+    resolveCompetitionResultsRoute(pathname)
+  );
 }
 
 export function getAppRoutesByGroup(

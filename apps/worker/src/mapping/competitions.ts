@@ -40,10 +40,25 @@ function toInvalidCompetitionIssue(
   });
 }
 
+const MIN_COMPETITION_PLAYERS = 8;
+
+function toTooFewPlayersCompetitionIssue(
+  recordKey: string,
+): UpdateProcessingIssue {
+  return createUpdateIssue({
+    code: "competition_zero_players",
+    message: `< ${MIN_COMPETITION_PLAYERS} players`,
+    recoverable: true,
+    stage: "validation",
+    recordKey,
+  });
+}
+
 export interface CompetitionMappingResult {
   competitions: Competition[];
   filteredOutCount: number;
   skippedCount: number;
+  errorCount: number;
   issues: UpdateProcessingIssue[];
 }
 
@@ -86,7 +101,9 @@ function isRussianCompetitionRecord(
     return RUSSIAN_COUNTRY_NAMES.has(normalizeCountryValue(explicitCountryName));
   }
 
-  return false;
+  // The competitions endpoint is already scoped by country_code, so records without
+  // per-record country metadata should still be accepted.
+  return true;
 }
 
 export function mapDiscGolfMetrixCompetitionRecord(
@@ -132,12 +149,47 @@ export function mapDiscGolfMetrixCompetitionRecord(
     return { ok: false, issue: toInvalidCompetitionIssue(recordKey, "competitionDate") };
   }
 
+  const playersCount =
+    readOptionalNumberField(record, [
+      "playersCount",
+      "players_count",
+      "playerCount",
+      "player_count",
+      "players",
+      "PlayersCount",
+    ]) ?? null;
+
+  if (playersCount !== null && playersCount < MIN_COMPETITION_PLAYERS) {
+    return { ok: false, issue: toTooFewPlayersCompetitionIssue(recordKey) };
+  }
+
+  const courseId = readOptionalStringField(record, [
+    "CourceID",
+    "CourseID",
+    "courseId",
+    "course_id",
+    "courseid",
+    "layoutId",
+    "layout_id",
+  ]);
+
+  if (!courseId) {
+    return { ok: false, issue: toInvalidCompetitionIssue(recordKey, "courseId") };
+  }
+
   return {
     ok: true,
     competition: {
       competitionId,
       competitionName,
       competitionDate,
+      parentId:
+        readOptionalStringField(record, [
+          "ParentID",
+          "parentId",
+          "parent_id",
+        ]) ?? null,
+      courseId,
       courseName:
         readOptionalStringField(record, [
           "courseName",
@@ -145,6 +197,8 @@ export function mapDiscGolfMetrixCompetitionRecord(
           "course",
           "Coursename",
         ]) ?? null,
+      // DiscGolfMetrix RecordType mapping:
+      // 1 - Round, 2 - Single round event, 3 - Pool, 4 - Event, 5 - Tour.
       recordType:
         readOptionalStringField(record, [
           "recordType",
@@ -153,14 +207,7 @@ export function mapDiscGolfMetrixCompetitionRecord(
           "RecordType",
         ]) ?? null,
       playersCount:
-        readOptionalNumberField(record, [
-          "playersCount",
-          "players_count",
-          "playerCount",
-          "player_count",
-          "players",
-          "PlayersCount",
-        ]) ?? null,
+        playersCount,
       metrixId: readOptionalStringField(record, ["metrixId", "metrix_id"]) ?? null,
     },
   };
@@ -173,6 +220,7 @@ export function mapDiscGolfMetrixCompetitions(
   const issues: UpdateProcessingIssue[] = [];
   let filteredOutCount = 0;
   let skippedCount = 0;
+  let errorCount = 0;
 
   records.forEach((record, index) => {
     if (!isRussianCompetitionRecord(record)) {
@@ -185,6 +233,9 @@ export function mapDiscGolfMetrixCompetitions(
     if (!mapped.ok) {
       skippedCount += 1;
       issues.push(mapped.issue);
+      if (mapped.issue.code !== "competition_zero_players") {
+        errorCount += 1;
+      }
       return;
     }
 
@@ -195,6 +246,7 @@ export function mapDiscGolfMetrixCompetitions(
     competitions,
     filteredOutCount,
     skippedCount,
+    errorCount,
     issues,
   };
 }

@@ -76,6 +76,8 @@ test("GET /competitions returns persisted competitions via the API envelope", as
             competitionId: "competition-102",
             competitionName: "Moscow Spring Open",
             competitionDate: "2026-04-21",
+            parentId: "series-10",
+            courseId: "course-200",
             courseName: "Troparevo",
             recordType: "tournament",
             playersCount: 48,
@@ -85,6 +87,8 @@ test("GET /competitions returns persisted competitions via the API envelope", as
             competitionId: "competition-101",
             competitionName: "Saint Petersburg Cup",
             competitionDate: "2026-04-14",
+            parentId: null,
+            courseId: null,
             courseName: null,
             recordType: null,
             playersCount: null,
@@ -99,6 +103,8 @@ test("GET /competitions returns persisted competitions via the API envelope", as
       competitionId: string;
       competitionName: string;
       competitionDate: string;
+      parentId?: string | null;
+      courseId?: string | null;
       courseName: string | null;
       recordType: string | null;
       playersCount: number | null;
@@ -115,6 +121,8 @@ test("GET /competitions returns persisted competitions via the API envelope", as
     competitionId: "competition-102",
     competitionName: "Moscow Spring Open",
     competitionDate: "2026-04-21",
+    parentId: "series-10",
+    courseId: "course-200",
     courseName: "Troparevo",
     recordType: "tournament",
     playersCount: 48,
@@ -124,6 +132,8 @@ test("GET /competitions returns persisted competitions via the API envelope", as
     competitionId: "competition-101",
     competitionName: "Saint Petersburg Cup",
     competitionDate: "2026-04-14",
+    parentId: null,
+    courseId: null,
     courseName: null,
     recordType: null,
     playersCount: null,
@@ -217,6 +227,37 @@ test("GET /courses returns persisted parks via the API envelope", async () => {
   });
 });
 
+test("GET /divisions returns reference divisions via the API envelope", async () => {
+  const response = await invokeRequest(
+    "/divisions",
+    {},
+    {
+      divisions: {
+        listDivisions: async () => [
+          {
+            code: "FPO",
+          },
+          {
+            code: "MPO",
+          },
+        ],
+      },
+    },
+  );
+  const payload = JSON.parse(response.body) as {
+    data: Array<{
+      code: string;
+    }>;
+    meta: {
+      count: number;
+    };
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.meta.count, 2);
+  assert.deepEqual(payload.data, [{ code: "FPO" }, { code: "MPO" }]);
+});
+
 test("GET /players returns persisted players via the API envelope", async () => {
   const response = await invokeRequest(
     "/players",
@@ -227,10 +268,16 @@ test("GET /players returns persisted players via the API envelope", async () => 
           {
             playerId: "player-100",
             playerName: "Ivan Ivanov",
+            division: "MPO",
+            rdga: true,
+            competitionsCount: 3,
           },
           {
             playerId: "player-101",
             playerName: "Anna Petrova",
+            division: null,
+            rdga: null,
+            competitionsCount: 1,
           },
         ],
       },
@@ -240,6 +287,9 @@ test("GET /players returns persisted players via the API envelope", async () => 
     data: Array<{
       playerId: string;
       playerName: string;
+      division: string | null;
+      rdga: boolean | null;
+      competitionsCount?: number;
     }>;
     meta: {
       count: number;
@@ -251,10 +301,76 @@ test("GET /players returns persisted players via the API envelope", async () => 
   assert.deepEqual(payload.data[0], {
     playerId: "player-100",
     playerName: "Ivan Ivanov",
+    division: "MPO",
+    rdga: true,
+    competitionsCount: 3,
   });
   assert.deepEqual(payload.data[1], {
     playerId: "player-101",
     playerName: "Anna Petrova",
+    division: null,
+    rdga: null,
+    competitionsCount: 1,
+  });
+});
+
+test("PUT /players updates editable player fields and returns the updated player", async () => {
+  let receivedPayload:
+    | {
+        playerId: string;
+        division: string | null;
+        rdga: boolean | null;
+      }
+    | undefined;
+
+  const response = await invokeRequest(
+    "/players",
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        playerId: "player-100",
+        division: "MA2",
+        rdga: false,
+      }),
+    },
+    {
+      players: {
+        updatePlayer: async (payload) => {
+          receivedPayload = payload;
+
+          return {
+            playerId: payload.playerId,
+            playerName: "Ivan Ivanov",
+            division: payload.division,
+            rdga: payload.rdga,
+            competitionsCount: 3,
+          };
+        },
+      },
+    },
+  );
+  const payload = JSON.parse(response.body) as {
+    data: {
+      playerId: string;
+      playerName: string;
+      division: string | null;
+      rdga: boolean | null;
+      competitionsCount?: number;
+    };
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(receivedPayload, {
+    playerId: "player-100",
+    division: "MA2",
+    rdga: false,
+  });
+  assert.deepEqual(payload.data, {
+    playerId: "player-100",
+    playerName: "Ivan Ivanov",
+    division: "MA2",
+    rdga: false,
+    competitionsCount: 3,
   });
 });
 
@@ -268,6 +384,9 @@ test("GET /results returns persisted competition results via the API envelope", 
           {
             competitionId: "competition-100",
             playerId: "player-100",
+            competitionName: "Spring Open",
+            playerName: "Ivan Ivanov",
+            playerRdga: true,
             className: "MPO",
             sum: 54,
             diff: -6,
@@ -277,6 +396,9 @@ test("GET /results returns persisted competition results via the API envelope", 
           {
             competitionId: "competition-100",
             playerId: "player-101",
+            competitionName: "Spring Open",
+            playerName: "Anna Petrova",
+            playerRdga: null,
             className: "FPO",
             sum: null,
             diff: null,
@@ -291,7 +413,10 @@ test("GET /results returns persisted competition results via the API envelope", 
     data: Array<{
       competitionId: string;
       playerId: string;
-      className: string;
+      competitionName?: string | null;
+      playerName?: string | null;
+      playerRdga?: boolean | null;
+      className: string | null;
       sum: number | null;
       diff: number | null;
       orderNumber: number;
@@ -307,6 +432,9 @@ test("GET /results returns persisted competition results via the API envelope", 
   assert.deepEqual(payload.data[0], {
     competitionId: "competition-100",
     playerId: "player-100",
+    competitionName: "Spring Open",
+    playerName: "Ivan Ivanov",
+    playerRdga: true,
     className: "MPO",
     sum: 54,
     diff: -6,
@@ -316,12 +444,64 @@ test("GET /results returns persisted competition results via the API envelope", 
   assert.deepEqual(payload.data[1], {
     competitionId: "competition-100",
     playerId: "player-101",
+    competitionName: "Spring Open",
+    playerName: "Anna Petrova",
+    playerRdga: null,
     className: "FPO",
     sum: null,
     diff: null,
     orderNumber: 2,
     dnf: true,
   });
+});
+
+test("GET /results forwards competitionId filter to the results module", async () => {
+  let receivedFilters:
+    | {
+        competitionId?: string;
+      }
+    | undefined;
+
+  const response = await invokeRequest(
+    "/results?competitionId=competition-100",
+    {},
+    {
+      results: {
+        listResults: async (filters) => {
+          receivedFilters = filters;
+
+          return [
+            {
+              competitionId: "competition-100",
+              playerId: "player-100",
+              competitionName: "Spring Open",
+              playerName: "Ivan Ivanov",
+              className: "MPO",
+              sum: 54,
+              diff: -6,
+              orderNumber: 1,
+              dnf: false,
+            },
+          ];
+        },
+      },
+    },
+  );
+  const payload = JSON.parse(response.body) as {
+    data: Array<{
+      competitionId: string;
+    }>;
+    meta: {
+      count: number;
+    };
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(receivedFilters, {
+    competitionId: "competition-100",
+  });
+  assert.equal(payload.meta.count, 1);
+  assert.equal(payload.data[0]?.competitionId, "competition-100");
 });
 
 test("POST /updates/competitions accepts a period-based update command", async () => {
@@ -625,15 +805,16 @@ test("POST /updates/players accepts a period-based update command", async () => 
           operation: "players",
           finalStatus: "completed_with_issues",
           source: "runtime",
-          message: "Worker fetched result payloads and extracted valid player records.",
+          message:
+            "Worker fetched result payloads, persisted players and competition results, and returned separate diagnostics for both entities.",
           requestedAt: "2026-03-22T10:00:00.000Z",
           finishedAt: "2026-03-22T10:00:02.000Z",
           summary: {
             found: 3,
-            created: 0,
+            created: 2,
             updated: 0,
-            skipped: 1,
-            errors: 1,
+            skipped: 3,
+            errors: 3,
           },
           issues: [
             {
@@ -643,7 +824,52 @@ test("POST /updates/players accepts a period-based update command", async () => 
               stage: "validation",
               recordKey: "player:player-2",
             },
+            {
+              code: "invalid_competition_result_record",
+              message: "missing orderNumber",
+              recoverable: true,
+              stage: "validation",
+              recordKey: "competition:competition-101:player:player-2",
+            },
           ],
+          diagnostics: {
+            players: {
+              summary: {
+                found: 2,
+                created: 2,
+                updated: 0,
+                skipped: 1,
+                errors: 1,
+              },
+              issues: [
+                {
+                  code: "invalid_player_record",
+                  message: "missing playerName",
+                  recoverable: true,
+                  stage: "validation",
+                  recordKey: "player:player-2",
+                },
+              ],
+            },
+            results: {
+              summary: {
+                found: 1,
+                created: 0,
+                updated: 0,
+                skipped: 2,
+                errors: 2,
+              },
+              issues: [
+                {
+                  code: "invalid_competition_result_record",
+                  message: "missing orderNumber",
+                  recoverable: true,
+                  stage: "validation",
+                  recordKey: "competition:competition-101:player:player-2",
+                },
+              ],
+            },
+          },
           period,
         }),
       },
@@ -662,6 +888,10 @@ test("POST /updates/players accepts a period-based update command", async () => 
         errors: number;
       };
       issues: Array<{ code: string; recordKey?: string }>;
+      diagnostics?: {
+        players?: { summary: { created: number } };
+        results?: { summary: { skipped: number } };
+      };
       period?: { dateFrom: string; dateTo: string };
     };
   };
@@ -672,12 +902,14 @@ test("POST /updates/players accepts a period-based update command", async () => 
   assert.equal(payload.data.source, "runtime");
   assert.deepEqual(payload.data.summary, {
     found: 3,
-    created: 0,
+    created: 2,
     updated: 0,
-    skipped: 1,
-    errors: 1,
+    skipped: 3,
+    errors: 3,
   });
-  assert.equal(payload.data.issues.length, 1);
+  assert.equal(payload.data.issues.length, 2);
+  assert.equal(payload.data.diagnostics?.players?.summary.created, 2);
+  assert.equal(payload.data.diagnostics?.results?.summary.skipped, 2);
   assert.equal(payload.data.issues[0]?.recordKey, "player:player-2");
   assert.deepEqual(payload.data.period, {
     dateFrom: "2026-04-01",

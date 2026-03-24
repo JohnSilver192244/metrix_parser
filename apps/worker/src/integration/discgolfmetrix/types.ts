@@ -46,6 +46,7 @@ export interface DiscGolfMetrixRawResultsRecord extends DiscGolfMetrixSourceReco
 
 export interface DiscGolfMetrixCompetitionsPayload {
   competitions: DiscGolfMetrixRawCompetitionRecord[];
+  Competitions?: DiscGolfMetrixRawCompetitionRecord[];
   [key: string]: unknown;
 }
 

@@ -4,8 +4,11 @@ import { createUpdateIssue, type UpdateProcessingIssue } from "@metrix-parser/sh
 
 import { readOptionalStringField } from "../parsing/competition-record";
 
+const APP_PUBLIC_SCHEMA = "app_public";
+
 export interface CompetitionSourceRow {
   competition_id: string;
+  course_id: string | null;
   raw_payload: Record<string, unknown> | null;
 }
 
@@ -78,7 +81,9 @@ export function createCompetitionCourseIdsReader(
       let skippedCount = 0;
 
       for (const row of rows) {
-        const courseId = extractCourseIdFromCompetitionPayload(row.raw_payload);
+        const courseId =
+          row.course_id?.trim() ||
+          extractCourseIdFromCompetitionPayload(row.raw_payload);
 
         if (!courseId) {
           skippedCount += 1;
@@ -109,8 +114,9 @@ export function createSupabaseCompetitionCourseIdsAdapter(
   return {
     async listCompetitionSources() {
       const { data, error } = await supabase
+        .schema(APP_PUBLIC_SCHEMA)
         .from("competitions")
-        .select("competition_id, raw_payload")
+        .select("competition_id, course_id, raw_payload")
         .order("competition_id", { ascending: true });
 
       if (error) {

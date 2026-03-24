@@ -15,6 +15,8 @@ function createCompetition(overrides: Partial<Competition> = {}): Competition {
     competitionId: "101",
     competitionName: "Moscow Open",
     competitionDate: "2026-04-12",
+    parentId: "9001",
+    courseId: "course-101",
     courseName: "Tiraz Park",
     recordType: "tournament",
     playersCount: 72,
@@ -29,6 +31,8 @@ function createStoredRow(overrides: Partial<CompetitionRow> = {}): CompetitionRo
     competition_id: "101",
     competition_name: "Moscow Open",
     competition_date: "2026-04-12",
+    parent_id: "9001",
+    course_id: "course-101",
     course_name: "Tiraz Park",
     record_type: "tournament",
     players_count: 72,
@@ -109,6 +113,7 @@ test("repository treats repeat-run of the same competition as update without cre
   assert.equal(result.issue, undefined);
   assert.equal(adapter.snapshot().length, 1);
   assert.equal(adapter.snapshot()[0]?.competition_name, "Moscow Open");
+  assert.equal(adapter.snapshot()[0]?.parent_id, "9001");
 });
 
 test("repository updates changed competition fields in place when a match is found", async () => {
@@ -132,6 +137,24 @@ test("repository updates changed competition fields in place when a match is fou
   assert.equal(adapter.snapshot().length, 1);
   assert.equal(adapter.snapshot()[0]?.competition_name, "Moscow Open 2026");
   assert.equal(adapter.snapshot()[0]?.players_count, 80);
+});
+
+test("repository persists changed parent_id in place when a match is found", async () => {
+  const adapter = new InMemoryCompetitionsAdapter([createStoredRow()]);
+  const repository = createCompetitionsRepository(adapter);
+
+  const result = await repository.saveCompetition({
+    competition: createCompetition({
+      parentId: "9002",
+    }),
+    rawPayload: { competitionId: "101", ParentID: "9002" },
+    sourceFetchedAt: "2026-03-21T12:00:00.000Z",
+  });
+
+  assert.equal(result.action, "updated");
+  assert.equal(result.matchedExisting, true);
+  assert.equal(result.issue, undefined);
+  assert.equal(adapter.snapshot()[0]?.parent_id, "9002");
 });
 
 test("repository preserves an existing metrix_id when the new payload omits it", async () => {

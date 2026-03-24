@@ -89,6 +89,41 @@ test("client returns raw competition records in a parsing-ready envelope", async
   assert.ok(result.sourceUrl.includes("country_code=EE"));
 });
 
+test("client normalizes competitions payloads with uppercase collection keys", async () => {
+  const client = createDiscGolfMetrixClient({
+    baseUrl: "https://discgolfmetrix.com",
+    countryCode: "RU",
+    apiCode: "secret-code",
+    fetchImpl: async () =>
+      createMockResponse(
+        JSON.stringify({
+          Competitions: [
+            { ID: 101, Name: "Moscow Open" },
+            { ID: 102, Name: "Saint Petersburg Cup" },
+          ],
+          Errors: [],
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      ),
+  });
+
+  const result = await client.fetchCompetitions({
+    period: {
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-31",
+    },
+  });
+
+  assert.equal(result.records.length, 2);
+  assert.deepEqual(result.rawPayload.Competitions, result.records);
+  assert.equal(result.records[0]?.ID, 101);
+});
+
 test("client throws predictable HTTP errors for DiscGolfMetrix failures", async () => {
   const client = createDiscGolfMetrixClient({
     baseUrl: "https://discgolfmetrix.com",

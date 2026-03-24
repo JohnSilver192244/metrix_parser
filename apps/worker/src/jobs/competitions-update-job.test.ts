@@ -57,12 +57,14 @@ test("runCompetitionsUpdateJob reports fetched competitions in the shared update
                 Name: "Moscow Open",
                 Date: "2026-01-15",
                 CountryCode: "RU",
+                CourseID: "45374",
               },
               {
                 ID: "102",
                 Name: "Winter Cup",
                 Date: "2026-01-20",
                 CountryCode: "RU",
+                CourseID: "45375",
               },
             ],
           }),
@@ -105,6 +107,7 @@ test("runCompetitionsUpdateJob keeps valid Russian competitions and reports inva
                 Name: "Moscow Open",
                 Date: "2026-01-15",
                 CountryCode: "RU",
+                CourseID: "45374",
               },
               {
                 ID: "bad-1",
@@ -137,6 +140,68 @@ test("runCompetitionsUpdateJob keeps valid Russian competitions and reports inva
   assert.equal(result.issues[0]?.code, "invalid_competition_record");
 });
 
+test("runCompetitionsUpdateJob skips competitions with fewer than eight players and keeps competitions with eight players", async () => {
+  const repository = createCompetitionsRepository(new InMemoryRepositoryAdapter());
+  const result = await runCompetitionsUpdateJob(
+    {
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-31",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      repository,
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            competitions: [
+              {
+                ID: "101",
+                Name: "Moscow Open",
+                Date: "2026-01-15",
+                CountryCode: "RU",
+                PlayersCount: "16",
+                CourseID: "45374",
+              },
+              {
+                ID: "103",
+                Name: "Small Cup",
+                Date: "2026-01-16",
+                CountryCode: "RU",
+                PlayersCount: "7",
+                CourseID: "45376",
+              },
+              {
+                ID: "104",
+                Name: "Borderline Cup",
+                Date: "2026-01-17",
+                CountryCode: "RU",
+                PlayersCount: "8",
+                CourseID: "45377",
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
+  assert.equal(result.finalStatus, "completed_with_issues");
+  assert.deepEqual(result.summary, {
+    found: 3,
+    created: 2,
+    updated: 0,
+    skipped: 1,
+    errors: 0,
+  });
+  assert.equal(result.mappedCompetitionsCount, 2);
+  assert.equal(result.issues.length, 1);
+  assert.equal(result.issues[0]?.code, "competition_zero_players");
+  assert.equal(result.issues[0]?.message, "< 8 players");
+  assert.equal(result.issues[0]?.recordKey, "competition:103");
+});
+
 test("runCompetitionsUpdateJob reports repeat runs as updates instead of duplicate inserts", async () => {
   const repository = createCompetitionsRepository(new InMemoryRepositoryAdapter());
 
@@ -159,6 +224,7 @@ test("runCompetitionsUpdateJob reports repeat runs as updates instead of duplica
                 Name: "Moscow Open",
                 Date: "2026-01-15",
                 CountryCode: "RU",
+                CourseID: "45374",
               },
             ],
           }),
@@ -186,6 +252,7 @@ test("runCompetitionsUpdateJob reports repeat runs as updates instead of duplica
                 Name: "Moscow Open Updated",
                 Date: "2026-01-15",
                 CountryCode: "RU",
+                CourseID: "45374",
               },
             ],
           }),
