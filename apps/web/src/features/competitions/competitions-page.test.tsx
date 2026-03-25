@@ -6,8 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   CompetitionsPageView,
-  resolveCompetitionExternalUrl,
 } from "./competitions-page";
+import { resolveCompetitionExternalUrl } from "./competition-presenters";
 
 test("CompetitionsPageView renders the empty state when there is no data", () => {
   const markup = renderToStaticMarkup(

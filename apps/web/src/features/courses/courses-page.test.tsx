@@ -40,6 +40,7 @@ test("CoursesPageView renders persisted parks including coursePar", () => {
             ratingValue2: 4.7,
             ratingResult2: 8,
             coursePar: 60,
+            basketsCount: 18,
           },
         ],
       }}
@@ -57,5 +58,74 @@ test("CoursesPageView renders persisted parks including coursePar", () => {
   assert.match(markup, /Moscow Disc Golf → Park/);
   assert.match(markup, /18 → holes/);
   assert.match(markup, /Moscow → Region/);
-  assert.match(markup, /4\.9 \(12\)/);
+  assert.match(markup, /<th scope="col">Корзин<\/th>/);
+  assert.match(markup, /18/);
+  assert.match(markup, /<th scope="col">Рейтинг<\/th>/);
+  assert.doesNotMatch(markup, /<th scope="col">Рейтинг 1<\/th>/);
+  assert.doesNotMatch(markup, /<th scope="col">Рейтинг 2<\/th>/);
+  assert.match(markup, />\?<\/button>/);
+  assert.match(markup, /role="tooltip"/);
+  assert.match(markup, /Рейтинг 1: 4\.9/);
+  assert.match(markup, /Рейтинг 2: 4\.7/);
+  assert.match(markup, /7\.3/);
+});
+
+test("CoursesPageView hides rating tooltip trigger when rating data is missing", () => {
+  const markup = renderToStaticMarkup(
+    <CoursesPageView
+      state={{
+        status: "ready",
+        total: 1,
+        courses: [
+          {
+            courseId: "course-101",
+            name: "No Rating Park",
+            fullname: null,
+            type: null,
+            countryCode: null,
+            area: null,
+            ratingValue1: null,
+            ratingResult1: null,
+            ratingValue2: null,
+            ratingResult2: null,
+            coursePar: 54,
+            basketsCount: 12,
+          },
+        ],
+      }}
+    />,
+  );
+
+  assert.match(markup, /Нет данных/);
+  assert.doesNotMatch(markup, /\(\?\)/);
+  assert.doesNotMatch(markup, /role="tooltip"/);
+});
+
+test("CoursesPageView shows baskets count fallback when baskets are missing", () => {
+  const markup = renderToStaticMarkup(
+    <CoursesPageView
+      state={{
+        status: "ready",
+        total: 1,
+        courses: [
+          {
+            courseId: "course-102",
+            name: "No Baskets Park",
+            fullname: null,
+            type: null,
+            countryCode: null,
+            area: null,
+            ratingValue1: null,
+            ratingResult1: null,
+            ratingValue2: null,
+            ratingResult2: null,
+            coursePar: 54,
+            basketsCount: null,
+          },
+        ],
+      }}
+    />,
+  );
+
+  assert.match(markup, /Нет данных/);
 });

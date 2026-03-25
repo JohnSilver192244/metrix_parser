@@ -19,12 +19,8 @@ import {
   formatCompetitionDate,
   formatCompetitionRecordType,
   resolveCompetitionCourseName,
+  resolveCompetitionExternalUrl,
 } from "./competition-presenters";
-
-const discGolfMetrixBaseUrl =
-  import.meta.env?.VITE_DISCGOLFMETRIX_BASE_URL ??
-  import.meta.env?.DISCGOLFMETRIX_BASE_URL ??
-  "https://discgolfmetrix.com";
 const visibleCompetitionRecordTypes = ["2", "4"] as const;
 const hiddenCompetitionRecordTypes = ["1", "3", "5"] as const;
 
@@ -45,10 +41,6 @@ type CompetitionsPageState =
 
 function formatPlayersCount(value: number | null): string {
   return value === null ? "Не указан" : `${value}`;
-}
-
-export function resolveCompetitionExternalUrl(competitionId: string): string {
-  return new URL(`/${competitionId}`, discGolfMetrixBaseUrl).toString();
 }
 
 export interface CompetitionsPageViewProps {

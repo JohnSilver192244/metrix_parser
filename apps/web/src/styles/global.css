@@ -608,6 +608,18 @@ body {
   outline-offset: 2px;
 }
 
+.courses-page__rating-anchor {
+  gap: 8px;
+  align-items: center;
+  position: relative;
+  display: inline-flex;
+  overflow: visible;
+}
+
+.courses-page__rating-anchor .update-launcher__info-button {
+  flex: 0 0 auto;
+}
+
 .update-card__tooltip {
   position: absolute;
   z-index: 3;
@@ -639,9 +651,11 @@ body {
   max-width: min(540px, calc(100vw - 32px));
   padding: 14px 16px;
   left: 0;
-  top: calc(100% + 12px);
-  transform: translate(0, 6px);
+  top: auto;
+  bottom: calc(100% + 12px);
+  transform: translate(0, -6px);
   text-align: left;
+  z-index: 20;
 }
 
 .update-card__tooltip--info strong {
@@ -667,6 +681,10 @@ body {
 .update-card__tooltip-anchor--info:focus-within .update-card__tooltip--info {
   opacity: 1;
   transform: translate(0, 0);
+}
+
+.courses-page__table-panel {
+  overflow: visible;
 }
 
 .update-card__status--idle {
@@ -1124,6 +1142,10 @@ body {
 }
 
 .competition-results-page__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
   margin: 0;
   font-size: clamp(1.7rem, 2.8vw, 2.4rem);
   line-height: 1.15;

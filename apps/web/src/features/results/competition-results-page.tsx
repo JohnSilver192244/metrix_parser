@@ -10,6 +10,7 @@ import {
   formatCompetitionRecordType,
   formatCompetitionDate,
   resolveCompetitionCourseName,
+  resolveCompetitionExternalUrl,
 } from "../competitions/competition-presenters";
 import {
   listCompetitions,
@@ -363,6 +364,7 @@ export function CompetitionResultsPageView({
   const orderedResults = sortCompetitionResults(results, sort);
   const competitionName = decodeHtmlEntities(competition.competitionName);
   const courseLabel = decodeHtmlEntities(courseName);
+  const externalUrl = resolveCompetitionExternalUrl(competition.competitionId);
   const toggleSort = (field: CompetitionResultsSortField) => {
     setSort((currentSort) => {
       if (currentSort.field === field) {
@@ -401,7 +403,30 @@ export function CompetitionResultsPageView({
 
       <header className="competition-results-page__header">
         <h1 id="competition-results-title" className="competition-results-page__title">
-          {competitionName}
+          <span>{competitionName}</span>
+          <a
+            className="data-table__external-link"
+            href={externalUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Открыть соревнование ${competitionName} на Disc Golf Metrix в новой вкладке`}
+          >
+            <svg
+              className="data-table__external-link-icon"
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                d="M6 3h7v7M13 3 6 10M10 6v7H3V6h7"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </a>
         </h1>
         <p className="competition-results-page__meta">
           {formatCompetitionDate(competition.competitionDate)} · {courseLabel} ·{" "}

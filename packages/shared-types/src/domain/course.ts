@@ -10,6 +10,7 @@ export interface Course {
   ratingValue2: number | null;
   ratingResult2: number | null;
   coursePar: number;
+  basketsCount: number | null;
 }
 
 export interface CourseDbRecord {
@@ -24,6 +25,7 @@ export interface CourseDbRecord {
   rating_value2: number | null;
   rating_result2: number | null;
   course_par: number;
+  baskets_count: number | null;
 }
 
 export function toCourseDbRecord(course: Course): CourseDbRecord {
@@ -39,5 +41,6 @@ export function toCourseDbRecord(course: Course): CourseDbRecord {
     rating_value2: course.ratingValue2,
     rating_result2: course.ratingResult2,
     course_par: course.coursePar,
+    baskets_count: course.basketsCount,
   };
 }

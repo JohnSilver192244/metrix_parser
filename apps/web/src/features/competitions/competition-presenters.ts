@@ -2,6 +2,11 @@ import type { Competition, Course } from "@metrix-parser/shared-types";
 
 import { decodeHtmlEntities } from "../../shared/text";
 
+const discGolfMetrixBaseUrl =
+  import.meta.env?.VITE_DISCGOLFMETRIX_BASE_URL ??
+  import.meta.env?.DISCGOLFMETRIX_BASE_URL ??
+  "https://discgolfmetrix.com";
+
 export const COMPETITION_COURSE_FALLBACK = "Обновите парки";
 export const COMPETITION_RECORD_TYPE_LABELS: Readonly<Record<string, string>> = {
   "1": "Round",
@@ -17,6 +22,10 @@ export function formatCompetitionDate(value: string): string {
   const [year, month, day] = value.split("-");
 
   return `${day}.${month}.${year}`;
+}
+
+export function resolveCompetitionExternalUrl(competitionId: string): string {
+  return new URL(`/${competitionId}`, discGolfMetrixBaseUrl).toString();
 }
 
 export function formatCompetitionRecordType(value: string | null): string {

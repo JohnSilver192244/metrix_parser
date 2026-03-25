@@ -177,6 +177,7 @@ test("GET /courses returns persisted parks via the API envelope", async () => {
             ratingValue2: 4.6,
             ratingResult2: 10,
             coursePar: 61,
+            basketsCount: 18,
           },
           {
             courseId: "course-201",
@@ -190,6 +191,7 @@ test("GET /courses returns persisted parks via the API envelope", async () => {
             ratingValue2: null,
             ratingResult2: null,
             coursePar: 54,
+            basketsCount: 12,
           },
         ],
       },
@@ -208,6 +210,7 @@ test("GET /courses returns persisted parks via the API envelope", async () => {
       ratingValue2: number | null;
       ratingResult2: number | null;
       coursePar: number;
+      basketsCount: number;
     }>;
     meta: {
       count: number;
@@ -228,6 +231,7 @@ test("GET /courses returns persisted parks via the API envelope", async () => {
     ratingValue2: 4.6,
     ratingResult2: 10,
     coursePar: 61,
+    basketsCount: 18,
   });
   assert.deepEqual(payload.data[1], {
     courseId: "course-201",
@@ -241,6 +245,7 @@ test("GET /courses returns persisted parks via the API envelope", async () => {
     ratingValue2: null,
     ratingResult2: null,
     coursePar: 54,
+    basketsCount: 12,
   });
 });
 

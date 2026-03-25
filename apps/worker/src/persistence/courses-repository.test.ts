@@ -23,6 +23,7 @@ function createCourse(overrides: Partial<Course> = {}): Course {
     ratingValue2: 4.5,
     ratingResult2: 56,
     coursePar: 54,
+    basketsCount: 18,
     ...overrides,
   };
 }
@@ -41,6 +42,7 @@ function createStoredRow(overrides: Partial<CourseRow> = {}): CourseRow {
     rating_value2: 4.5,
     rating_result2: 56,
     course_par: 54,
+    baskets_count: 18,
     ...overrides,
   };
 }
@@ -110,6 +112,7 @@ test("repository treats repeat-run of the same course as update without creating
   assert.equal(result.matchedExisting, true);
   assert.equal(adapter.snapshot().length, 1);
   assert.equal(adapter.snapshot()[0]?.course_par, 56);
+  assert.equal(adapter.snapshot()[0]?.baskets_count, 18);
 });
 
 test("repository skips problematic course records with missing stable identifiers", async () => {

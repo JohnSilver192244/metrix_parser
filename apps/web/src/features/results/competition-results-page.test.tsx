@@ -9,6 +9,7 @@ import {
   resolveCompetitionResults,
   sortCompetitionResults,
 } from "./competition-results-page";
+import { resolveCompetitionExternalUrl } from "../competitions/competition-presenters";
 
 test("sortCompetitionResults moves DNF entries to the end", () => {
   const ordered = sortCompetitionResults([
@@ -149,6 +150,8 @@ test("CompetitionResultsPageView renders competition header and result table", (
   );
 
   assert.match(markup, /Spring → Open/);
+  assert.match(markup, /data-table__external-link/);
+  assert.match(markup, new RegExp(resolveCompetitionExternalUrl("competition-100")));
   assert.match(markup, /10\.05\.2026 · Yaroslavl → Park · Single round event/);
   assert.match(markup, /data-table__sort-button/);
   assert.match(markup, /Место ▲/);

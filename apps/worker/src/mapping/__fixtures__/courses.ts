@@ -40,6 +40,7 @@ export const nestedCourseFixture: DiscGolfMetrixRawCourseRecord = {
       ],
     },
   },
+  baskets: [{ Number: "1" }, { Number: "2" }],
 };
 
 export const brokenCourseFixture: DiscGolfMetrixRawCourseRecord = {

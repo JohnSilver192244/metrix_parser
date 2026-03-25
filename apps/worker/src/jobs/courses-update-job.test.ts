@@ -58,18 +58,19 @@ test("runCoursesUpdateJob discovers course ids, persists valid courses, and repo
         );
       }
 
-      return createMockResponse(
-        JSON.stringify({
-          course: {
-            ID: "course-202",
-            Name: "Primorsky Park",
-            layout: {
-              holes: [{ Par: "3" }, { Par: "3" }, { Par: "4" }],
+        return createMockResponse(
+          JSON.stringify({
+            course: {
+              ID: "course-202",
+              Name: "Primorsky Park",
+              layout: {
+                holes: [{ Par: "3" }, { Par: "3" }, { Par: "4" }],
+              },
             },
-          },
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
+            baskets: [{ Number: "1" }, { Number: "2" }, { Number: "3" }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
     },
   });
 

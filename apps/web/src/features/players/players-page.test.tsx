@@ -94,6 +94,52 @@ test("PlayersPageView filters players by name substring case-insensitively", () 
   assert.doesNotMatch(markup, /Sergey Petrov/);
 });
 
+test("PlayersPageView filters players by division and RDGA", () => {
+  const markup = renderToStaticMarkup(
+    <PlayersPageView
+      state={{
+        status: "ready",
+        divisions: [
+          { code: "MPO" },
+          { code: "MA2" },
+        ],
+        total: 3,
+        players: [
+          {
+            playerId: "player-500",
+            playerName: "Pavel Orlov",
+            division: "MPO",
+            rdga: true,
+            competitionsCount: 7,
+          },
+          {
+            playerId: "player-501",
+            playerName: "Sergey Petrov",
+            division: "MA2",
+            rdga: false,
+            competitionsCount: 5,
+          },
+          {
+            playerId: "player-502",
+            playerName: "Ivan Sidorov",
+            division: "MA2",
+            rdga: null,
+            competitionsCount: 3,
+          },
+        ],
+      }}
+      divisionFilter="MA2"
+      rdgaFilter="non-rdga"
+    />,
+  );
+
+  assert.match(markup, /Все дивизионы/);
+  assert.match(markup, /<option value="MA2" selected="">MA2<\/option>/);
+  assert.match(markup, /Sergey Petrov/);
+  assert.match(markup, /Ivan Sidorov/);
+  assert.doesNotMatch(markup, /Pavel Orlov/);
+});
+
 test("PlayersPageView renders filtered empty state when search has no matches", () => {
   const markup = renderToStaticMarkup(
     <PlayersPageView
@@ -116,7 +162,7 @@ test("PlayersPageView renders filtered empty state when search has no matches", 
   );
 
   assert.match(markup, /По текущему фильтру игроков нет/);
-  assert.match(markup, /Попробуйте изменить строку поиска по имени/);
+  assert.match(markup, /Попробуйте изменить имя, дивизион или фильтр RDGA/);
   assert.doesNotMatch(markup, /<table/);
 });
 

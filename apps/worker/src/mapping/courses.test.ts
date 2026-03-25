@@ -8,7 +8,11 @@ import {
   nestedCourseFixture,
   validCourseFixture,
 } from "./__fixtures__/courses";
-import { calculateCoursePar, mapDiscGolfMetrixCourseRecord } from "./courses";
+import {
+  calculateBasketsCount,
+  calculateCoursePar,
+  mapDiscGolfMetrixCourseRecord,
+} from "./courses";
 
 test("mapDiscGolfMetrixCourseRecord maps required course fields and calculates course_par", () => {
   const result = mapDiscGolfMetrixCourseRecord(validCourseFixture);
@@ -31,6 +35,7 @@ test("mapDiscGolfMetrixCourseRecord maps required course fields and calculates c
     ratingValue2: 1000,
     ratingResult2: 43.57,
     coursePar: 12,
+    basketsCount: 3,
   });
   assert.deepEqual(toCourseDbRecord(result.course), {
     course_id: "course-101",
@@ -44,11 +49,16 @@ test("mapDiscGolfMetrixCourseRecord maps required course fields and calculates c
     rating_value2: 1000,
     rating_result2: 43.57,
     course_par: 12,
+    baskets_count: 3,
   });
 });
 
 test("calculateCoursePar supports nested course payloads", () => {
   assert.equal(calculateCoursePar(nestedCourseFixture), 10);
+});
+
+test("calculateBasketsCount supports nested course payloads", () => {
+  assert.equal(calculateBasketsCount(nestedCourseFixture), 2);
 });
 
 test("mapDiscGolfMetrixCourseRecord skips incomplete course payloads without crashing the batch", () => {

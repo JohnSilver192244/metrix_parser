@@ -113,6 +113,46 @@ function sumParsFromNode(node: unknown): { sum: number; count: number } {
   return { sum, count };
 }
 
+function findBasketsCountInNode(node: unknown): number | undefined {
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const nestedCount = findBasketsCountInNode(item);
+
+      if (nestedCount !== undefined) {
+        return nestedCount;
+      }
+    }
+
+    return undefined;
+  }
+
+  const objectNode = toObject(node);
+
+  if (!objectNode) {
+    return undefined;
+  }
+
+  if (Array.isArray(objectNode.baskets)) {
+    return objectNode.baskets.length;
+  }
+
+  for (const [key, value] of Object.entries(objectNode)) {
+    if (key === "baskets" && Array.isArray(value)) {
+      continue;
+    }
+
+    if (Array.isArray(value) || (typeof value === "object" && value !== null)) {
+      const nestedCount = findBasketsCountInNode(value);
+
+      if (nestedCount !== undefined) {
+        return nestedCount;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 export function calculateCoursePar(
   record: DiscGolfMetrixRawCourseRecord,
 ): number | undefined {
@@ -125,6 +165,21 @@ export function calculateCoursePar(
   const unwrapped = unwrapCourseRecord(record);
 
   return readOptionalNumberField(unwrapped, ["coursePar", "course_par", "par"]);
+}
+
+export function calculateBasketsCount(
+  record: DiscGolfMetrixRawCourseRecord,
+): number | undefined {
+  const topLevelCount = findBasketsCountInNode(record);
+
+  if (topLevelCount !== undefined) {
+    return topLevelCount;
+  }
+
+  const unwrapped = unwrapCourseRecord(record);
+  const unwrappedCount = findBasketsCountInNode(unwrapped);
+
+  return unwrappedCount;
 }
 
 export function mapDiscGolfMetrixCourseRecord(
@@ -155,9 +210,14 @@ export function mapDiscGolfMetrixCourseRecord(
   }
 
   const coursePar = calculateCoursePar(record);
+  const basketsCount = calculateBasketsCount(record);
 
   if (coursePar === undefined) {
     return { ok: false, issue: createCourseIssue(recordKey, "course_par") };
+  }
+
+  if (basketsCount === undefined) {
+    return { ok: false, issue: createCourseIssue(recordKey, "baskets_count") };
   }
 
   return {
@@ -198,6 +258,7 @@ export function mapDiscGolfMetrixCourseRecord(
           "rating_result2",
         ]) ?? null,
       coursePar,
+      basketsCount,
     },
   };
 }

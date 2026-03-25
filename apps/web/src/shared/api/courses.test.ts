@@ -24,6 +24,7 @@ test("listCourses reads data and meta from the backend envelope", async () => {
               ratingValue2: 4.6,
               ratingResult2: 11,
               coursePar: 63,
+              basketsCount: 18,
             },
           ],
           meta: {
@@ -38,6 +39,7 @@ test("listCourses reads data and meta from the backend envelope", async () => {
     assert.equal(envelope.meta?.count, 1);
     assert.equal(envelope.data[0]?.courseId, "course-900");
     assert.equal(envelope.data[0]?.coursePar, 63);
+    assert.equal(envelope.data[0]?.basketsCount, 18);
     assert.equal(resolveCoursesTotal(envelope.data, envelope.meta), 1);
   } finally {
     globalThis.fetch = originalFetch;

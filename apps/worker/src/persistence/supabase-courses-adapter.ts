@@ -7,7 +7,7 @@ import type {
 } from "./courses-repository";
 
 const COURSES_SELECT_COLUMNS =
-  "id, course_id, name, fullname, type, country_code, area, rating_value1, rating_result1, rating_value2, rating_result2, course_par, raw_payload, source_fetched_at";
+  "id, course_id, name, fullname, type, country_code, area, rating_value1, rating_result1, rating_value2, rating_result2, course_par, baskets_count, raw_payload, source_fetched_at";
 const APP_PUBLIC_SCHEMA = "app_public";
 
 export function createSupabaseCoursesAdapter(

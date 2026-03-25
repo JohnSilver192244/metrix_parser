@@ -28,12 +28,66 @@ function formatCoursePar(value: number): string {
   return `Par ${value}`;
 }
 
-function formatRating(value: number | null, votes: number | null): string {
-  if (value === null || votes === null) {
+function formatBasketsCount(value: number | null): string {
+  return value == null ? "Нет данных" : `${value}`;
+}
+
+function formatRatingValue(value: number | null): string {
+  return value === null ? "Нет данных" : value.toFixed(1);
+}
+
+function calculateRating(course: Course): number | null {
+  const {
+    ratingValue1,
+    ratingValue2,
+    ratingResult1,
+    ratingResult2,
+  } = course;
+
+  if (
+    ratingValue1 === null ||
+    ratingValue2 === null ||
+    ratingResult1 === null ||
+    ratingResult2 === null ||
+    ratingResult1 === ratingResult2
+  ) {
+    return null;
+  }
+
+  return (
+    ((ratingValue2 - ratingValue1) * (course.coursePar - ratingResult1)) /
+      (ratingResult2 - ratingResult1) +
+    ratingValue1
+  );
+}
+
+function renderRatingCell(course: Course, rating: number | null): React.ReactNode {
+  if (rating === null) {
     return "Нет данных";
   }
 
-  return `${value.toFixed(1)} (${votes})`;
+  return (
+    <span className="update-card__tooltip-anchor update-card__tooltip-anchor--info courses-page__rating-anchor">
+      <span>{rating.toFixed(1)}</span>
+      <button
+        type="button"
+        className="update-launcher__info-button"
+        aria-label={`Показать исходные значения рейтинга для ${resolveCourseName(course)}`}
+      >
+        ?
+      </button>
+      <span
+        role="tooltip"
+        className="update-card__tooltip update-card__tooltip--info courses-page__rating-tooltip"
+      >
+        <strong>Исходные значения рейтинга</strong>
+        <ul className="update-card__tooltip-list">
+          <li>{`Рейтинг 1: ${formatRatingValue(course.ratingValue1)}`}</li>
+          <li>{`Рейтинг 2: ${formatRatingValue(course.ratingValue2)}`}</li>
+        </ul>
+      </span>
+    </span>
+  );
 }
 
 export interface CoursesPageViewProps {
@@ -189,7 +243,7 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
               <p>Попробуйте выбрать другой парк или регион.</p>
             </section>
           ) : (
-            <section className="data-table-panel" aria-label="Сохранённые парки">
+            <section className="data-table-panel courses-page__table-panel" aria-label="Сохранённые парки">
               <div className="data-table-wrap">
                 <table className="data-table">
                   <thead>
@@ -201,12 +255,14 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
                       <th scope="col">Тип</th>
                       <th scope="col">Страна</th>
                       <th scope="col">Par</th>
-                      <th scope="col">Рейтинг 1</th>
-                      <th scope="col">Рейтинг 2</th>
+                      <th scope="col">Корзин</th>
+                      <th scope="col">Рейтинг</th>
                     </tr>
                   </thead>
                   <tbody>
                     {visibleCourses.map((course) => {
+                      const rating = calculateRating(course);
+
                       return (
                         <tr key={course.courseId}>
                           <td className="data-table__cell-primary">{course.courseId}</td>
@@ -216,8 +272,8 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
                           <td>{decodeHtmlEntities(course.type) || "Не указан"}</td>
                           <td>{course.countryCode ?? "Не указана"}</td>
                           <td>{formatCoursePar(course.coursePar)}</td>
-                          <td>{formatRating(course.ratingValue1, course.ratingResult1)}</td>
-                          <td>{formatRating(course.ratingValue2, course.ratingResult2)}</td>
+                          <td>{formatBasketsCount(course.basketsCount)}</td>
+                          <td>{renderRatingCell(course, rating)}</td>
                         </tr>
                       );
                     })}

@@ -17,6 +17,7 @@ const COURSES_SELECT_COLUMNS = [
   "rating_value2",
   "rating_result2",
   "course_par",
+  "baskets_count",
 ].join(", ");
 
 interface CourseReadAdapter {
@@ -40,6 +41,7 @@ function toCourse(record: CourseDbRecord): Course {
     ratingValue2: record.rating_value2,
     ratingResult2: record.rating_result2,
     coursePar: record.course_par,
+    basketsCount: record.baskets_count,
   };
 }
 

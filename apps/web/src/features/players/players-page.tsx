@@ -1,12 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import type { Division, Player } from "@metrix-parser/shared-types";
 
 import { useAuth } from "../auth/auth-context";
 import { PageHeader } from "../../shared/page-header";
-import {
-  listDivisions,
-} from "../../shared/api/divisions";
+import { listDivisions } from "../../shared/api/divisions";
 import {
   listPlayers,
   resolvePlayersErrorMessage,
@@ -30,9 +28,13 @@ type PlayersPageState =
       total: number;
     };
 
+type PlayersRdgaFilter = "all" | "rdga" | "non-rdga";
+
 export interface PlayersPageViewProps {
   state: PlayersPageState;
   nameQuery?: string;
+  divisionFilter?: string;
+  rdgaFilter?: PlayersRdgaFilter;
   canEdit?: boolean;
   divisionDrafts?: Record<string, string>;
   rdgaDrafts?: Record<string, boolean | null>;
@@ -42,6 +44,8 @@ export interface PlayersPageViewProps {
     message: string | null;
   };
   onNameQueryChange?: (value: string) => void;
+  onDivisionFilterChange?: (value: string) => void;
+  onRdgaFilterChange?: (value: PlayersRdgaFilter) => void;
   onDivisionChange?: (playerId: string, value: string) => void;
   onRdgaChange?: (playerId: string, value: boolean) => void;
   onDivisionSave?: (playerId: string) => void;
@@ -60,9 +64,26 @@ function normalizeNameQuery(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function filterPlayersByRdga(
+  players: Player[],
+  rdgaFilter: PlayersRdgaFilter,
+): Player[] {
+  if (rdgaFilter === "rdga") {
+    return players.filter((player) => player.rdga === true);
+  }
+
+  if (rdgaFilter === "non-rdga") {
+    return players.filter((player) => player.rdga !== true);
+  }
+
+  return players;
+}
+
 export function PlayersPageView({
   state,
   nameQuery = "",
+  divisionFilter = "",
+  rdgaFilter = "all",
   canEdit = false,
   divisionDrafts = {},
   rdgaDrafts = {},
@@ -72,10 +93,40 @@ export function PlayersPageView({
     message: null,
   },
   onNameQueryChange,
+  onDivisionFilterChange,
+  onRdgaFilterChange,
   onDivisionChange,
   onRdgaChange,
   onDivisionSave,
 }: PlayersPageViewProps) {
+  const divisions = state.status === "ready" ? state.divisions : [];
+  const players = state.status === "ready" ? state.players : [];
+  const total = state.status === "ready" ? state.total : 0;
+  const normalizedNameQuery = normalizeNameQuery(nameQuery);
+  const divisionOptions = useMemo(
+    () =>
+      [
+        ...new Set([
+          ...divisions.map((division) => division.code),
+          ...players
+            .map((player) => player.division)
+            .filter((division): division is string => Boolean(division)),
+        ]),
+      ].sort((left, right) => left.localeCompare(right)),
+    [divisions, players],
+  );
+  const visiblePlayers = useMemo(() => {
+    const playersByName = players.filter((player) =>
+      decodeHtmlEntities(player.playerName).toLowerCase().includes(normalizedNameQuery),
+    );
+    const playersByDivision =
+      divisionFilter === ""
+        ? playersByName
+        : playersByName.filter((player) => player.division === divisionFilter);
+
+    return filterPlayersByRdga(playersByDivision, rdgaFilter);
+  }, [divisionFilter, normalizedNameQuery, players, rdgaFilter]);
+
   if (state.status === "loading") {
     return (
       <section className="data-page-shell" aria-labelledby="players-page-title">
@@ -114,12 +165,6 @@ export function PlayersPageView({
     );
   }
 
-  const { divisions, players, total } = state;
-  const normalizedNameQuery = normalizeNameQuery(nameQuery);
-  const visiblePlayers = players.filter((player) =>
-    decodeHtmlEntities(player.playerName).toLowerCase().includes(normalizedNameQuery),
-  );
-
   return (
     <section className="data-page-shell" aria-labelledby="players-page-title">
       <PageHeader
@@ -154,13 +199,44 @@ export function PlayersPageView({
                 }}
               />
             </label>
+            <label className="competitions-page__filter">
+              <span>Дивизион</span>
+              <select
+                className="competitions-page__filter-control"
+                value={divisionFilter}
+                onChange={(event) => {
+                  onDivisionFilterChange?.(event.target.value);
+                }}
+              >
+                <option value="">Все дивизионы</option>
+                {divisionOptions.map((divisionCode) => (
+                  <option key={divisionCode} value={divisionCode}>
+                    {divisionCode}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="competitions-page__filter">
+              <span>RDGA</span>
+              <select
+                className="competitions-page__filter-control"
+                value={rdgaFilter}
+                onChange={(event) => {
+                  onRdgaFilterChange?.(event.target.value as PlayersRdgaFilter);
+                }}
+              >
+                <option value="all">Все</option>
+                <option value="rdga">Только RDGA</option>
+                <option value="non-rdga">Без RDGA</option>
+              </select>
+            </label>
           </section>
 
           {visiblePlayers.length === 0 ? (
             <section className="state-panel" aria-live="polite">
               <p className="state-panel__eyebrow">filtered</p>
               <h2>По текущему фильтру игроков нет</h2>
-              <p>Попробуйте изменить строку поиска по имени.</p>
+              <p>Попробуйте изменить имя, дивизион или фильтр RDGA.</p>
             </section>
           ) : (
             <section className="data-table-panel" aria-label="Сохранённые игроки">
@@ -294,6 +370,8 @@ export function PlayersPage() {
   const [divisionDrafts, setDivisionDrafts] = useState<Record<string, string>>({});
   const [rdgaDrafts, setRdgaDrafts] = useState<Record<string, boolean | null>>({});
   const [nameQuery, setNameQuery] = useState("");
+  const [divisionFilter, setDivisionFilter] = useState("");
+  const [rdgaFilter, setRdgaFilter] = useState<PlayersRdgaFilter>("all");
   const [saveState, setSaveState] = useState<{
     status: "idle" | "saving" | "success" | "error";
     playerId: string | null;
@@ -425,11 +503,15 @@ export function PlayersPage() {
     <PlayersPageView
       state={state}
       nameQuery={nameQuery}
+      divisionFilter={divisionFilter}
+      rdgaFilter={rdgaFilter}
       canEdit={authStatus === "authenticated" && Boolean(user)}
       divisionDrafts={divisionDrafts}
       rdgaDrafts={rdgaDrafts}
       saveState={saveState}
       onNameQueryChange={setNameQuery}
+      onDivisionFilterChange={setDivisionFilter}
+      onRdgaFilterChange={setRdgaFilter}
       onDivisionChange={(playerId, value) => {
         setDivisionDrafts((currentDrafts) => ({
           ...currentDrafts,
