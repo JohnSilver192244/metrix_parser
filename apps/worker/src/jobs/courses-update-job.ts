@@ -11,9 +11,9 @@ import {
   type DiscGolfMetrixClientDependencies,
   type DiscGolfMetrixCourseResponse,
 } from "../integration/discgolfmetrix";
+import { mapWithConcurrency } from "../lib/bounded-concurrency";
 import { createWorkerSupabaseAdminClient } from "../lib/supabase-admin";
 import { mapDiscGolfMetrixCourseRecord } from "../mapping/courses";
-import { executeUpdatePlan } from "../orchestration/update-execution";
 import {
   createCoursesRepository,
   type CoursesRepository,
@@ -28,12 +28,15 @@ import {
 export interface CoursesUpdateJobDependencies extends DiscGolfMetrixClientDependencies {
   readCourseIds?: () => Promise<CompetitionCourseIdsReadResult>;
   repository?: CoursesRepository;
+  overwriteExisting?: boolean;
 }
 
 export interface CoursesUpdateJobResult extends UpdateOperationResult {
   discoveredCourseIds?: string[];
   fetchedCoursesCount?: number;
 }
+
+const COURSES_FETCH_CONCURRENCY = 6;
 
 async function fetchCoursePayloads(
   courseIds: readonly string[],
@@ -44,22 +47,27 @@ async function fetchCoursePayloads(
   issues: ReturnType<typeof toDiscGolfMetrixIssue>[];
 }> {
   const client = createDiscGolfMetrixClient(dependencies);
-  const responses: DiscGolfMetrixCourseResponse[] = [];
+  const responses = new Array<DiscGolfMetrixCourseResponse | null>(courseIds.length).fill(null);
   const issues: ReturnType<typeof toDiscGolfMetrixIssue>[] = [];
   let skippedCount = 0;
 
-  for (const courseId of courseIds) {
-    try {
-      const response = await client.fetchCourse({ courseId });
-      responses.push(response);
-    } catch (error) {
-      skippedCount += 1;
-      issues.push(toDiscGolfMetrixIssue(error, `course:${courseId}`));
-    }
-  }
+  await mapWithConcurrency(
+    courseIds,
+    COURSES_FETCH_CONCURRENCY,
+    async (courseId, index) => {
+      try {
+        responses[index] = await client.fetchCourse({ courseId });
+      } catch (error) {
+        skippedCount += 1;
+        issues.push(toDiscGolfMetrixIssue(error, `course:${courseId}`));
+      }
+    },
+  );
 
   return {
-    responses,
+    responses: responses.filter(
+      (response): response is DiscGolfMetrixCourseResponse => response !== null,
+    ),
     skippedCount,
     issues,
   };
@@ -87,14 +95,7 @@ export async function runCoursesUpdateJob(
 
     const fetchedResult = await fetchCoursePayloads(discoveryResult.courseIds, dependencies);
     const mappingIssues: UpdateProcessingIssue[] = [];
-    const mappedCourses: Array<{
-      recordKey: string;
-      payload: {
-        course: Parameters<CoursesRepository["saveCourse"]>[0]["course"];
-        rawPayload: Record<string, unknown> | null;
-        sourceFetchedAt: string | null;
-      };
-    }> = [];
+    const mappedCourses: Parameters<CoursesRepository["saveCourses"]>[0] = [];
 
     for (const response of fetchedResult.responses) {
       const mapped = mapDiscGolfMetrixCourseRecord(response.record, response.courseId);
@@ -105,22 +106,14 @@ export async function runCoursesUpdateJob(
       }
 
       mappedCourses.push({
-        recordKey: `course:${mapped.course.courseId}`,
-        payload: {
-          course: mapped.course,
-          rawPayload: response.rawPayload,
-          sourceFetchedAt: response.fetchedAt,
-        },
+        course: mapped.course,
+        rawPayload: response.rawPayload,
+        sourceFetchedAt: response.fetchedAt,
       });
     }
 
-    const persistenceResult = await executeUpdatePlan({
-      operation: "courses",
-      items: mappedCourses,
-      processItem: (item) => repository.saveCourse(item.payload),
-      message:
-        "Определили идентификаторы парков по сохранённым соревнованиям, загрузили данные парков из DiscGolfMetrix и сохранили нормализованные записи.",
-      requestedAt,
+    const persistenceResult = await repository.saveCourses(mappedCourses, {
+      overwriteExisting: dependencies.overwriteExisting,
     });
 
     const summary = {

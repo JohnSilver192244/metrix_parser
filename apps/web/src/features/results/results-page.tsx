@@ -8,6 +8,7 @@ import {
   resolveResultsErrorMessage,
   resolveResultsTotal,
 } from "../../shared/api/results";
+import { useSessionStorageState } from "../../shared/session-storage";
 import { decodeHtmlEntities } from "../../shared/text";
 
 type ResultsPageState =
@@ -25,6 +26,8 @@ type ResultsPageState =
     };
 
 type ResultsRdgaFilter = "all" | "rdga" | "non-rdga";
+
+const resultsRdgaFilterStorageKey = "results-page:rdga-filter";
 
 function formatDiff(value: number | null): string {
   if (value === null) {
@@ -235,7 +238,10 @@ export function ResultsPage() {
   const [state, setState] = useState<ResultsPageState>({
     status: "loading",
   });
-  const [rdgaFilter, setRdgaFilter] = useState<ResultsRdgaFilter>("all");
+  const [rdgaFilter, setRdgaFilter] = useSessionStorageState<ResultsRdgaFilter>(
+    resultsRdgaFilterStorageKey,
+    "all",
+  );
 
   useEffect(() => {
     let isActive = true;

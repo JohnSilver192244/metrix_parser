@@ -26,6 +26,18 @@ import {
   type ResultsRouteDependencies,
 } from "./results";
 import {
+  getSeasonPointsTableRoutes,
+  type SeasonPointsTableRouteDependencies,
+} from "./season-points-table";
+import {
+  getSeasonStandingsRoutes,
+  type SeasonStandingsRouteDependencies,
+} from "./season-standings";
+import {
+  getSeasonsRoutes,
+  type SeasonsRouteDependencies,
+} from "./seasons";
+import {
   getUpdatesRoutes,
   type UpdatesRouteDependencies,
 } from "./updates";
@@ -33,6 +45,10 @@ import {
   getUsersRoutes,
   type UsersRouteDependencies,
 } from "./users";
+import {
+  getTournamentCategoriesRoutes,
+  type TournamentCategoriesRouteDependencies,
+} from "./tournament-categories";
 
 export interface ApiModuleDependencies {
   auth?: AuthRouteDependencies;
@@ -41,6 +57,10 @@ export interface ApiModuleDependencies {
   divisions?: DivisionsRouteDependencies;
   players?: PlayersRouteDependencies;
   results?: ResultsRouteDependencies;
+  seasonPointsTable?: SeasonPointsTableRouteDependencies;
+  seasonStandings?: SeasonStandingsRouteDependencies;
+  seasons?: SeasonsRouteDependencies;
+  tournamentCategories?: TournamentCategoriesRouteDependencies;
   updates?: UpdatesRouteDependencies;
   users?: UsersRouteDependencies;
 }
@@ -52,11 +72,18 @@ export function getRegisteredRoutes(
     ...healthRoutes,
     ...getAuthRoutes(dependencies.auth),
     ...getUpdatesRoutes(dependencies.updates, dependencies.auth),
-    ...getCompetitionsRoutes(dependencies.competitions),
+    ...getCompetitionsRoutes(dependencies.competitions, dependencies.auth),
     ...getCoursesRoutes(dependencies.courses),
     ...getDivisionsRoutes(dependencies.divisions),
     ...getPlayersRoutes(dependencies.players, dependencies.auth),
     ...getResultsRoutes(dependencies.results),
+    ...getSeasonsRoutes(dependencies.seasons),
+    ...getSeasonPointsTableRoutes(dependencies.seasonPointsTable),
+    ...getSeasonStandingsRoutes(dependencies.seasonStandings, dependencies.auth),
+    ...getTournamentCategoriesRoutes(
+      dependencies.tournamentCategories,
+      dependencies.auth,
+    ),
     ...getUsersRoutes(dependencies.users, dependencies.auth),
   ];
 }

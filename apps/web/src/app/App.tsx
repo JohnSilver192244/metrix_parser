@@ -6,6 +6,11 @@ import {
 } from "./router";
 import { AuthProvider, useAuth } from "../features/auth/auth-context";
 import { TopbarAuthControls } from "../features/auth/topbar-auth-controls";
+import {
+  ThemeToggle,
+  getNextTheme,
+  type ThemeMode,
+} from "../shared/theme-toggle";
 
 interface HistoryLike {
   pushState(
@@ -57,10 +62,17 @@ export function shouldHandleInAppNavigation(
 
 export interface AppShellViewProps {
   pathname: string;
+  theme: ThemeMode;
   onNavigate: (pathname: string) => void;
+  onToggleTheme: () => void;
 }
 
-export function AppShellView({ pathname, onNavigate }: AppShellViewProps) {
+export function AppShellView({
+  pathname,
+  theme,
+  onNavigate,
+  onToggleTheme,
+}: AppShellViewProps) {
   const auth = useAuth();
   const route = resolveAppRoute(pathname);
   const visibleRoutes = appRoutes.filter(
@@ -77,7 +89,10 @@ export function AppShellView({ pathname, onNavigate }: AppShellViewProps) {
           <div className="app-topbar__brand">
             <h1 className="app-topbar__title">MetrixParser</h1>
           </div>
-          <TopbarAuthControls />
+          <div className="app-topbar__actions">
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+            <TopbarAuthControls />
+          </div>
         </div>
         <nav className="app-topbar__nav" aria-label="Основная навигация">
           {visibleRoutes.map((appRoute) => {
@@ -121,23 +136,23 @@ export function AppShellView({ pathname, onNavigate }: AppShellViewProps) {
             <h2>Доступ к странице ограничен</h2>
             <p>
               Раздел «{route.label}» доступен только авторизованным пользователям.
-              Войдите через форму в правом верхнем углу или перейдите к открытому
-              списку игроков.
+              Войдите через форму в правом верхнем углу или перейдите к
+              списку соревнований.
             </p>
             <p>
               <a
                 className="app-topbar__link app-topbar__link--active"
-                href="/players"
+                href="/"
                 onClick={(event) => {
                   if (!shouldHandleInAppNavigation(event)) {
                     return;
                   }
 
                   event.preventDefault();
-                  onNavigate("/players");
+                  onNavigate("/");
                 }}
               >
-                Открыть игроков
+                Открыть соревнования
               </a>
             </p>
           </section>
@@ -145,7 +160,7 @@ export function AppShellView({ pathname, onNavigate }: AppShellViewProps) {
           <section className="not-found-panel">
             <p className="not-found-panel__eyebrow">route not found</p>
             <h2>Эта страница пока не собрана.</h2>
-            <p>Вернитесь на главную административную страницу, чтобы продолжить работу.</p>
+            <p>Вернитесь на главную страницу, чтобы продолжить работу.</p>
             <a
               className="app-topbar__link app-topbar__link--active"
               href="/"
@@ -158,7 +173,7 @@ export function AppShellView({ pathname, onNavigate }: AppShellViewProps) {
                 onNavigate("/");
               }}
             >
-              Открыть админку
+              На главную
             </a>
           </section>
         )}
@@ -169,6 +184,15 @@ export function AppShellView({ pathname, onNavigate }: AppShellViewProps) {
 
 function AppShellController() {
   const [pathname, setPathname] = useState(getInitialPathname());
+  const [theme, setTheme] = useState<ThemeMode>("light");
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+
+    return () => {
+      document.documentElement.removeAttribute("data-theme");
+    };
+  }, [theme]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -185,8 +209,12 @@ function AppShellController() {
   return (
     <AppShellView
       pathname={pathname}
+      theme={theme}
       onNavigate={(nextPathname) => {
         navigateToAppPath(nextPathname, pathname, window.history, setPathname);
+      }}
+      onToggleTheme={() => {
+        setTheme(getNextTheme);
       }}
     />
   );

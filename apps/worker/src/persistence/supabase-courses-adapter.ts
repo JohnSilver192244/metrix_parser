@@ -29,6 +29,24 @@ export function createSupabaseCoursesAdapter(
       return data as CourseRow | null;
     },
 
+    async findByCourseIds(courseIds) {
+      if (courseIds.length === 0) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .schema(APP_PUBLIC_SCHEMA)
+        .from("courses")
+        .select(COURSES_SELECT_COLUMNS)
+        .in("course_id", courseIds);
+
+      if (error) {
+        throw new Error(`Failed to load courses by course_id: ${error.message}`);
+      }
+
+      return (data ?? []) as CourseRow[];
+    },
+
     async insert(record: StoredCourseRecord) {
       const { data, error } = await supabase
         .schema(APP_PUBLIC_SCHEMA)
@@ -58,6 +76,26 @@ export function createSupabaseCoursesAdapter(
       }
 
       return data as CourseRow;
+    },
+
+    async upsert(records) {
+      if (records.length === 0) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .schema(APP_PUBLIC_SCHEMA)
+        .from("courses")
+        .upsert(records, {
+          onConflict: "course_id",
+        })
+        .select(COURSES_SELECT_COLUMNS);
+
+      if (error) {
+        throw new Error(`Failed to upsert courses: ${error.message}`);
+      }
+
+      return (data ?? []) as CourseRow[];
     },
   };
 }

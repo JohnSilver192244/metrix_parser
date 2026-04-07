@@ -5,9 +5,16 @@ import type { UpdatePeriod } from "@metrix-parser/shared-types";
 interface UpdatePeriodPickerProps {
   value: UpdatePeriod;
   onChange: (period: UpdatePeriod) => void;
+  presets?: PeriodPreset[];
+  inputNames?: {
+    dateFrom: string;
+    dateTo: string;
+  };
+  label?: string;
+  hideTriggerLabel?: boolean;
 }
 
-interface PeriodPreset {
+export interface PeriodPreset {
   id: string;
   label: string;
   resolve: (today: Date) => UpdatePeriod;
@@ -128,7 +135,7 @@ function resolveRollingMonth(today: Date): UpdatePeriod {
   };
 }
 
-const PERIOD_PRESETS: PeriodPreset[] = [
+const DEFAULT_PERIOD_PRESETS: PeriodPreset[] = [
   {
     id: "current-week",
     label: "Текущая неделя",
@@ -159,7 +166,17 @@ export function createDefaultUpdatePeriod(today: Date = new Date()): UpdatePerio
   return resolveCurrentWeek(today);
 }
 
-export function UpdatePeriodPicker({ value, onChange }: UpdatePeriodPickerProps) {
+export function UpdatePeriodPicker({
+  value,
+  onChange,
+  presets = DEFAULT_PERIOD_PRESETS,
+  inputNames = {
+    dateFrom: "shared-date-from",
+    dateTo: "shared-date-to",
+  },
+  label = "Период",
+  hideTriggerLabel = false,
+}: UpdatePeriodPickerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [draftStart, setDraftStart] = useState<string | null>(value.dateFrom);
@@ -264,12 +281,12 @@ export function UpdatePeriodPicker({ value, onChange }: UpdatePeriodPickerProps)
 
   return (
     <div className="period-picker" ref={rootRef}>
-      <input type="hidden" name="shared-date-from" value={value.dateFrom} />
-      <input type="hidden" name="shared-date-to" value={value.dateTo} />
+      <input type="hidden" name={inputNames.dateFrom} value={value.dateFrom} />
+      <input type="hidden" name={inputNames.dateTo} value={value.dateTo} />
 
       <button
         type="button"
-        className="period-picker__trigger"
+        className={`period-picker__trigger${hideTriggerLabel ? " period-picker__trigger--compact" : ""}`}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         onClick={() => {
@@ -280,14 +297,16 @@ export function UpdatePeriodPicker({ value, onChange }: UpdatePeriodPickerProps)
           }
         }}
       >
-        <span className="period-picker__trigger-label">Период</span>
+        {hideTriggerLabel ? null : (
+          <span className="period-picker__trigger-label">{label}</span>
+        )}
         <strong>{formatPeriodLabel(value)}</strong>
       </button>
 
       {isOpen ? (
-        <div className="period-picker__popover" role="dialog" aria-label="Выбор периода">
+        <div className="period-picker__popover" role="dialog" aria-label={`Выбор периода: ${label}`}>
           <div className="period-picker__presets">
-            {PERIOD_PRESETS.map((preset) => (
+            {presets.map((preset) => (
               <button
                 key={preset.id}
                 type="button"

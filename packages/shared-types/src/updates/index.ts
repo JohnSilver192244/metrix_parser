@@ -12,7 +12,9 @@ export interface UpdatePeriod {
   dateTo: string;
 }
 
-export interface TriggerUpdateRequestBody extends Partial<UpdatePeriod> {}
+export interface TriggerUpdateRequestBody extends Partial<UpdatePeriod> {
+  overwriteExisting?: boolean;
+}
 
 export interface UpdateSummary {
   found: number;
@@ -45,6 +47,7 @@ export interface UpdateRecordResult {
   action: UpdateRecordAction;
   matchedExisting: boolean;
   issue?: UpdateProcessingIssue;
+  skipReason?: UpdateProcessingIssue;
 }
 
 export interface UpdateIdentityRule {
@@ -63,6 +66,7 @@ export interface UpdateOperationResult {
   finishedAt: string;
   summary?: UpdateSummary;
   issues: UpdateProcessingIssue[];
+  skipReasons?: UpdateProcessingIssue[];
   diagnostics?: UpdateDiagnostics;
   period?: UpdatePeriod;
 }

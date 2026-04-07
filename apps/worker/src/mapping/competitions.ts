@@ -108,11 +108,17 @@ function toTooFewPlayersCompetitionIssue(
 }
 
 export interface CompetitionMappingResult {
+  entries: CompetitionMappingEntry[];
   competitions: Competition[];
   filteredOutCount: number;
   skippedCount: number;
   errorCount: number;
   issues: UpdateProcessingIssue[];
+}
+
+export interface CompetitionMappingEntry {
+  competition: Competition;
+  rawRecord: DiscGolfMetrixRawCompetitionRecord;
 }
 
 const RUSSIAN_COUNTRY_CODES = new Set(["RU", "RUS"]);
@@ -296,6 +302,7 @@ export function mapDiscGolfMetrixCompetitionRecord(
 export function mapDiscGolfMetrixCompetitions(
   records: readonly DiscGolfMetrixRawCompetitionRecord[],
 ): CompetitionMappingResult {
+  const entries: CompetitionMappingEntry[] = [];
   const competitions: Competition[] = [];
   const issues: UpdateProcessingIssue[] = [];
   const parentCompetitionCourseIds = buildParentCompetitionCourseIds(records);
@@ -329,10 +336,17 @@ export function mapDiscGolfMetrixCompetitions(
       return;
     }
 
-    competitions.push(mapped.competition);
+    const entry = {
+      competition: mapped.competition,
+      rawRecord: record,
+    };
+
+    entries.push(entry);
+    competitions.push(entry.competition);
   });
 
   return {
+    entries,
     competitions,
     filteredOutCount,
     skippedCount,

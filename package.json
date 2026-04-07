@@ -12,8 +12,13 @@
     "build": "npm run build --workspaces --if-present",
     "check": "npm run check --workspaces --if-present",
     "check:workspace": "node scripts/verify-workspace.mjs",
+    "monitor": "npm run monitor:omx",
+    "monitor:omx": "node scripts/omx-dashboard.mjs",
     "dev:web": "npm run dev --workspace @metrix-parser/web",
     "dev:api": "npm run dev --workspace @metrix-parser/api",
     "dev:worker": "npm run dev --workspace @metrix-parser/worker"
+  },
+  "dependencies": {
+    "undici": "^5.29.0"
   }
 }

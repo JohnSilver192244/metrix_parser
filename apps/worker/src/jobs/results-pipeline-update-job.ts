@@ -25,6 +25,12 @@ import {
   type PersistableCompetitionResultRecord,
 } from "../persistence/competition-results-repository";
 import {
+  createCompetitionCommentsRepository,
+  createSupabaseCompetitionCommentsAdapter,
+  resolveResultsSaveFailureComment,
+  type CompetitionCommentsRepository,
+} from "../persistence/competition-comments-repository";
+import {
   createPlayersRepository,
   type PersistablePlayerRecord,
   type PlayersRepository,
@@ -41,10 +47,12 @@ export interface ResultsPipelineUpdateJobDependencies
   extends ResultsUpdateJobDependencies {
   playersRepository?: PlayersRepository;
   resultsRepository?: CompetitionResultsRepository;
+  competitionCommentsRepository?: CompetitionCommentsRepository;
 }
 
 export interface ResultsPipelineUpdateJobResult extends UpdateOperationResult {
   selectedCompetitionsCount?: number;
+  selectedCompetitionIds?: string[];
   fetchedResults?: DiscGolfMetrixResultsResponse[];
   mappedPlayers?: Player[];
   extractedPlayers?: ExtractedPlayerEntry[];
@@ -142,6 +150,43 @@ function resolveResultsPipelineFinalStatus(
   return "completed";
 }
 
+function extractCompetitionIdFromRecordKey(
+  recordKey: string | undefined,
+): string | null {
+  if (!recordKey?.startsWith("competition:")) {
+    return null;
+  }
+
+  const normalizedRecordKey = recordKey.slice("competition:".length);
+  const nextSeparatorIndex = normalizedRecordKey.indexOf(":");
+  if (nextSeparatorIndex < 0) {
+    return normalizedRecordKey.trim() || null;
+  }
+
+  const competitionId = normalizedRecordKey.slice(0, nextSeparatorIndex).trim();
+  return competitionId.length > 0 ? competitionId : null;
+}
+
+function createSaveFailureCommentsByCompetitionId(
+  issues: readonly { code: string; recordKey?: string }[],
+): Map<string, string> {
+  const commentsByCompetitionId = new Map<string, string>();
+
+  for (const issue of issues) {
+    const competitionId = extractCompetitionIdFromRecordKey(issue.recordKey);
+    if (!competitionId || commentsByCompetitionId.has(competitionId)) {
+      continue;
+    }
+
+    commentsByCompetitionId.set(
+      competitionId,
+      resolveResultsSaveFailureComment(issue.code),
+    );
+  }
+
+  return commentsByCompetitionId;
+}
+
 export async function runResultsPipelineUpdateJob(
   period: UpdatePeriod,
   dependencies: ResultsPipelineUpdateJobDependencies,
@@ -149,6 +194,7 @@ export async function runResultsPipelineUpdateJob(
   const fetchResult = await runResultsUpdateJob(period, {
     ...dependencies,
     persistResults: false,
+    reconcileCompetitionComments: false,
   });
   const fetchedResults = fetchResult.fetchedResults ?? [];
   const requestedAt = fetchResult.requestedAt;
@@ -172,15 +218,24 @@ export async function runResultsPipelineUpdateJob(
         supabase ?? createWorkerSupabaseAdminClient(),
       ),
     );
+  const competitionCommentsRepository =
+    dependencies.competitionCommentsRepository ??
+    (supabase
+      ? createCompetitionCommentsRepository(
+          createSupabaseCompetitionCommentsAdapter(supabase),
+        )
+      : null);
 
   const playerPersistenceResult = await playersRepository.savePlayers(
     createPersistablePlayerRecords(playerMappingResult, fetchedResults),
+    { overwriteExisting: dependencies.overwriteExisting },
   );
   const resultPersistenceResult = await resultsRepository.saveCompetitionResults(
     createPersistableCompetitionResultRecords(
       resultMappingResult.extractedResults,
       fetchedResults,
     ),
+    { overwriteExisting: dependencies.overwriteExisting },
   );
 
   const transportSummary = {
@@ -215,6 +270,19 @@ export async function runResultsPipelineUpdateJob(
     errors: transportSummary.errors + playerSummary.errors + resultSummary.errors,
   };
 
+  if (competitionCommentsRepository) {
+    await competitionCommentsRepository.reconcileResultsComments({
+      competitionIds: fetchResult.selectedCompetitionIds ?? [],
+      fetchFailureCompetitionIds: fetchResult.issues
+        .map((issue) => extractCompetitionIdFromRecordKey(issue.recordKey))
+        .filter((competitionId): competitionId is string => competitionId !== null),
+      saveFailureCommentsByCompetitionId: createSaveFailureCommentsByCompetitionId([
+        ...resultMappingResult.issues,
+        ...resultPersistenceResult.issues,
+      ]),
+    });
+  }
+
   return {
     operation: "results",
     finalStatus: resolveResultsPipelineFinalStatus(summary, fetchResult),
@@ -244,6 +312,7 @@ export async function runResultsPipelineUpdateJob(
     },
     period,
     selectedCompetitionsCount: fetchResult.selectedCompetitionsCount,
+    selectedCompetitionIds: fetchResult.selectedCompetitionIds,
     fetchedResults,
     mappedPlayers: playerMappingResult.players,
     extractedPlayers: playerMappingResult.extractedPlayers,

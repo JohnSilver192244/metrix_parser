@@ -3,11 +3,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { Course } from "@metrix-parser/shared-types";
 
 import { PageHeader } from "../../shared/page-header";
+import { FloatingInfoTooltip } from "../../shared/floating-info-tooltip";
 import {
   listCourses,
   resolveCoursesErrorMessage,
   resolveCoursesTotal,
 } from "../../shared/api/courses";
+import { useSessionStorageState } from "../../shared/session-storage";
 import { decodeHtmlEntities } from "../../shared/text";
 
 type CoursesPageState =
@@ -67,32 +69,26 @@ function renderRatingCell(course: Course, rating: number | null): React.ReactNod
   }
 
   return (
-    <span className="update-card__tooltip-anchor update-card__tooltip-anchor--info courses-page__rating-anchor">
-      <span>{rating.toFixed(1)}</span>
-      <button
-        type="button"
-        className="update-launcher__info-button"
-        aria-label={`Показать исходные значения рейтинга для ${resolveCourseName(course)}`}
-      >
-        ?
-      </button>
-      <span
-        role="tooltip"
-        className="update-card__tooltip update-card__tooltip--info courses-page__rating-tooltip"
-      >
-        <strong>Исходные значения рейтинга</strong>
-        <ul className="update-card__tooltip-list">
-          <li>{`Рейтинг 1: ${formatRatingValue(course.ratingValue1)}`}</li>
-          <li>{`Рейтинг 2: ${formatRatingValue(course.ratingValue2)}`}</li>
-        </ul>
-      </span>
-    </span>
+    <FloatingInfoTooltip
+      value={rating.toFixed(1)}
+      ariaLabel={`Показать исходные значения рейтинга для ${resolveCourseName(course)}`}
+      title="Исходные значения рейтинга"
+      items={[
+        `Рейтинг 1: ${formatRatingValue(course.ratingValue1)}`,
+        `Рейтинг 2: ${formatRatingValue(course.ratingValue2)}`,
+      ]}
+      anchorClassName="courses-page__rating-anchor"
+      tooltipClassName="courses-page__rating-tooltip"
+    />
   );
 }
 
 export interface CoursesPageViewProps {
   state: CoursesPageState;
 }
+
+const coursesNameFilterStorageKey = "courses-page:name-filter";
+const coursesRegionFilterStorageKey = "courses-page:region-filter";
 
 function resolveCourseName(course: Course): string {
   return decodeHtmlEntities(course.name);
@@ -112,8 +108,14 @@ function collectCourseFilterOptions(
 }
 
 export function CoursesPageView({ state }: CoursesPageViewProps) {
-  const [nameFilter, setNameFilter] = useState("");
-  const [regionFilter, setRegionFilter] = useState("");
+  const [nameFilter, setNameFilter] = useSessionStorageState(
+    coursesNameFilterStorageKey,
+    "",
+  );
+  const [regionFilter, setRegionFilter] = useSessionStorageState(
+    coursesRegionFilterStorageKey,
+    "",
+  );
   const courses = state.status === "ready" ? state.courses : [];
   const total = state.status === "ready" ? state.total : 0;
   const nameOptions = useMemo(

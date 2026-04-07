@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-import type { Division, Player } from "@metrix-parser/shared-types";
+import type { Division, Player, Season } from "@metrix-parser/shared-types";
 
 import { useAuth } from "../auth/auth-context";
+import { buildPlayerPath } from "../../app/route-paths";
 import { PageHeader } from "../../shared/page-header";
+import { ActionToast } from "../../shared/action-toast";
 import { listDivisions } from "../../shared/api/divisions";
 import {
   listPlayers,
@@ -11,6 +13,8 @@ import {
   resolvePlayersTotal,
   updatePlayer,
 } from "../../shared/api/players";
+import { listSeasons, resolveSeasonsErrorMessage } from "../../shared/api/seasons";
+import { useSessionStorageState } from "../../shared/session-storage";
 import { decodeHtmlEntities } from "../../shared/text";
 
 type PlayersPageState =
@@ -21,23 +25,45 @@ type PlayersPageState =
       status: "error";
       message: string;
     }
-  | {
+    | {
       status: "ready";
       divisions: Division[];
       players: Player[];
+      seasons: Season[];
       total: number;
     };
 
 type PlayersRdgaFilter = "all" | "rdga" | "non-rdga";
+type PlayersSortField = "playerId" | "playerName" | "seasonPoints";
+
+interface PlayersSort {
+  field: PlayersSortField;
+  direction: "asc" | "desc";
+}
+
+const DEFAULT_PLAYERS_SORT: PlayersSort = {
+  field: "playerName",
+  direction: "asc",
+};
+
+const playersNameQueryStorageKey = "players-page:name-query";
+const playersDivisionFilterStorageKey = "players-page:division-filter";
+const playersRdgaFilterStorageKey = "players-page:rdga-filter";
+const playersSeasonFilterStorageKey = "players-page:season-filter";
 
 export interface PlayersPageViewProps {
   state: PlayersPageState;
+  onNavigate?: (pathname: string) => void;
   nameQuery?: string;
   divisionFilter?: string;
   rdgaFilter?: PlayersRdgaFilter;
+  seasonFilter?: string;
+  sort?: PlayersSort;
   canEdit?: boolean;
   divisionDrafts?: Record<string, string>;
   rdgaDrafts?: Record<string, boolean | null>;
+  rdgaSinceDrafts?: Record<string, string>;
+  seasonDivisionDrafts?: Record<string, string>;
   saveState?: {
     status: "idle" | "saving" | "success" | "error";
     playerId: string | null;
@@ -46,9 +72,14 @@ export interface PlayersPageViewProps {
   onNameQueryChange?: (value: string) => void;
   onDivisionFilterChange?: (value: string) => void;
   onRdgaFilterChange?: (value: PlayersRdgaFilter) => void;
+  onSeasonFilterChange?: (value: string) => void;
+  onSortChange?: (field: PlayersSortField) => void;
   onDivisionChange?: (playerId: string, value: string) => void;
   onRdgaChange?: (playerId: string, value: boolean) => void;
+  onRdgaSinceChange?: (playerId: string, value: string) => void;
+  onSeasonDivisionChange?: (playerId: string, value: string) => void;
   onDivisionSave?: (playerId: string) => void;
+  onToastClose?: () => void;
 }
 
 function formatCompetitionsCount(value: number | undefined): string {
@@ -56,6 +87,11 @@ function formatCompetitionsCount(value: number | undefined): string {
 }
 
 function normalizeDivisionValue(value: string): string | null {
+  const normalizedValue = value.trim();
+  return normalizedValue.length > 0 ? normalizedValue : null;
+}
+
+function normalizeRdgaSinceValue(value: string): string | null {
   const normalizedValue = value.trim();
   return normalizedValue.length > 0 ? normalizedValue : null;
 }
@@ -79,14 +115,103 @@ function filterPlayersByRdga(
   return players;
 }
 
+function formatDivisionValue(value: string | null | undefined): string {
+  return value && value.trim().length > 0 ? value : "Не выбран";
+}
+
+function formatRdgaValue(value: boolean | null | undefined): string {
+  if (value === true) {
+    return "✓";
+  }
+
+  return "—";
+}
+
+function formatRdgaSinceValue(value: string | null | undefined): string {
+  return value && value.trim().length > 0 ? value : "—";
+}
+
+function formatSeasonPointsValue(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "—";
+  }
+
+  return value.toFixed(2);
+}
+
+function compareSeasonsByPeriod(left: Season, right: Season): number {
+  const dateToDiff = right.dateTo.localeCompare(left.dateTo, "ru");
+  if (dateToDiff !== 0) {
+    return dateToDiff;
+  }
+
+  const dateFromDiff = right.dateFrom.localeCompare(left.dateFrom, "ru");
+  if (dateFromDiff !== 0) {
+    return dateFromDiff;
+  }
+
+  return right.seasonCode.localeCompare(left.seasonCode, "ru");
+}
+
+function comparePlayersByField(
+  left: Player,
+  right: Player,
+  field: PlayersSortField,
+): number {
+  if (field === "seasonPoints") {
+    const leftValue = left.seasonPoints ?? Number.NEGATIVE_INFINITY;
+    const rightValue = right.seasonPoints ?? Number.NEGATIVE_INFINITY;
+
+    if (leftValue !== rightValue) {
+      return leftValue - rightValue;
+    }
+  }
+
+  if (field === "playerId") {
+    return left.playerId.localeCompare(right.playerId, "ru");
+  }
+
+  return decodeHtmlEntities(left.playerName).localeCompare(
+    decodeHtmlEntities(right.playerName),
+    "ru",
+  );
+}
+
+function resolveSortIndicator(
+  sort: PlayersSort,
+  field: PlayersSortField,
+): string {
+  if (sort.field !== field) {
+    return "";
+  }
+
+  return sort.direction === "asc" ? " ↑" : " ↓";
+}
+
+function resolveAriaSort(
+  sort: PlayersSort,
+  field: PlayersSortField,
+): "ascending" | "descending" | "none" {
+  if (sort.field !== field) {
+    return "none";
+  }
+
+  return sort.direction === "asc" ? "ascending" : "descending";
+}
+
 export function PlayersPageView({
   state,
+  onNavigate,
   nameQuery = "",
   divisionFilter = "",
   rdgaFilter = "all",
+  seasonFilter = "",
+  sort = DEFAULT_PLAYERS_SORT,
   canEdit = false,
   divisionDrafts = {},
   rdgaDrafts = {},
+  rdgaSinceDrafts = {},
+  seasonDivisionDrafts = {},
   saveState = {
     status: "idle",
     playerId: null,
@@ -95,12 +220,18 @@ export function PlayersPageView({
   onNameQueryChange,
   onDivisionFilterChange,
   onRdgaFilterChange,
+  onSeasonFilterChange,
+  onSortChange,
   onDivisionChange,
   onRdgaChange,
+  onRdgaSinceChange,
+  onSeasonDivisionChange,
   onDivisionSave,
+  onToastClose,
 }: PlayersPageViewProps) {
   const divisions = state.status === "ready" ? state.divisions : [];
   const players = state.status === "ready" ? state.players : [];
+  const seasons = state.status === "ready" ? state.seasons : [];
   const total = state.status === "ready" ? state.total : 0;
   const normalizedNameQuery = normalizeNameQuery(nameQuery);
   const divisionOptions = useMemo(
@@ -124,8 +255,22 @@ export function PlayersPageView({
         ? playersByName
         : playersByName.filter((player) => player.division === divisionFilter);
 
-    return filterPlayersByRdga(playersByDivision, rdgaFilter);
-  }, [divisionFilter, normalizedNameQuery, players, rdgaFilter]);
+    const playersByRdga = filterPlayersByRdga(playersByDivision, rdgaFilter);
+    const sortedPlayers = [...playersByRdga].sort((left, right) => {
+      const primaryComparison = comparePlayersByField(left, right, sort.field);
+
+      if (primaryComparison !== 0) {
+        return sort.direction === "asc" ? primaryComparison : -primaryComparison;
+      }
+
+      return decodeHtmlEntities(left.playerName).localeCompare(
+        decodeHtmlEntities(right.playerName),
+        "ru",
+      );
+    });
+
+    return sortedPlayers;
+  }, [divisionFilter, normalizedNameQuery, players, rdgaFilter, sort]);
 
   if (state.status === "loading") {
     return (
@@ -217,6 +362,22 @@ export function PlayersPageView({
               </select>
             </label>
             <label className="competitions-page__filter">
+              <span>Сезон</span>
+              <select
+                className="competitions-page__filter-control"
+                value={seasonFilter}
+                onChange={(event) => {
+                  onSeasonFilterChange?.(event.target.value);
+                }}
+              >
+                {seasons.map((season) => (
+                  <option key={season.seasonCode} value={season.seasonCode}>
+                    {season.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="competitions-page__filter">
               <span>RDGA</span>
               <select
                 className="competitions-page__filter-control"
@@ -240,21 +401,48 @@ export function PlayersPageView({
             </section>
           ) : (
             <section className="data-table-panel" aria-label="Сохранённые игроки">
-              {!canEdit ? (
-                <div className="players-table__notice" role="note">
-                  Войдите в систему, чтобы менять дивизион и RDGA. Без авторизации список остаётся только для просмотра.
-                </div>
-              ) : null}
               <div className="data-table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th scope="col">Metrix ID</th>
-                      <th scope="col">Игрок</th>
+                      <th scope="col" aria-sort={resolveAriaSort(sort, "playerId")}>
+                        <button
+                          className="data-table__sort-button"
+                          type="button"
+                          onClick={() => {
+                            onSortChange?.("playerId");
+                          }}
+                        >
+                          Metrix ID{resolveSortIndicator(sort, "playerId")}
+                        </button>
+                      </th>
+                      <th scope="col" aria-sort={resolveAriaSort(sort, "playerName")}>
+                        <button
+                          className="data-table__sort-button"
+                          type="button"
+                          onClick={() => {
+                            onSortChange?.("playerName");
+                          }}
+                        >
+                          Игрок{resolveSortIndicator(sort, "playerName")}
+                        </button>
+                      </th>
                       <th scope="col">Дивизион</th>
                       <th scope="col">RDGA</th>
+                      <th scope="col">RDGA с</th>
+                      <th scope="col" aria-sort={resolveAriaSort(sort, "seasonPoints")}>
+                        <button
+                          className="data-table__sort-button"
+                          type="button"
+                          onClick={() => {
+                            onSortChange?.("seasonPoints");
+                          }}
+                        >
+                          Очки сезона{resolveSortIndicator(sort, "seasonPoints")}
+                        </button>
+                      </th>
                       <th scope="col">Соревнований</th>
-                      <th scope="col">Действия</th>
+                      {canEdit ? <th scope="col">Действия</th> : null}
                     </tr>
                   </thead>
                   <tbody>
@@ -265,89 +453,155 @@ export function PlayersPageView({
                         player.playerId in rdgaDrafts
                           ? (rdgaDrafts[player.playerId] ?? null)
                           : (player.rdga ?? null);
+                      const draftRdgaSince =
+                        rdgaSinceDrafts[player.playerId] ?? player.rdgaSince ?? "";
+                      const draftSeasonDivision =
+                        seasonDivisionDrafts[player.playerId] ??
+                        player.seasonDivision ??
+                        "";
                       const normalizedDraftDivision =
                         normalizeDivisionValue(draftDivision);
+                      const normalizedDraftRdgaSince =
+                        normalizeRdgaSinceValue(draftRdgaSince);
+                      const normalizedDraftSeasonDivision =
+                        normalizeDivisionValue(draftSeasonDivision);
                       const isSaving =
                         saveState.status === "saving" &&
                         saveState.playerId === player.playerId;
                       const hasChanges =
                         normalizedDraftDivision !== (player.division ?? null) ||
-                        draftRdga !== (player.rdga ?? null);
-                      const rowMessage =
-                        saveState.playerId === player.playerId ? saveState.message : null;
+                        draftRdga !== (player.rdga ?? null) ||
+                        normalizedDraftRdgaSince !== (player.rdgaSince ?? null) ||
+                        normalizedDraftSeasonDivision !==
+                          (player.seasonDivision ?? null);
 
                       return (
                         <tr key={player.playerId}>
                           <td className="data-table__cell-primary">{player.playerId}</td>
                           <td className="data-table__cell-primary">
-                            {decodeHtmlEntities(player.playerName)}
-                          </td>
-                          <td>
-                            <label className="sr-only" htmlFor={`player-division-${player.playerId}`}>
-                              Дивизион игрока {decodeHtmlEntities(player.playerName)}
-                            </label>
-                            <select
-                              id={`player-division-${player.playerId}`}
-                              className="players-table__division-select"
-                              value={draftDivision}
-                              disabled={!canEdit}
-                              onChange={(event) =>
-                                onDivisionChange?.(player.playerId, event.target.value)
-                              }
-                            >
-                              <option value="">Не выбран</option>
-                              {divisions.map((division) => (
-                                <option key={division.code} value={division.code}>
-                                  {division.code}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <label className="sr-only" htmlFor={`player-rdga-${player.playerId}`}>
-                              Признак RDGA для игрока {decodeHtmlEntities(player.playerName)}
-                            </label>
-                            <input
-                              id={`player-rdga-${player.playerId}`}
-                              className="players-table__checkbox"
-                              type="checkbox"
-                              checked={draftRdga === true}
-                              disabled={!canEdit}
-                              ref={(input) => {
-                                if (input) {
-                                  input.indeterminate = draftRdga === null;
-                                }
-                              }}
-                              onChange={(event) =>
-                                onRdgaChange?.(player.playerId, event.target.checked)
-                              }
-                            />
-                          </td>
-                          <td>{formatCompetitionsCount(player.competitionsCount)}</td>
-                          <td>
-                            <div className="players-table__actions">
+                            {onNavigate ? (
                               <button
-                                className="update-card__submit players-table__save-button"
+                                className="data-table__link-button"
                                 type="button"
-                                disabled={!canEdit || !hasChanges || isSaving}
-                                onClick={() => onDivisionSave?.(player.playerId)}
+                                onClick={() => {
+                                  onNavigate(buildPlayerPath(player.playerId));
+                                }}
+                                aria-label={`Открыть страницу игрока ${decodeHtmlEntities(player.playerName)}`}
                               >
-                                {isSaving ? "Сохраняем..." : "Сохранить"}
+                                {decodeHtmlEntities(player.playerName)}
                               </button>
-                              {rowMessage ? (
-                                <p
-                                  className={
-                                    saveState.status === "error"
-                                      ? "players-table__status players-table__status--error"
-                                      : "players-table__status"
-                                  }
-                                  role={saveState.status === "error" ? "alert" : undefined}
-                                >
-                                  {rowMessage}
-                                </p>
-                              ) : null}
-                            </div>
+                            ) : (
+                              decodeHtmlEntities(player.playerName)
+                            )}
                           </td>
+                          <td>
+                            {canEdit ? (
+                              <>
+                                <label
+                                  className="sr-only"
+                                  htmlFor={`player-division-${player.playerId}`}
+                                >
+                                  Дивизион игрока {decodeHtmlEntities(player.playerName)}
+                                </label>
+                                <select
+                                  id={`player-division-${player.playerId}`}
+                                  className="players-table__division-select"
+                                  value={draftDivision}
+                                  disabled={!canEdit}
+                                  onChange={(event) =>
+                                    onDivisionChange?.(player.playerId, event.target.value)
+                                  }
+                                >
+                                  <option value="">Не выбран</option>
+                                  {divisions.map((division) => (
+                                    <option key={division.code} value={division.code}>
+                                      {division.code}
+                                    </option>
+                                  ))}
+                                </select>
+                              </>
+                            ) : (
+                              <span className="players-table__readonly-value">
+                                {formatDivisionValue(player.division)}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {canEdit ? (
+                              <>
+                                <label
+                                  className="sr-only"
+                                  htmlFor={`player-rdga-${player.playerId}`}
+                                >
+                                  Признак RDGA для игрока {decodeHtmlEntities(player.playerName)}
+                                </label>
+                                <input
+                                  id={`player-rdga-${player.playerId}`}
+                                  className="players-table__checkbox"
+                                  type="checkbox"
+                                  checked={draftRdga === true}
+                                  disabled={!canEdit}
+                                  ref={(input) => {
+                                    if (input) {
+                                      input.indeterminate = draftRdga === null;
+                                    }
+                                  }}
+                                  onChange={(event) =>
+                                    onRdgaChange?.(player.playerId, event.target.checked)
+                                  }
+                                />
+                              </>
+                            ) : (
+                              <span className="players-table__readonly-value">
+                                {formatRdgaValue(player.rdga)}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {canEdit ? (
+                              <>
+                                <label
+                                  className="sr-only"
+                                  htmlFor={`player-rdga-since-${player.playerId}`}
+                                >
+                                  Дата вступления в RDGA для игрока{" "}
+                                  {decodeHtmlEntities(player.playerName)}
+                                </label>
+                                <input
+                                  id={`player-rdga-since-${player.playerId}`}
+                                  className="players-table__date-input"
+                                  type="date"
+                                  value={draftRdgaSince}
+                                  disabled={!canEdit}
+                                  onChange={(event) =>
+                                    onRdgaSinceChange?.(player.playerId, event.target.value)
+                                  }
+                                />
+                              </>
+                            ) : (
+                              <span className="players-table__readonly-value">
+                                {formatRdgaSinceValue(player.rdgaSince)}
+                              </span>
+                            )}
+                          </td>
+                          <td>{formatSeasonPointsValue(player.seasonPoints)}</td>
+                          <td>
+                            {formatCompetitionsCount(player.competitionsCount)}
+                          </td>
+                          {canEdit ? (
+                            <td>
+                              <div className="players-table__actions">
+                                <button
+                                  className="update-card__submit players-table__save-button"
+                                  type="button"
+                                  disabled={!hasChanges || isSaving}
+                                  onClick={() => onDivisionSave?.(player.playerId)}
+                                >
+                                  {isSaving ? "Сохраняем..." : "Сохранить"}
+                                </button>
+                              </div>
+                            </td>
+                          ) : null}
                         </tr>
                       );
                     })}
@@ -358,20 +612,48 @@ export function PlayersPageView({
           )}
         </>
       )}
+
+      <ActionToast
+        message={saveState.status === "saving" ? null : saveState.message}
+        tone={saveState.status === "error" ? "error" : "success"}
+        onClose={onToastClose}
+      />
     </section>
   );
 }
 
-export function PlayersPage() {
+export interface PlayersPageProps {
+  onNavigate: (pathname: string) => void;
+}
+
+export function PlayersPage({ onNavigate }: PlayersPageProps) {
   const { status: authStatus, user } = useAuth();
   const [state, setState] = useState<PlayersPageState>({
     status: "loading",
   });
   const [divisionDrafts, setDivisionDrafts] = useState<Record<string, string>>({});
   const [rdgaDrafts, setRdgaDrafts] = useState<Record<string, boolean | null>>({});
-  const [nameQuery, setNameQuery] = useState("");
-  const [divisionFilter, setDivisionFilter] = useState("");
-  const [rdgaFilter, setRdgaFilter] = useState<PlayersRdgaFilter>("all");
+  const [rdgaSinceDrafts, setRdgaSinceDrafts] = useState<Record<string, string>>({});
+  const [seasonDivisionDrafts, setSeasonDivisionDrafts] = useState<
+    Record<string, string>
+  >({});
+  const [nameQuery, setNameQuery] = useSessionStorageState(
+    playersNameQueryStorageKey,
+    "",
+  );
+  const [divisionFilter, setDivisionFilter] = useSessionStorageState(
+    playersDivisionFilterStorageKey,
+    "",
+  );
+  const [rdgaFilter, setRdgaFilter] = useSessionStorageState<PlayersRdgaFilter>(
+    playersRdgaFilterStorageKey,
+    "all",
+  );
+  const [seasonFilter, setSeasonFilter] = useSessionStorageState(
+    playersSeasonFilterStorageKey,
+    "",
+  );
+  const [sort, setSort] = useState<PlayersSort>(DEFAULT_PLAYERS_SORT);
   const [saveState, setSaveState] = useState<{
     status: "idle" | "saving" | "success" | "error";
     playerId: string | null;
@@ -382,13 +664,35 @@ export function PlayersPage() {
     message: null,
   });
 
+  function resetSaveState() {
+    setSaveState((currentState) =>
+      currentState.status === "saving" || currentState.message === null
+        ? currentState
+        : {
+            status: "idle",
+            playerId: null,
+            message: null,
+          },
+    );
+  }
+
   useEffect(() => {
     let isActive = true;
 
     void (async () => {
       try {
+        const seasonsEnvelope = await listSeasons();
+        const seasons = [...seasonsEnvelope.data].sort(compareSeasonsByPeriod);
+        const effectiveSeasonCode =
+          seasons.some((season) => season.seasonCode === seasonFilter)
+            ? seasonFilter
+            : (seasons[0]?.seasonCode ?? "");
         const [playersEnvelope, divisionsEnvelope] = await Promise.all([
-          listPlayers(),
+          listPlayers(
+            effectiveSeasonCode.length > 0
+              ? { seasonCode: effectiveSeasonCode }
+              : {},
+          ),
           listDivisions(),
         ]);
 
@@ -400,8 +704,12 @@ export function PlayersPage() {
           status: "ready",
           divisions: divisionsEnvelope.data,
           players: playersEnvelope.data,
+          seasons,
           total: resolvePlayersTotal(playersEnvelope.data, playersEnvelope.meta),
         });
+        if (effectiveSeasonCode !== seasonFilter) {
+          setSeasonFilter(effectiveSeasonCode);
+        }
         setDivisionDrafts(
           Object.fromEntries(
             playersEnvelope.data.map((player) => [player.playerId, player.division ?? ""]),
@@ -412,6 +720,19 @@ export function PlayersPage() {
             playersEnvelope.data.map((player) => [player.playerId, player.rdga ?? null]),
           ),
         );
+        setRdgaSinceDrafts(
+          Object.fromEntries(
+            playersEnvelope.data.map((player) => [player.playerId, player.rdgaSince ?? ""]),
+          ),
+        );
+        setSeasonDivisionDrafts(
+          Object.fromEntries(
+            playersEnvelope.data.map((player) => [
+              player.playerId,
+              player.seasonDivision ?? "",
+            ]),
+          ),
+        );
       } catch (error) {
         if (!isActive) {
           return;
@@ -419,10 +740,10 @@ export function PlayersPage() {
 
         setState({
           status: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Не удалось загрузить список игроков и справочник дивизионов.",
+          message: [
+            resolvePlayersErrorMessage(error),
+            resolveSeasonsErrorMessage(error),
+          ][0],
         });
       }
     })();
@@ -430,7 +751,7 @@ export function PlayersPage() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [seasonFilter, setSeasonFilter]);
 
   async function handleDivisionSave(playerId: string) {
     if (state.status !== "ready") {
@@ -447,8 +768,19 @@ export function PlayersPage() {
     );
     const rdga =
       playerId in rdgaDrafts ? (rdgaDrafts[playerId] ?? null) : (player.rdga ?? null);
+    const rdgaSince = normalizeRdgaSinceValue(
+      rdgaSinceDrafts[playerId] ?? player.rdgaSince ?? "",
+    );
+    const seasonDivision = normalizeDivisionValue(
+      seasonDivisionDrafts[playerId] ?? player.seasonDivision ?? "",
+    );
 
-    if (division === (player.division ?? null) && rdga === (player.rdga ?? null)) {
+    if (
+      division === (player.division ?? null) &&
+      rdga === (player.rdga ?? null) &&
+      rdgaSince === (player.rdgaSince ?? null) &&
+      seasonDivision === (player.seasonDivision ?? null)
+    ) {
       return;
     }
 
@@ -459,11 +791,17 @@ export function PlayersPage() {
     });
 
     try {
-      const updatedPlayer = await updatePlayer({
+      const updatedPlayerResponse = await updatePlayer({
         playerId,
         division,
         rdga,
+        rdgaSince,
+        seasonDivision,
       });
+      const updatedPlayer = {
+        ...updatedPlayerResponse,
+        seasonPoints: player.seasonPoints ?? updatedPlayerResponse.seasonPoints ?? null,
+      };
 
       setState((currentState) => {
         if (currentState.status !== "ready") {
@@ -485,6 +823,14 @@ export function PlayersPage() {
         ...currentDrafts,
         [playerId]: updatedPlayer.rdga ?? null,
       }));
+      setRdgaSinceDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [playerId]: updatedPlayer.rdgaSince ?? "",
+      }));
+      setSeasonDivisionDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [playerId]: updatedPlayer.seasonDivision ?? "",
+      }));
       setSaveState({
         status: "success",
         playerId,
@@ -502,16 +848,37 @@ export function PlayersPage() {
   return (
     <PlayersPageView
       state={state}
+      onNavigate={onNavigate}
       nameQuery={nameQuery}
       divisionFilter={divisionFilter}
       rdgaFilter={rdgaFilter}
+      seasonFilter={seasonFilter}
+      sort={sort}
       canEdit={authStatus === "authenticated" && Boolean(user)}
       divisionDrafts={divisionDrafts}
       rdgaDrafts={rdgaDrafts}
+      rdgaSinceDrafts={rdgaSinceDrafts}
+      seasonDivisionDrafts={seasonDivisionDrafts}
       saveState={saveState}
       onNameQueryChange={setNameQuery}
       onDivisionFilterChange={setDivisionFilter}
       onRdgaFilterChange={setRdgaFilter}
+      onSeasonFilterChange={setSeasonFilter}
+      onSortChange={(field) => {
+        setSort((currentSort) => {
+          if (currentSort.field === field) {
+            return {
+              field,
+              direction: currentSort.direction === "asc" ? "desc" : "asc",
+            };
+          }
+
+          return {
+            field,
+            direction: field === "seasonPoints" ? "desc" : "asc",
+          };
+        });
+      }}
       onDivisionChange={(playerId, value) => {
         setDivisionDrafts((currentDrafts) => ({
           ...currentDrafts,
@@ -542,9 +909,40 @@ export function PlayersPage() {
             : currentState,
         );
       }}
+      onRdgaSinceChange={(playerId, value) => {
+        setRdgaSinceDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [playerId]: value,
+        }));
+        setSaveState((currentState) =>
+          currentState.playerId === playerId
+            ? {
+                status: "idle",
+                playerId: null,
+                message: null,
+              }
+            : currentState,
+        );
+      }}
+      onSeasonDivisionChange={(playerId, value) => {
+        setSeasonDivisionDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [playerId]: value,
+        }));
+        setSaveState((currentState) =>
+          currentState.playerId === playerId
+            ? {
+                status: "idle",
+                playerId: null,
+                message: null,
+              }
+            : currentState,
+        );
+      }}
       onDivisionSave={(playerId) => {
         void handleDivisionSave(playerId);
       }}
+      onToastClose={resetSaveState}
     />
   );
 }

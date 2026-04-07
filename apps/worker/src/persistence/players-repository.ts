@@ -36,8 +36,14 @@ export interface PlayersPersistenceAdapter {
 }
 
 export interface PlayersRepository {
-  savePlayer(record: PersistablePlayerRecord): Promise<UpdateRecordResult>;
-  savePlayers(records: PersistablePlayerRecord[]): Promise<{
+  savePlayer(
+    record: PersistablePlayerRecord,
+    options?: { overwriteExisting?: boolean },
+  ): Promise<UpdateRecordResult>;
+  savePlayers(
+    records: PersistablePlayerRecord[],
+    options?: { overwriteExisting?: boolean },
+  ): Promise<{
     summary: ReturnType<typeof createEmptyUpdateSummary>;
     issues: UpdateProcessingIssue[];
   }>;
@@ -59,8 +65,16 @@ function createPlayerIssue(
 }
 
 function toStoredPlayerRecord(record: PersistablePlayerRecord): StoredPlayerRecord {
+  const {
+    division: _ignoredDivision,
+    rdga: _ignoredRdga,
+    rdgaSince: _ignoredRdgaSince,
+    seasonDivision: _ignoredSeasonDivision,
+    ...playerDbRecord
+  } = toPlayerDbRecord(record.player);
+
   return {
-    ...toPlayerDbRecord(record.player),
+    ...playerDbRecord,
     raw_payload: record.rawPayload,
     source_fetched_at: record.sourceFetchedAt,
   };
@@ -75,7 +89,10 @@ function normalizeRecordResult(recordResult: UpdateRecordResult): UpdateRecordRe
 export function createPlayersRepository(
   adapter: PlayersPersistenceAdapter,
 ): PlayersRepository {
-  async function savePlayer(record: PersistablePlayerRecord): Promise<UpdateRecordResult> {
+  async function savePlayer(
+    record: PersistablePlayerRecord,
+    options: { overwriteExisting?: boolean } = {},
+  ): Promise<UpdateRecordResult> {
     const recordKey = `player:${record.player.playerId || "unknown"}`;
 
     if (record.player.playerId.trim().length === 0) {
@@ -116,10 +133,19 @@ export function createPlayersRepository(
       };
     }
 
+    if (options.overwriteExisting !== true) {
+      return {
+        action: "skipped",
+        matchedExisting: true,
+      };
+    }
+
     await adapter.update(existingRow.id, {
       ...dbRecord,
       division: existingRow.division ?? null,
       rdga: existingRow.rdga ?? null,
+      rdga_since: existingRow.rdga_since ?? null,
+      season_division: existingRow.season_division ?? null,
     });
 
     return {
@@ -130,7 +156,7 @@ export function createPlayersRepository(
 
   return {
     savePlayer,
-    async savePlayers(records) {
+    async savePlayers(records, options = {}) {
       let summary = createEmptyUpdateSummary();
       const issues: UpdateProcessingIssue[] = [];
       const validRecords: PersistablePlayerRecord[] = [];
@@ -160,35 +186,45 @@ export function createPlayersRepository(
         const existingRowsByPlayerId = new Map(
           existingRows.map((row) => [row.player_id, row] as const),
         );
-
-        await adapter.upsert(
-          validRecords.map((record) => {
-            const existingRow = existingRowsByPlayerId.get(record.player.playerId);
-            const dbRecord = toStoredPlayerRecord(record);
-
-            return existingRow
-              ? {
-                  ...dbRecord,
-                  division: existingRow.division ?? null,
-                  rdga: existingRow.rdga ?? null,
-                }
-              : dbRecord;
-          }),
+        const recordsToUpsert = validRecords.filter(
+          (record) =>
+            options.overwriteExisting === true ||
+            !existingRowsByPlayerId.has(record.player.playerId),
         );
 
+        if (recordsToUpsert.length > 0) {
+          await adapter.upsert(
+            recordsToUpsert.map((record) => {
+              const existingRow = existingRowsByPlayerId.get(record.player.playerId);
+              const dbRecord = toStoredPlayerRecord(record);
+
+              return existingRow
+                ? {
+                    ...dbRecord,
+                    division: existingRow.division ?? null,
+                    rdga: existingRow.rdga ?? null,
+                    rdga_since: existingRow.rdga_since ?? null,
+                    season_division: existingRow.season_division ?? null,
+                  }
+                : dbRecord;
+            }),
+          );
+        }
+
         for (const record of validRecords) {
+          const matchedExisting = existingRowsByPlayerId.has(record.player.playerId);
           summary = accumulateUpdateSummary(summary, {
-            action: existingRowsByPlayerId.has(record.player.playerId)
-              ? "updated"
+            action: matchedExisting
+              ? (options.overwriteExisting === true ? "updated" : "skipped")
               : "created",
-            matchedExisting: existingRowsByPlayerId.has(record.player.playerId),
+            matchedExisting,
           });
         }
 
         return { summary, issues };
       } catch {
         for (const record of validRecords) {
-          const normalized = normalizeRecordResult(await savePlayer(record));
+          const normalized = normalizeRecordResult(await savePlayer(record, options));
           summary = accumulateUpdateSummary(summary, normalized);
 
           if (normalized.issue) {

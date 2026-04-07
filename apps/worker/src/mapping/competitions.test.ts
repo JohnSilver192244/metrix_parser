@@ -53,9 +53,13 @@ test("mapDiscGolfMetrixCompetitions maps documented DiscGolfMetrix competition f
     parent_id: "9001",
     course_id: "45374",
     course_name: "Tiraz Park",
+    category_id: null,
+    comment: null,
     record_type: "4",
     players_count: 72,
     metrix_id: null,
+    has_results: undefined,
+    season_points: null,
   });
 });
 

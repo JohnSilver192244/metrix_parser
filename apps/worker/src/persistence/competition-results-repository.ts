@@ -16,7 +16,8 @@ export interface CompetitionResultRow extends CompetitionResultDbRecord {
   source_fetched_at: string | null;
 }
 
-export interface StoredCompetitionResultRecord extends CompetitionResultDbRecord {
+export interface StoredCompetitionResultRecord
+  extends Omit<CompetitionResultDbRecord, "season_points"> {
   raw_payload: Record<string, unknown> | null;
   source_fetched_at: string | null;
 }
@@ -45,8 +46,12 @@ export interface CompetitionResultsPersistenceAdapter {
 export interface CompetitionResultsRepository {
   saveCompetitionResult(
     record: PersistableCompetitionResultRecord,
+    options?: { overwriteExisting?: boolean },
   ): Promise<UpdateRecordResult>;
-  saveCompetitionResults(records: PersistableCompetitionResultRecord[]): Promise<{
+  saveCompetitionResults(
+    records: PersistableCompetitionResultRecord[],
+    options?: { overwriteExisting?: boolean },
+  ): Promise<{
     summary: ReturnType<typeof createEmptyUpdateSummary>;
     issues: UpdateProcessingIssue[];
   }>;
@@ -70,8 +75,11 @@ function createCompetitionResultIssue(
 function toStoredCompetitionResultRecord(
   record: PersistableCompetitionResultRecord,
 ): StoredCompetitionResultRecord {
+  const { season_points: _ignoredSeasonPoints, ...competitionResultDbRecord } =
+    toCompetitionResultDbRecord(record.result);
+
   return {
-    ...toCompetitionResultDbRecord(record.result),
+    ...competitionResultDbRecord,
     raw_payload: record.rawPayload,
     source_fetched_at: record.sourceFetchedAt,
   };
@@ -92,6 +100,7 @@ export function createCompetitionResultsRepository(
 ): CompetitionResultsRepository {
   async function saveCompetitionResult(
     record: PersistableCompetitionResultRecord,
+    options: { overwriteExisting?: boolean } = {},
   ): Promise<UpdateRecordResult> {
     const { result } = record;
     const recordKey = `competition:${result.competitionId}:player:${result.playerId || "unknown"}`;
@@ -151,6 +160,13 @@ export function createCompetitionResultsRepository(
       };
     }
 
+    if (options.overwriteExisting !== true) {
+      return {
+        action: "skipped",
+        matchedExisting: true,
+      };
+    }
+
     await adapter.update(existingRow.id, dbRecord);
 
     return {
@@ -161,7 +177,7 @@ export function createCompetitionResultsRepository(
 
   return {
     saveCompetitionResult,
-    async saveCompetitionResults(records) {
+    async saveCompetitionResults(records, options = {}) {
       let summary = createEmptyUpdateSummary();
       const issues: UpdateProcessingIssue[] = [];
       const validRecords: PersistableCompetitionResultRecord[] = [];
@@ -197,16 +213,29 @@ export function createCompetitionResultsRepository(
           ]),
         );
 
-        await adapter.upsert(
-          validRecords.map((record) => toStoredCompetitionResultRecord(record)),
-        );
+        const recordsToUpsert = validRecords.filter((record) => {
+          const identityKey = buildResultIdentityKey(record.result);
+
+          return (
+            options.overwriteExisting === true ||
+            !existingRowsByIdentity.has(identityKey)
+          );
+        });
+
+        if (recordsToUpsert.length > 0) {
+          await adapter.upsert(
+            recordsToUpsert.map((record) => toStoredCompetitionResultRecord(record)),
+          );
+        }
 
         for (const record of validRecords) {
           const identityKey = buildResultIdentityKey(record.result);
           const matchedExisting = existingRowsByIdentity.has(identityKey);
 
           summary = accumulateUpdateSummary(summary, {
-            action: matchedExisting ? "updated" : "created",
+            action: matchedExisting
+              ? (options.overwriteExisting === true ? "updated" : "skipped")
+              : "created",
             matchedExisting,
           });
         }
@@ -214,7 +243,9 @@ export function createCompetitionResultsRepository(
         return { summary, issues };
       } catch {
         for (const record of validRecords) {
-          const normalized = normalizeRecordResult(await saveCompetitionResult(record));
+          const normalized = normalizeRecordResult(
+            await saveCompetitionResult(record, options),
+          );
           summary = accumulateUpdateSummary(summary, normalized);
 
           if (normalized.issue) {

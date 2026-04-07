@@ -33,6 +33,7 @@ export function createFailedUpdateResult(
     requestedAt: timestamp,
     finishedAt: timestamp,
     issues: [],
+    skipReasons: [],
     period,
   };
 }

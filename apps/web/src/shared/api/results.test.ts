@@ -23,6 +23,7 @@ test("listResults reads data and meta from the backend envelope", async () => {
               diff: -4,
               orderNumber: 3,
               dnf: false,
+              seasonPoints: 52.9,
             },
           ],
           meta: {
@@ -39,6 +40,7 @@ test("listResults reads data and meta from the backend envelope", async () => {
 
     assert.equal(envelope.meta?.count, 1);
     assert.equal(envelope.data[0]?.competitionId, "competition-321");
+    assert.equal(envelope.data[0]?.seasonPoints, 52.9);
     assert.equal(resolveResultsTotal(envelope.data, envelope.meta), 1);
     assert.match(requestedUrl, /\/results\?competitionId=competition-321$/);
   } finally {

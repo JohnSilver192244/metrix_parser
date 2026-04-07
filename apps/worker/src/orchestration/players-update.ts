@@ -5,6 +5,7 @@ import { runPlayersUpdateJob } from "../jobs/players-update-job";
 
 export async function executePlayersUpdate(
   period: UpdatePeriod,
+  overwriteExisting: boolean,
   env: Pick<
     WorkerEnv,
     "discGolfMetrixBaseUrl" | "discGolfMetrixCountryCode" | "discGolfMetrixApiCode"
@@ -14,5 +15,6 @@ export async function executePlayersUpdate(
     baseUrl: env.discGolfMetrixBaseUrl,
     countryCode: env.discGolfMetrixCountryCode,
     apiCode: env.discGolfMetrixApiCode,
+    overwriteExisting,
   });
 }

@@ -6,6 +6,18 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { PlayersPageView } from "./players-page";
 
+const defaultSeasons = [
+  {
+    seasonCode: "2026",
+    name: "Сезон 2026",
+    dateFrom: "2026-01-01",
+    dateTo: "2026-12-31",
+    bestLeaguesCount: 3,
+    bestTournamentsCount: 3,
+    minPlayers: 8,
+  },
+];
+
 test("PlayersPageView renders the empty state when there is no data", () => {
   const markup = renderToStaticMarkup(
     <PlayersPageView
@@ -13,6 +25,7 @@ test("PlayersPageView renders the empty state when there is no data", () => {
         status: "ready",
         divisions: [],
         players: [],
+        seasons: [],
         total: 0,
       }}
     />,
@@ -31,6 +44,7 @@ test("PlayersPageView renders player identification fields", () => {
           { code: "MPO" },
           { code: "MA2" },
         ],
+        seasons: defaultSeasons,
         total: 1,
         players: [
           {
@@ -38,10 +52,15 @@ test("PlayersPageView renders player identification fields", () => {
             playerName: "Pavel &rarr; Orlov",
             division: "MPO",
             rdga: null,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 125.5,
             competitionsCount: 7,
           },
         ],
       }}
+      seasonFilter="2026"
+      canEdit={true}
     />,
   );
 
@@ -54,12 +73,47 @@ test("PlayersPageView renders player identification fields", () => {
   assert.match(markup, /Игрок/);
   assert.match(markup, /Дивизион/);
   assert.match(markup, /RDGA/);
+  assert.match(markup, /RDGA с/);
+  assert.match(markup, /Очки сезона/);
   assert.match(markup, /Соревнований/);
   assert.match(markup, /Сохранить/);
   assert.match(markup, /MPO/);
+  assert.match(markup, /Сезон 2026/);
   assert.match(markup, /type="checkbox"/);
+  assert.match(markup, /type="date"/);
   assert.match(markup, /Не выбран/);
+  assert.match(markup, />125\.50</);
   assert.match(markup, />7</);
+});
+
+test("PlayersPageView renders player name as in-app link button when navigation is provided", () => {
+  const markup = renderToStaticMarkup(
+    <PlayersPageView
+      state={{
+        status: "ready",
+        divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
+        total: 1,
+        players: [
+          {
+            playerId: "player-500",
+            playerName: "Sergey Ivanov",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 20,
+            competitionsCount: 3,
+          },
+        ],
+      }}
+      seasonFilter="2026"
+      onNavigate={() => {}}
+    />,
+  );
+
+  assert.match(markup, /data-table__link-button/);
+  assert.match(markup, /Открыть страницу игрока Sergey Ivanov/);
 });
 
 test("PlayersPageView filters players by name substring case-insensitively", () => {
@@ -68,6 +122,7 @@ test("PlayersPageView filters players by name substring case-insensitively", () 
       state={{
         status: "ready",
         divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
         total: 2,
         players: [
           {
@@ -75,6 +130,9 @@ test("PlayersPageView filters players by name substring case-insensitively", () 
             playerName: "Pavel Orlov",
             division: "MPO",
             rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 42,
             competitionsCount: 7,
           },
           {
@@ -82,6 +140,9 @@ test("PlayersPageView filters players by name substring case-insensitively", () 
             playerName: "Sergey Petrov",
             division: "MPO",
             rdga: false,
+            rdgaSince: null,
+            seasonDivision: "MPO",
+            seasonPoints: 15.25,
             competitionsCount: 5,
           },
         ],
@@ -103,6 +164,7 @@ test("PlayersPageView filters players by division and RDGA", () => {
           { code: "MPO" },
           { code: "MA2" },
         ],
+        seasons: defaultSeasons,
         total: 3,
         players: [
           {
@@ -110,6 +172,9 @@ test("PlayersPageView filters players by division and RDGA", () => {
             playerName: "Pavel Orlov",
             division: "MPO",
             rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 42,
             competitionsCount: 7,
           },
           {
@@ -117,6 +182,9 @@ test("PlayersPageView filters players by division and RDGA", () => {
             playerName: "Sergey Petrov",
             division: "MA2",
             rdga: false,
+            rdgaSince: null,
+            seasonDivision: "MA2",
+            seasonPoints: 15.25,
             competitionsCount: 5,
           },
           {
@@ -124,6 +192,9 @@ test("PlayersPageView filters players by division and RDGA", () => {
             playerName: "Ivan Sidorov",
             division: "MA2",
             rdga: null,
+            rdgaSince: "2026-03-10",
+            seasonDivision: null,
+            seasonPoints: null,
             competitionsCount: 3,
           },
         ],
@@ -140,12 +211,149 @@ test("PlayersPageView filters players by division and RDGA", () => {
   assert.doesNotMatch(markup, /Pavel Orlov/);
 });
 
+test("PlayersPageView sorts players by season points descending", () => {
+  const markup = renderToStaticMarkup(
+    <PlayersPageView
+      state={{
+        status: "ready",
+        divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
+        total: 3,
+        players: [
+          {
+            playerId: "player-100",
+            playerName: "Alpha",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 15.5,
+            competitionsCount: 3,
+          },
+          {
+            playerId: "player-101",
+            playerName: "Bravo",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 99.25,
+            competitionsCount: 4,
+          },
+          {
+            playerId: "player-102",
+            playerName: "Charlie",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: null,
+            competitionsCount: 2,
+          },
+        ],
+      }}
+      sort={{
+        field: "seasonPoints",
+        direction: "desc",
+      }}
+    />,
+  );
+
+  assert.match(markup, /data-table__sort-button/);
+  assert.match(markup, /Очки сезона ↓/);
+  assert.match(markup, /aria-sort="descending"/);
+  assert.ok(markup.indexOf("Bravo") < markup.indexOf("Alpha"));
+  assert.ok(markup.indexOf("Alpha") < markup.indexOf("Charlie"));
+});
+
+test("PlayersPageView sorts players by metrix id and player name", () => {
+  const markupById = renderToStaticMarkup(
+    <PlayersPageView
+      state={{
+        status: "ready",
+        divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
+        total: 2,
+        players: [
+          {
+            playerId: "player-900",
+            playerName: "Zulu",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 10,
+            competitionsCount: 1,
+          },
+          {
+            playerId: "player-100",
+            playerName: "Alpha",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 20,
+            competitionsCount: 2,
+          },
+        ],
+      }}
+      sort={{
+        field: "playerId",
+        direction: "asc",
+      }}
+    />,
+  );
+
+  const markupByName = renderToStaticMarkup(
+    <PlayersPageView
+      state={{
+        status: "ready",
+        divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
+        total: 2,
+        players: [
+          {
+            playerId: "player-900",
+            playerName: "Zulu",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 10,
+            competitionsCount: 1,
+          },
+          {
+            playerId: "player-100",
+            playerName: "Alpha",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 20,
+            competitionsCount: 2,
+          },
+        ],
+      }}
+      sort={{
+        field: "playerName",
+        direction: "asc",
+      }}
+    />,
+  );
+
+  assert.match(markupById, /Metrix ID ↑/);
+  assert.ok(markupById.indexOf("player-100") < markupById.indexOf("player-900"));
+  assert.match(markupByName, /Игрок ↑/);
+  assert.ok(markupByName.indexOf("Alpha") < markupByName.indexOf("Zulu"));
+});
+
 test("PlayersPageView renders filtered empty state when search has no matches", () => {
   const markup = renderToStaticMarkup(
     <PlayersPageView
       state={{
         status: "ready",
         divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
         total: 1,
         players: [
           {
@@ -153,6 +361,9 @@ test("PlayersPageView renders filtered empty state when search has no matches", 
             playerName: "Pavel Orlov",
             division: "MPO",
             rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 42,
             competitionsCount: 7,
           },
         ],
@@ -172,6 +383,7 @@ test("PlayersPageView disables editing for guests", () => {
       state={{
         status: "ready",
         divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
         total: 1,
         players: [
           {
@@ -179,6 +391,9 @@ test("PlayersPageView disables editing for guests", () => {
             playerName: "Pavel Orlov",
             division: "MPO",
             rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 42,
             competitionsCount: 2,
           },
         ],
@@ -187,8 +402,40 @@ test("PlayersPageView disables editing for guests", () => {
     />,
   );
 
-  assert.match(markup, /Войдите в систему, чтобы менять дивизион и RDGA/);
-  assert.match(markup, /<select[^>]*disabled/);
-  assert.match(markup, /<input[^>]*type="checkbox"[^>]*disabled/);
-  assert.match(markup, /<button[^>]*disabled/);
+  assert.doesNotMatch(markup, /<th scope="col">Действия<\/th>/);
+  assert.doesNotMatch(markup, /players-table__division-select/);
+  assert.doesNotMatch(markup, /type="checkbox"/);
+  assert.doesNotMatch(markup, /Сохранить/);
+  assert.match(markup, /<span class="players-table__readonly-value">MPO<\/span>/);
+  assert.match(markup, /<span class="players-table__readonly-value">✓<\/span>/);
+  assert.match(markup, /2026-01-15/);
+});
+
+test("PlayersPageView shows guest read-only values for missing division and RDGA false", () => {
+  const markup = renderToStaticMarkup(
+    <PlayersPageView
+      state={{
+        status: "ready",
+        divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
+        total: 1,
+        players: [
+          {
+            playerId: "player-501",
+            playerName: "Sergey Petrov",
+            division: null,
+            rdga: false,
+            rdgaSince: null,
+            seasonDivision: null,
+            seasonPoints: null,
+            competitionsCount: 2,
+          },
+        ],
+      }}
+      canEdit={false}
+    />,
+  );
+
+  assert.match(markup, /Не выбран/);
+  assert.match(markup, /<span class="players-table__readonly-value">—<\/span>/);
 });

@@ -172,6 +172,16 @@ export function UpdateOperationStatus({ result }: UpdateOperationStatusProps) {
           ))}
         </ul>
       ) : null}
+      {result.skipReasons && result.skipReasons.length > 0 ? (
+        <ul className="update-card__issues-list">
+          {result.skipReasons.map((issue) => (
+            <li key={`skip-${issue.code}-${issue.recordKey ?? issue.message}`}>
+              {issue.recordKey ? `${issue.recordKey}: ` : ""}
+              {issue.message}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

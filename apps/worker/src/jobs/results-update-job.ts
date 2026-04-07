@@ -22,6 +22,12 @@ import {
   type CompetitionResultsRepository,
   type PersistableCompetitionResultRecord,
 } from "../persistence/competition-results-repository";
+import {
+  createCompetitionCommentsRepository,
+  createSupabaseCompetitionCommentsAdapter,
+  resolveResultsSaveFailureComment,
+  type CompetitionCommentsRepository,
+} from "../persistence/competition-comments-repository";
 import { createSupabaseCompetitionResultsAdapter } from "../persistence/supabase-competition-results-adapter";
 import {
   createCompetitionsForResultsReader,
@@ -34,17 +40,58 @@ export interface ResultsUpdateJobDependencies extends DiscGolfMetrixClientDepend
     period: UpdatePeriod,
   ) => Promise<CompetitionsForResultsReadResult>;
   resultsRepository?: CompetitionResultsRepository;
+  competitionCommentsRepository?: CompetitionCommentsRepository;
   persistResults?: boolean;
+  overwriteExisting?: boolean;
+  reconcileCompetitionComments?: boolean;
 }
 
 export interface ResultsUpdateJobResult extends UpdateOperationResult {
   selectedCompetitionsCount?: number;
+  selectedCompetitionIds?: string[];
   fetchedResults?: DiscGolfMetrixResultsResponse[];
   mappedResults?: PersistableCompetitionResultRecord["result"][];
   extractedResults?: ExtractedCompetitionResultEntry[];
 }
 
 const RESULTS_FETCH_CONCURRENCY = 4;
+
+function extractCompetitionIdFromRecordKey(
+  recordKey: string | undefined,
+): string | null {
+  if (!recordKey?.startsWith("competition:")) {
+    return null;
+  }
+
+  const normalizedRecordKey = recordKey.slice("competition:".length);
+  const nextSeparatorIndex = normalizedRecordKey.indexOf(":");
+  if (nextSeparatorIndex < 0) {
+    return normalizedRecordKey.trim() || null;
+  }
+
+  const competitionId = normalizedRecordKey.slice(0, nextSeparatorIndex).trim();
+  return competitionId.length > 0 ? competitionId : null;
+}
+
+function createSaveFailureCommentsByCompetitionId(
+  issues: readonly UpdateProcessingIssue[],
+): Map<string, string> {
+  const commentsByCompetitionId = new Map<string, string>();
+
+  for (const issue of issues) {
+    const competitionId = extractCompetitionIdFromRecordKey(issue.recordKey);
+    if (!competitionId || commentsByCompetitionId.has(competitionId)) {
+      continue;
+    }
+
+    commentsByCompetitionId.set(
+      competitionId,
+      resolveResultsSaveFailureComment(issue.code),
+    );
+  }
+
+  return commentsByCompetitionId;
+}
 
 async function fetchResultsPayloads(
   competitions: CompetitionsForResultsReadResult["competitions"],
@@ -157,6 +204,15 @@ export async function runResultsUpdateJob(
       createCompetitionsForResultsReader(
         createSupabaseCompetitionsForResultsAdapter(supabase!),
       ).readCompetitions;
+    const competitionCommentsRepository =
+      dependencies.reconcileCompetitionComments === false
+        ? null
+        : (dependencies.competitionCommentsRepository ??
+          (supabase
+            ? createCompetitionCommentsRepository(
+                createSupabaseCompetitionCommentsAdapter(supabase),
+              )
+            : null));
     const selectionResult = await readCompetitions(period);
     const fetchedResult = await fetchResultsPayloads(selectionResult.competitions, dependencies);
 
@@ -166,6 +222,17 @@ export async function runResultsUpdateJob(
       summary.skipped = selectionResult.skippedCount + fetchedResult.skippedCount;
       summary.errors = selectionResult.issues.length + fetchedResult.issues.length;
       const finalStatus = resolveResultsJobFinalStatus(summary, fetchedResult.payloads.length);
+
+      if (competitionCommentsRepository) {
+        await competitionCommentsRepository.reconcileResultsComments({
+          competitionIds: selectionResult.competitions.map(
+            (competition) => competition.competitionId,
+          ),
+          fetchFailureCompetitionIds: fetchedResult.issues
+            .map((issue) => extractCompetitionIdFromRecordKey(issue.recordKey))
+            .filter((competitionId): competitionId is string => competitionId !== null),
+        });
+      }
 
       return {
         operation: "results",
@@ -179,6 +246,9 @@ export async function runResultsUpdateJob(
         issues: [...selectionResult.issues, ...fetchedResult.issues],
         period,
         selectedCompetitionsCount: selectionResult.competitions.length,
+        selectedCompetitionIds: selectionResult.competitions.map(
+          (competition) => competition.competitionId,
+        ),
         fetchedResults: fetchedResult.payloads,
       };
     }
@@ -196,6 +266,7 @@ export async function runResultsUpdateJob(
         mappingResult.extractedResults,
         fetchedResult.payloads,
       ),
+      { overwriteExisting: dependencies.overwriteExisting },
     );
     const summary = {
       ...(persistenceResult.summary ?? createEmptyUpdateSummary()),
@@ -212,6 +283,21 @@ export async function runResultsUpdateJob(
         mappingResult.issues.length,
     };
     const finalStatus = resolveResultsJobFinalStatus(summary, fetchedResult.payloads.length);
+
+    if (competitionCommentsRepository) {
+      await competitionCommentsRepository.reconcileResultsComments({
+        competitionIds: selectionResult.competitions.map(
+          (competition) => competition.competitionId,
+        ),
+        fetchFailureCompetitionIds: fetchedResult.issues
+          .map((issue) => extractCompetitionIdFromRecordKey(issue.recordKey))
+          .filter((competitionId): competitionId is string => competitionId !== null),
+        saveFailureCommentsByCompetitionId: createSaveFailureCommentsByCompetitionId([
+          ...mappingResult.issues,
+          ...persistenceResult.issues,
+        ]),
+      });
+    }
 
     return {
       operation: "results",
@@ -230,6 +316,9 @@ export async function runResultsUpdateJob(
       ],
       period,
       selectedCompetitionsCount: selectionResult.competitions.length,
+      selectedCompetitionIds: selectionResult.competitions.map(
+        (competition) => competition.competitionId,
+      ),
       fetchedResults: fetchedResult.payloads,
       mappedResults: mappingResult.results,
       extractedResults: mappingResult.extractedResults,

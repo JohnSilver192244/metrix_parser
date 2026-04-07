@@ -1,0 +1,27 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - heading "MetrixParser" [level=1] [ref=e7]
+      - generic [ref=e8]:
+        - button "Переключить на тёмную тему" [ref=e9] [cursor=pointer]:
+          - generic [ref=e10]: Тёмная тема
+        - button "Войти" [ref=e12] [cursor=pointer]
+    - navigation "Основная навигация" [ref=e13]:
+      - link "Соревнования" [ref=e14] [cursor=pointer]:
+        - /url: /
+      - link "Парки" [ref=e15] [cursor=pointer]:
+        - /url: /courses
+      - link "Игроки" [ref=e16] [cursor=pointer]:
+        - /url: /players
+      - link "Категории турниров" [ref=e17] [cursor=pointer]:
+        - /url: /tournament-categories
+  - region "Список соревнований" [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - paragraph [ref=e23]: Данные
+        - heading "Список соревнований" [level=1] [ref=e25]
+      - paragraph [ref=e26]: Загружаем сохранённые соревнования через backend API.
+    - generic [ref=e27]:
+      - paragraph [ref=e28]: loading
+      - heading "Подтягиваем соревнования" [level=2] [ref=e29]
+      - paragraph [ref=e30]: Подождите немного, данные загружаются с серверного read-side.

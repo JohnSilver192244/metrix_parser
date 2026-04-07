@@ -3,6 +3,8 @@ import type {
   Competition,
   CompetitionsListMeta,
   CompetitionsListResponse,
+  UpdateCompetitionCategoryApiRequest,
+  UpdateCompetitionCategoryResponse,
 } from "@metrix-parser/shared-types";
 
 import { ApiClientError, requestEnvelope } from "./http";
@@ -16,6 +18,15 @@ export function listCompetitions(): Promise<
       method: "GET",
     },
   );
+}
+
+export function updateCompetitionCategory(
+  payload: UpdateCompetitionCategoryApiRequest,
+): Promise<Competition> {
+  return requestEnvelope<UpdateCompetitionCategoryResponse>("/competitions/category", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  }).then((envelope) => envelope.data);
 }
 
 export function resolveCompetitionsErrorMessage(error: unknown): string {

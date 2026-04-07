@@ -1,5 +1,4 @@
 import {
-  accumulateUpdateSummary,
   createEmptyUpdateSummary,
   type UpdateOperationResult,
   type UpdatePeriod,
@@ -14,8 +13,6 @@ import {
 } from "../integration/discgolfmetrix";
 import { createWorkerSupabaseAdminClient } from "../lib/supabase-admin";
 import { mapDiscGolfMetrixCompetitions } from "../mapping/competitions";
-import { executeUpdatePlan } from "../orchestration/update-execution";
-import { readOptionalStringField } from "../parsing/competition-record";
 import {
   createCompetitionsRepository,
   type CompetitionsRepository,
@@ -24,6 +21,7 @@ import { createSupabaseCompetitionsAdapter } from "../persistence/supabase-compe
 
 export interface CompetitionsUpdateJobDependencies extends DiscGolfMetrixClientDependencies {
   repository?: CompetitionsRepository;
+  overwriteExisting?: boolean;
 }
 
 export interface CompetitionsUpdateJobResult extends UpdateOperationResult {
@@ -46,37 +44,13 @@ export async function runCompetitionsUpdateJob(
         createSupabaseCompetitionsAdapter(createWorkerSupabaseAdminClient()),
       );
     const mappingResult = mapDiscGolfMetrixCompetitions(fetchedPayload.records);
-    const persistenceResult = await executeUpdatePlan({
-      operation: "competitions",
-      items: mappingResult.competitions.map((competition) => ({
-        recordKey: `competition:${competition.competitionId}`,
-        payload: {
-          competition,
-          rawPayload:
-            fetchedPayload.records.find((record) => {
-              const competitionId =
-                readOptionalStringField(record, [
-                  "competitionId",
-                  "competition_id",
-                  "id",
-                  "ID",
-                ]) ?? "";
-              const metrixId =
-                readOptionalStringField(record, ["metrixId", "metrix_id"]) ?? "";
-
-              return (
-                competitionId === competition.competitionId ||
-                (competition.metrixId !== null && metrixId === competition.metrixId)
-              );
-            }) ?? null,
-          sourceFetchedAt: fetchedPayload.fetchedAt,
-        },
-      })),
-      processItem: (item) => repository.saveCompetition(item.payload),
-      message:
-        "Получили соревнования из DiscGolfMetrix и сохранили корректные записи.",
-      period,
-      requestedAt,
+    const persistableRecords = mappingResult.entries.map((entry) => ({
+      competition: entry.competition,
+      rawPayload: entry.rawRecord,
+      sourceFetchedAt: fetchedPayload.fetchedAt,
+    }));
+    const persistenceResult = await repository.saveCompetitions(persistableRecords, {
+      overwriteExisting: dependencies.overwriteExisting,
     });
 
     let summary = persistenceResult.summary ?? createEmptyUpdateSummary();
@@ -98,6 +72,7 @@ export async function runCompetitionsUpdateJob(
       finishedAt: new Date().toISOString(),
       summary,
       issues,
+      skipReasons: persistenceResult.skipReasons,
       period,
       fetchedPayload,
       mappedCompetitionsCount: mappingResult.competitions.length,

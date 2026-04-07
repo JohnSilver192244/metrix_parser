@@ -2,6 +2,7 @@ import type {
   CompetitionResult,
   CompetitionResultDbRecord,
 } from "@metrix-parser/shared-types";
+import { resolveSeasonPointsCompetitionOwnerId } from "@metrix-parser/shared-types";
 
 import { sendSuccess } from "../../lib/http";
 import type { RouteDefinition } from "../../lib/router";
@@ -59,6 +60,18 @@ interface SupabaseCompetitionResultRow extends CompetitionResultDbRecord {
   player?: SupabasePlayerRelation | null;
 }
 
+interface SeasonStandingPointsRow {
+  competition_id: string;
+  player_id: string;
+  season_points: number;
+}
+
+interface CompetitionHierarchyRow {
+  competition_id: string;
+  parent_id: string | null;
+  record_type: string | null;
+}
+
 export interface ResultsRouteDependencies {
   listResults?: (filters?: ResultsListFilters) => Promise<CompetitionResult[]>;
 }
@@ -79,7 +92,64 @@ function toCompetitionResult(
     diff: record.diff,
     orderNumber: record.order_number,
     dnf: record.dnf,
+    seasonPoints: record.season_points ?? null,
   };
+}
+
+export function resolveSeasonPointsCompetitionIdForResult(
+  competitionId: string,
+  competitionsById: ReadonlyMap<string, CompetitionHierarchyRow>,
+): string {
+  const hierarchyCompetitionsById = new Map(
+    [...competitionsById.entries()].map(([id, competition]) => [
+      id,
+      {
+        competitionId: competition.competition_id,
+        parentId: competition.parent_id,
+        recordType: competition.record_type,
+      },
+    ]),
+  );
+
+  return resolveSeasonPointsCompetitionOwnerId(competitionId, hierarchyCompetitionsById);
+}
+
+async function loadCompetitionHierarchy(
+  competitionIds: readonly string[],
+): Promise<Map<string, CompetitionHierarchyRow>> {
+  if (competitionIds.length === 0) {
+    return new Map();
+  }
+
+  const supabase = createApiSupabaseAdminClient();
+  const competitionsById = new Map<string, CompetitionHierarchyRow>();
+  let pendingCompetitionIds = [...new Set(competitionIds)];
+
+  while (pendingCompetitionIds.length > 0) {
+    const { data, error } = await supabase
+      .schema(APP_PUBLIC_SCHEMA)
+      .from("competitions")
+      .select("competition_id, parent_id, record_type")
+      .in("competition_id", pendingCompetitionIds);
+
+    if (error) {
+      throw new Error(`Failed to load competition hierarchy for results list: ${error.message}`);
+    }
+
+    const fetchedRows = (data ?? []) as CompetitionHierarchyRow[];
+    for (const row of fetchedRows) {
+      competitionsById.set(row.competition_id, row);
+    }
+
+    const parentIdsToLoad = fetchedRows
+      .map((row) => row.parent_id?.trim() ?? "")
+      .filter((parentId) => parentId.length > 0)
+      .filter((parentId) => !competitionsById.has(parentId));
+
+    pendingCompetitionIds = [...new Set(parentIdsToLoad)];
+  }
+
+  return competitionsById;
 }
 
 function createSupabaseResultReadAdapter(): ResultReadAdapter {
@@ -121,7 +191,55 @@ function createSupabaseResultReadAdapter(): ResultReadAdapter {
         throw new Error(`Failed to load results list: ${error.message}`);
       }
 
-      return (data ?? []) as unknown as SupabaseCompetitionResultRow[];
+      const rows = ((data ?? []) as unknown as SupabaseCompetitionResultRow[]).map(
+        (row) => ({ ...row }),
+      );
+      const competitionIds = [...new Set(
+        rows
+          .map((row) => row.competition_id?.trim() ?? "")
+          .filter((competitionId) => competitionId.length > 0),
+      )];
+
+      if (competitionIds.length === 0) {
+        return rows;
+      }
+
+      const competitionsById = await loadCompetitionHierarchy(competitionIds);
+      const seasonPointsCompetitionIds = [
+        ...new Set(
+          competitionIds.map((competitionId) =>
+            resolveSeasonPointsCompetitionIdForResult(competitionId, competitionsById),
+          ),
+        ),
+      ];
+
+      const { data: seasonStandingData, error: seasonStandingError } = await supabase
+        .schema(APP_PUBLIC_SCHEMA)
+        .from("season_standings")
+        .select("competition_id, player_id, season_points")
+        .in("competition_id", seasonPointsCompetitionIds);
+
+      if (seasonStandingError) {
+        throw new Error(
+          `Failed to load season standings for results list: ${seasonStandingError.message}`,
+        );
+      }
+
+      const seasonPointsByCompetitionPlayer = new Map<string, number>(
+        ((seasonStandingData ?? []) as SeasonStandingPointsRow[]).map((row) => [
+          `${row.competition_id}:${row.player_id}`,
+          Number(row.season_points),
+        ]),
+      );
+
+      return rows.map((row) => ({
+        ...row,
+        season_points:
+          seasonPointsByCompetitionPlayer.get(
+            `${resolveSeasonPointsCompetitionIdForResult(row.competition_id, competitionsById)}:${row.player_id}`,
+          ) ??
+          null,
+      }));
     },
   };
 }

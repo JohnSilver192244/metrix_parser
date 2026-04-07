@@ -22,6 +22,14 @@ class InMemoryRepositoryAdapter {
     return this.rows.find((row) => row.metrix_id === metrixId) ?? null;
   }
 
+  async findByCompetitionIds(competitionIds: string[]) {
+    return this.rows.filter((row) => competitionIds.includes(row.competition_id));
+  }
+
+  async findByMetrixIds(metrixIds: string[]) {
+    return this.rows.filter((row) => row.metrix_id !== null && metrixIds.includes(row.metrix_id));
+  }
+
   async insert(record: StoredCompetitionRecord) {
     const created = { id: this.nextId++, ...record };
     this.rows.push(created);
@@ -33,6 +41,24 @@ class InMemoryRepositoryAdapter {
     const updated = { id, ...record };
     this.rows[index] = updated;
     return updated;
+  }
+
+  async upsert(records: StoredCompetitionRecord[]) {
+    return records.map((record) => {
+      const existing = this.rows.find(
+        (row) => row.competition_id === record.competition_id,
+      );
+
+      if (existing) {
+        const updated = { id: existing.id, ...record };
+        this.rows[this.rows.findIndex((row) => row.id === existing.id)] = updated;
+        return updated;
+      }
+
+      const created = { id: this.nextId++, ...record };
+      this.rows.push(created);
+      return created;
+    });
   }
 }
 
@@ -305,6 +331,7 @@ test("runCompetitionsUpdateJob reports repeat runs as updates instead of duplica
       baseUrl: "https://discgolfmetrix.com",
       countryCode: "RU",
       apiCode: "secret-code",
+      overwriteExisting: true,
       repository,
       fetchImpl: async () =>
         createMockResponse(
@@ -332,6 +359,153 @@ test("runCompetitionsUpdateJob reports repeat runs as updates instead of duplica
     skipped: 0,
     errors: 0,
   });
+});
+
+test("runCompetitionsUpdateJob reports skip reasons for existing competitions when overwrite is disabled", async () => {
+  const repository = createCompetitionsRepository(new InMemoryRepositoryAdapter());
+
+  await runCompetitionsUpdateJob(
+    {
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-31",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      overwriteExisting: true,
+      repository,
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            competitions: [
+              {
+                ID: "101",
+                Name: "Moscow Open",
+                Date: "2026-01-15",
+                CountryCode: "RU",
+                CourseID: "45374",
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
+  const result = await runCompetitionsUpdateJob(
+    {
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-31",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      repository,
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            competitions: [
+              {
+                ID: "101",
+                Name: "Moscow Open Updated",
+                Date: "2026-01-15",
+                CountryCode: "RU",
+                CourseID: "45374",
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
+  assert.equal(result.finalStatus, "completed_with_issues");
+  assert.deepEqual(result.summary, {
+    found: 1,
+    created: 0,
+    updated: 0,
+    skipped: 1,
+    errors: 0,
+  });
+  assert.equal(result.skipReasons?.length, 1);
+  assert.equal(
+    result.skipReasons?.[0]?.code,
+    "competition_existing_record_skipped",
+  );
+});
+
+test("runCompetitionsUpdateJob skips unchanged competitions when overwrite is enabled", async () => {
+  const repository = createCompetitionsRepository(new InMemoryRepositoryAdapter());
+
+  await runCompetitionsUpdateJob(
+    {
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-31",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      overwriteExisting: true,
+      repository,
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            competitions: [
+              {
+                ID: "101",
+                Name: "Moscow Open",
+                Date: "2026-01-15",
+                CountryCode: "RU",
+                CourseID: "45374",
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
+  const result = await runCompetitionsUpdateJob(
+    {
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-31",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      overwriteExisting: true,
+      repository,
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            competitions: [
+              {
+                ID: "101",
+                Name: "Moscow Open",
+                Date: "2026-01-15",
+                CountryCode: "RU",
+                CourseID: "45374",
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
+  assert.equal(result.finalStatus, "completed_with_issues");
+  assert.deepEqual(result.summary, {
+    found: 1,
+    created: 0,
+    updated: 0,
+    skipped: 1,
+    errors: 0,
+  });
+  assert.equal(result.skipReasons?.[0]?.code, "competition_unchanged_skipped");
 });
 
 test("runCompetitionsUpdateJob includes external API failures in the shared update result", async () => {

@@ -137,7 +137,7 @@ test("repository creates a new competition result when no existing record matche
   assert.equal(adapter.snapshot().length, 1);
 });
 
-test("repository treats repeat-run of the same competition result as update without creating duplicates", async () => {
+test("repository skips an existing competition result when overwriteExisting is disabled", async () => {
   const adapter = new InMemoryCompetitionResultsAdapter([createStoredRow()]);
   const repository = createCompetitionResultsRepository(adapter);
 
@@ -150,11 +150,11 @@ test("repository treats repeat-run of the same competition result as update with
     sourceFetchedAt: "2026-03-22T11:00:00.000Z",
   });
 
-  assert.equal(result.action, "updated");
+  assert.equal(result.action, "skipped");
   assert.equal(result.matchedExisting, true);
   assert.equal(result.issue, undefined);
   assert.equal(adapter.snapshot().length, 1);
-  assert.equal(adapter.snapshot()[0]?.sum, 55);
+  assert.equal(adapter.snapshot()[0]?.sum, 54);
 });
 
 test("repository allows DNF results to persist without numeric score fields", async () => {
@@ -198,6 +198,27 @@ test("repository allows results without class name", async () => {
   assert.equal(result.issue, undefined);
 });
 
+test("repository does not persist derived season points into competition_results rows", async () => {
+  const adapter = new InMemoryCompetitionResultsAdapter();
+  const repository = createCompetitionResultsRepository(adapter);
+
+  const result = await repository.saveCompetitionResult({
+    result: createCompetitionResult({
+      playerId: "player-3",
+      orderNumber: 3,
+      seasonPoints: 120,
+    }),
+    rawPayload: { UserID: "player-3", Place: 3 },
+    sourceFetchedAt: "2026-03-22T12:10:00.000Z",
+  });
+
+  assert.equal(result.action, "created");
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(adapter.snapshot()[0] ?? {}, "season_points"),
+    false,
+  );
+});
+
 test("repository skips incomplete non-DNF results before persistence", async () => {
   const adapter = new InMemoryCompetitionResultsAdapter();
   const repository = createCompetitionResultsRepository(adapter);
@@ -218,7 +239,7 @@ test("repository skips incomplete non-DNF results before persistence", async () 
   assert.equal(result.issue?.stage, "validation");
 });
 
-test("repository batch-upserts competition results", async () => {
+test("repository batch-skips existing competition results when overwriteExisting is disabled", async () => {
   const adapter = new InMemoryCompetitionResultsAdapter([createStoredRow()]);
   const repository = createCompetitionResultsRepository(adapter);
 
@@ -243,6 +264,46 @@ test("repository batch-upserts competition results", async () => {
       sourceFetchedAt: "2026-03-22T11:05:00.000Z",
     },
   ]);
+
+  assert.deepEqual(result.summary, {
+    found: 2,
+    created: 1,
+    updated: 0,
+    skipped: 1,
+    errors: 0,
+  });
+  assert.equal(adapter.snapshot().length, 2);
+  assert.equal(adapter.snapshot()[0]?.sum, 54);
+});
+
+test("repository batch-upserts competition results", async () => {
+  const adapter = new InMemoryCompetitionResultsAdapter([createStoredRow()]);
+  const repository = createCompetitionResultsRepository(adapter);
+
+  const result = await repository.saveCompetitionResults(
+    [
+      {
+        result: createCompetitionResult({
+          playerId: "player-1",
+          sum: 55,
+          diff: -5,
+        }),
+        rawPayload: { UserID: "player-1", Place: 1 },
+        sourceFetchedAt: "2026-03-22T11:00:00.000Z",
+      },
+      {
+        result: createCompetitionResult({
+          playerId: "player-2",
+          orderNumber: 2,
+          sum: 58,
+          diff: -2,
+        }),
+        rawPayload: { UserID: "player-2", Place: 2 },
+        sourceFetchedAt: "2026-03-22T11:05:00.000Z",
+      },
+    ],
+    { overwriteExisting: true },
+  );
 
   assert.deepEqual(result.summary, {
     found: 2,

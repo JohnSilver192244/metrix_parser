@@ -60,6 +60,10 @@ class InMemoryCoursesAdapter implements CoursesPersistenceAdapter {
     return this.rows.find((row) => row.course_id === courseId) ?? null;
   }
 
+  async findByCourseIds(courseIds: string[]): Promise<CourseRow[]> {
+    return this.rows.filter((row) => courseIds.includes(row.course_id));
+  }
+
   async insert(record: StoredCourseRecord): Promise<CourseRow> {
     const created = { id: this.nextId++, ...record } as CourseRow;
     this.rows.push(created);
@@ -76,6 +80,22 @@ class InMemoryCoursesAdapter implements CoursesPersistenceAdapter {
     const updated = { id, ...record } as CourseRow;
     this.rows[index] = updated;
     return updated;
+  }
+
+  async upsert(records: StoredCourseRecord[]): Promise<CourseRow[]> {
+    return records.map((record) => {
+      const existing = this.rows.find((row) => row.course_id === record.course_id);
+
+      if (existing) {
+        const updated = { id: existing.id, ...record } as CourseRow;
+        this.rows[this.rows.findIndex((row) => row.id === existing.id)] = updated;
+        return updated;
+      }
+
+      const created = { id: this.nextId++, ...record } as CourseRow;
+      this.rows.push(created);
+      return created;
+    });
   }
 
   snapshot() {
@@ -98,7 +118,7 @@ test("repository creates a new course when no existing record matches", async ()
   assert.equal(adapter.snapshot().length, 1);
 });
 
-test("repository treats repeat-run of the same course as update without creating duplicates", async () => {
+test("repository skips an existing course when overwriteExisting is disabled", async () => {
   const adapter = new InMemoryCoursesAdapter([createStoredRow()]);
   const repository = createCoursesRepository(adapter);
 
@@ -108,11 +128,29 @@ test("repository treats repeat-run of the same course as update without creating
     sourceFetchedAt: "2026-03-21T12:00:00.000Z",
   });
 
-  assert.equal(result.action, "updated");
+  assert.equal(result.action, "skipped");
   assert.equal(result.matchedExisting, true);
   assert.equal(adapter.snapshot().length, 1);
-  assert.equal(adapter.snapshot()[0]?.course_par, 56);
+  assert.equal(adapter.snapshot()[0]?.course_par, 54);
   assert.equal(adapter.snapshot()[0]?.baskets_count, 18);
+});
+
+test("repository updates an existing course when overwriteExisting is enabled", async () => {
+  const adapter = new InMemoryCoursesAdapter([createStoredRow()]);
+  const repository = createCoursesRepository(adapter);
+
+  const result = await repository.saveCourse(
+    {
+      course: createCourse({ coursePar: 56 }),
+      rawPayload: { id: "course-101" },
+      sourceFetchedAt: "2026-03-21T12:00:00.000Z",
+    },
+    { overwriteExisting: true },
+  );
+
+  assert.equal(result.action, "updated");
+  assert.equal(result.matchedExisting, true);
+  assert.equal(adapter.snapshot()[0]?.course_par, 56);
 });
 
 test("repository skips problematic course records with missing stable identifiers", async () => {
@@ -128,4 +166,40 @@ test("repository skips problematic course records with missing stable identifier
   assert.equal(result.action, "skipped");
   assert.equal(result.issue?.code, "course_missing_identity");
   assert.equal(adapter.snapshot().length, 0);
+});
+
+test("repository saves courses in batch and updates existing rows", async () => {
+  const adapter = new InMemoryCoursesAdapter([createStoredRow()]);
+  const repository = createCoursesRepository(adapter);
+
+  const result = await repository.saveCourses(
+    [
+      {
+        course: createCourse({ courseId: "course-101", coursePar: 56 }),
+        rawPayload: { id: "course-101" },
+        sourceFetchedAt: "2026-03-21T12:00:00.000Z",
+      },
+      {
+        course: createCourse({
+          courseId: "course-202",
+          name: "Primorsky Park",
+          fullname: "Primorsky Park",
+        }),
+        rawPayload: { id: "course-202" },
+        sourceFetchedAt: "2026-03-21T12:05:00.000Z",
+      },
+    ],
+    { overwriteExisting: true },
+  );
+
+  assert.deepEqual(result.summary, {
+    found: 2,
+    created: 1,
+    updated: 1,
+    skipped: 0,
+    errors: 0,
+  });
+  assert.equal(result.issues.length, 0);
+  assert.equal(adapter.snapshot().length, 2);
+  assert.equal(adapter.snapshot()[0]?.course_par, 56);
 });

@@ -16,6 +16,10 @@ class InMemoryCoursesAdapter {
     return this.rows.find((row) => row.course_id === courseId) ?? null;
   }
 
+  async findByCourseIds(courseIds: string[]) {
+    return this.rows.filter((row) => courseIds.includes(row.course_id));
+  }
+
   async insert(record: StoredCourseRecord) {
     const created = { id: this.nextId++, ...record };
     this.rows.push(created);
@@ -27,6 +31,22 @@ class InMemoryCoursesAdapter {
     const updated = { id, ...record };
     this.rows[index] = updated;
     return updated;
+  }
+
+  async upsert(records: StoredCourseRecord[]) {
+    return records.map((record) => {
+      const existing = this.rows.find((row) => row.course_id === record.course_id);
+
+      if (existing) {
+        const updated = { id: existing.id, ...record };
+        this.rows[this.rows.findIndex((row) => row.id === existing.id)] = updated;
+        return updated;
+      }
+
+      const created = { id: this.nextId++, ...record };
+      this.rows.push(created);
+      return created;
+    });
   }
 }
 

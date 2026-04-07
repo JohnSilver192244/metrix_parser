@@ -92,36 +92,56 @@ function loadCompetitionsExecutionEnv() {
 export interface UpdatesExecutionDependencies {
   executeCompetitionsUpdate?: (
     period: UpdatePeriod,
+    overwriteExisting: boolean,
   ) => Promise<TriggerUpdateResponse>;
-  executeCoursesUpdate?: () => Promise<TriggerUpdateResponse>;
+  executeCoursesUpdate?: (overwriteExisting: boolean) => Promise<TriggerUpdateResponse>;
   executePlayersUpdate?: (
     period: UpdatePeriod,
+    overwriteExisting: boolean,
   ) => Promise<TriggerUpdateResponse>;
   executeResultsUpdate?: (
     period: UpdatePeriod,
+    overwriteExisting: boolean,
   ) => Promise<TriggerUpdateResponse>;
 }
 
 async function executeRuntimeCompetitionsUpdate(
   period: UpdatePeriod,
+  overwriteExisting: boolean,
 ): Promise<TriggerUpdateResponse> {
-  return executeWorkerCompetitionsUpdate(period, loadCompetitionsExecutionEnv());
+  return executeWorkerCompetitionsUpdate(
+    period,
+    overwriteExisting,
+    loadCompetitionsExecutionEnv(),
+  );
 }
 
-async function executeRuntimeCoursesUpdate(): Promise<TriggerUpdateResponse> {
-  return executeWorkerCoursesUpdate(loadCompetitionsExecutionEnv());
+async function executeRuntimeCoursesUpdate(
+  overwriteExisting: boolean,
+): Promise<TriggerUpdateResponse> {
+  return executeWorkerCoursesUpdate(overwriteExisting, loadCompetitionsExecutionEnv());
 }
 
 async function executeRuntimePlayersUpdate(
   period: UpdatePeriod,
+  overwriteExisting: boolean,
 ): Promise<TriggerUpdateResponse> {
-  return executeWorkerPlayersUpdate(period, loadCompetitionsExecutionEnv());
+  return executeWorkerPlayersUpdate(
+    period,
+    overwriteExisting,
+    loadCompetitionsExecutionEnv(),
+  );
 }
 
 async function executeRuntimeResultsUpdate(
   period: UpdatePeriod,
+  overwriteExisting: boolean,
 ): Promise<TriggerUpdateResponse> {
-  return executeWorkerResultsUpdate(period, loadCompetitionsExecutionEnv());
+  return executeWorkerResultsUpdate(
+    period,
+    overwriteExisting,
+    loadCompetitionsExecutionEnv(),
+  );
 }
 
 export function createAcceptedResponse(
@@ -167,34 +187,35 @@ export function createAcceptedResponse(
 export async function executeUpdateOperation(
   operation: UpdateOperation,
   period: UpdatePeriod | undefined,
+  overwriteExisting: boolean,
   dependencies: UpdatesExecutionDependencies = {},
 ): Promise<TriggerUpdateResponse> {
   if (operation === "competitions") {
     const executeCompetitionsUpdate =
       dependencies.executeCompetitionsUpdate ?? executeRuntimeCompetitionsUpdate;
 
-    return executeCompetitionsUpdate(period as UpdatePeriod);
+    return executeCompetitionsUpdate(period as UpdatePeriod, overwriteExisting);
   }
 
   if (operation === "courses") {
     const executeCoursesUpdate =
       dependencies.executeCoursesUpdate ?? executeRuntimeCoursesUpdate;
 
-    return executeCoursesUpdate();
+    return executeCoursesUpdate(overwriteExisting);
   }
 
   if (operation === "players") {
     const executePlayersUpdate =
       dependencies.executePlayersUpdate ?? executeRuntimePlayersUpdate;
 
-    return executePlayersUpdate(period as UpdatePeriod);
+    return executePlayersUpdate(period as UpdatePeriod, overwriteExisting);
   }
 
   if (operation === "results") {
     const executeResultsUpdate =
       dependencies.executeResultsUpdate ?? executeRuntimeResultsUpdate;
 
-    return executeResultsUpdate(period as UpdatePeriod);
+    return executeResultsUpdate(period as UpdatePeriod, overwriteExisting);
   }
 
   return createAcceptedResponse(operation, period);

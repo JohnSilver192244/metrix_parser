@@ -7,7 +7,9 @@ import type {
 } from "./players-repository";
 
 const PLAYERS_SELECT_COLUMNS =
-  "id, player_id, player_name, division, rdga, raw_payload, source_fetched_at";
+  "id, player_id, player_name, division, rdga, rdga_since, season_division, raw_payload, source_fetched_at";
+const PLAYERS_LOOKUP_SELECT_COLUMNS =
+  "id, player_id, division, rdga, rdga_since, season_division";
 const APP_PUBLIC_SCHEMA = "app_public";
 
 export function createSupabasePlayersAdapter(
@@ -37,7 +39,7 @@ export function createSupabasePlayersAdapter(
       const { data, error } = await supabase
         .schema(APP_PUBLIC_SCHEMA)
         .from("players")
-        .select(PLAYERS_SELECT_COLUMNS)
+        .select(PLAYERS_LOOKUP_SELECT_COLUMNS)
         .in("player_id", playerIds);
 
       if (error) {

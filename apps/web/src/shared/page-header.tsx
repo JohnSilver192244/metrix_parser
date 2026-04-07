@@ -3,7 +3,7 @@ import React from "react";
 export interface PageHeaderProps {
   titleId: string;
   title: string;
-  description: string;
+  description?: string;
   eyebrow?: string;
   titleAction?: React.ReactNode;
 }
@@ -24,7 +24,7 @@ export function PageHeader({
           {titleAction}
         </div>
       </div>
-      <p className="page-header__description">{description}</p>
+      {description ? <p className="page-header__description">{description}</p> : null}
     </header>
   );
 }

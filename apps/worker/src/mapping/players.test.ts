@@ -29,6 +29,9 @@ test("mapDiscGolfMetrixPlayersFromResults extracts multiple players and keeps a 
     division: undefined,
     competitions_count: undefined,
     rdga: undefined,
+    rdga_since: undefined,
+    season_division: undefined,
+    season_points: undefined,
   });
   assert.equal(result.extractedPlayers.length, 2);
   assert.equal(result.extractedPlayers[0]?.competitionId, "competition-101");

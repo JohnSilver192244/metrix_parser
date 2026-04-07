@@ -8,6 +8,12 @@ import {
   type StoredCompetitionResultRecord,
 } from "../persistence/competition-results-repository";
 import {
+  createCompetitionCommentsRepository,
+  RESULTS_SAVE_SMALL_POOLS_BLOCKER_COMMENT,
+  type CompetitionCommentRow,
+  type CompetitionCommentsPersistenceAdapter,
+} from "../persistence/competition-comments-repository";
+import {
   createPlayersRepository,
   type PlayerRow,
   type PlayersPersistenceAdapter,
@@ -46,7 +52,8 @@ class InMemoryPlayersAdapter implements PlayersPersistenceAdapter {
       throw new Error(`Player row ${id} not found`);
     }
 
-    const updated = { id, ...record };
+    const existing = this.rows[index]!;
+    const updated = { ...existing, ...record, id };
     this.rows[index] = updated;
     return updated;
   }
@@ -56,7 +63,7 @@ class InMemoryPlayersAdapter implements PlayersPersistenceAdapter {
       const existing = this.rows.find((row) => row.player_id === record.player_id);
 
       if (existing) {
-        const updated = { id: existing.id, ...record };
+        const updated = { ...existing, ...record, id: existing.id };
         const index = this.rows.findIndex((row) => row.id === existing.id);
         this.rows[index] = updated;
         return updated;
@@ -144,6 +151,42 @@ class InMemoryCompetitionResultsAdapter
       this.rows.push(created);
       return created;
     });
+  }
+
+  snapshot() {
+    return [...this.rows];
+  }
+}
+
+class InMemoryCompetitionCommentsAdapter
+  implements CompetitionCommentsPersistenceAdapter
+{
+  private rows: CompetitionCommentRow[];
+
+  constructor(initialRows: CompetitionCommentRow[] = []) {
+    this.rows = [...initialRows];
+  }
+
+  async findByCompetitionId(competitionId: string): Promise<CompetitionCommentRow | null> {
+    return this.rows.find((row) => row.competition_id === competitionId) ?? null;
+  }
+
+  async findByCompetitionIds(competitionIds: string[]): Promise<CompetitionCommentRow[]> {
+    return this.rows.filter((row) => competitionIds.includes(row.competition_id));
+  }
+
+  async updateComment(competitionId: string, comment: string | null): Promise<void> {
+    const rowIndex = this.rows.findIndex((row) => row.competition_id === competitionId);
+
+    if (rowIndex < 0) {
+      return;
+    }
+
+    const currentRow = this.rows[rowIndex]!;
+    this.rows[rowIndex] = {
+      ...currentRow,
+      comment,
+    };
   }
 
   snapshot() {
@@ -324,12 +367,14 @@ test("runResultsPipelineUpdateJob skips players without ids and still persists o
   assert.equal(resultsAdapter.snapshot().length, 1);
 });
 
-test("runResultsPipelineUpdateJob keeps repeat runs idempotent for both players and results", async () => {
+test("runResultsPipelineUpdateJob skips existing players and results when overwriteExisting is disabled", async () => {
   const playersAdapter = new InMemoryPlayersAdapter([
     {
       id: 1,
       player_id: "player-1",
       player_name: "Ivan Ivanov",
+      division: "MPO",
+      rdga: true,
       raw_payload: { playerId: "player-1", playerName: "Ivan Ivanov" },
       source_fetched_at: "2026-03-22T10:00:00.000Z",
     },
@@ -401,6 +446,104 @@ test("runResultsPipelineUpdateJob keeps repeat runs idempotent for both players 
     },
   );
 
+  assert.equal(result.finalStatus, "completed_with_issues");
+  assert.deepEqual(result.summary, {
+    found: 4,
+    created: 2,
+    updated: 0,
+    skipped: 2,
+    errors: 0,
+  });
+  assert.equal(playersAdapter.snapshot().length, 2);
+  assert.equal(playersAdapter.snapshot()[0]?.player_name, "Ivan Ivanov");
+  assert.equal(resultsAdapter.snapshot().length, 2);
+  assert.equal(resultsAdapter.snapshot()[0]?.sum, 54);
+  assert.equal(result.diagnostics?.players?.summary.updated, 0);
+  assert.equal(result.diagnostics?.players?.summary.skipped, 1);
+  assert.equal(result.diagnostics?.results?.summary.updated, 0);
+  assert.equal(result.diagnostics?.results?.summary.skipped, 1);
+});
+
+test("runResultsPipelineUpdateJob updates existing players and results when overwriteExisting is enabled", async () => {
+  const playersAdapter = new InMemoryPlayersAdapter([
+    {
+      id: 1,
+      player_id: "player-1",
+      player_name: "Ivan Ivanov",
+      division: "MPO",
+      rdga: true,
+      raw_payload: { playerId: "player-1", playerName: "Ivan Ivanov" },
+      source_fetched_at: "2026-03-22T10:00:00.000Z",
+    },
+  ]);
+  const resultsAdapter = new InMemoryCompetitionResultsAdapter([
+    {
+      id: 1,
+      competition_id: "competition-101",
+      player_id: "player-1",
+      class_name: "MPO",
+      sum: 54,
+      diff: -6,
+      order_number: 1,
+      dnf: false,
+      raw_payload: { UserID: "player-1", Place: 1 },
+      source_fetched_at: "2026-03-22T10:00:00.000Z",
+    },
+  ]);
+  const playersRepository = createPlayersRepository(playersAdapter);
+  const resultsRepository = createCompetitionResultsRepository(resultsAdapter);
+
+  const result = await runResultsPipelineUpdateJob(
+    {
+      dateFrom: "2026-04-01",
+      dateTo: "2026-04-30",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      overwriteExisting: true,
+      playersRepository,
+      resultsRepository,
+      readCompetitions: async () => ({
+        competitions: [
+          {
+            competitionId: "competition-101",
+            metrixId: "metrix-101",
+            competitionDate: "2026-04-10",
+          },
+        ],
+        skippedCount: 0,
+        issues: [],
+      }),
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            Competition: {
+              Results: [
+                {
+                  UserID: "player-1",
+                  Name: "Ivan S. Ivanov",
+                  Class: "MPO",
+                  Sum: 55,
+                  Diff: -5,
+                  Place: 1,
+                },
+                {
+                  UserID: "player-2",
+                  Name: "Petr",
+                  Class: "MA3",
+                  DNF: true,
+                  Place: 22,
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
   assert.equal(result.finalStatus, "completed");
   assert.deepEqual(result.summary, {
     found: 4,
@@ -409,9 +552,9 @@ test("runResultsPipelineUpdateJob keeps repeat runs idempotent for both players 
     skipped: 0,
     errors: 0,
   });
-  assert.equal(playersAdapter.snapshot().length, 2);
   assert.equal(playersAdapter.snapshot()[0]?.player_name, "Ivan S. Ivanov");
-  assert.equal(resultsAdapter.snapshot().length, 2);
+  assert.equal(playersAdapter.snapshot()[0]?.division, "MPO");
+  assert.equal(playersAdapter.snapshot()[0]?.rdga, true);
   assert.equal(resultsAdapter.snapshot()[0]?.sum, 55);
   assert.equal(result.diagnostics?.players?.summary.updated, 1);
   assert.equal(result.diagnostics?.results?.summary.updated, 1);
@@ -465,4 +608,162 @@ test("runResultsPipelineUpdateJob returns failed when every upstream results fet
   assert.equal(result.diagnostics?.transport?.summary.skipped, 2);
   assert.equal(result.diagnostics?.players?.summary.found, 0);
   assert.equal(result.diagnostics?.results?.summary.found, 0);
+});
+
+test("runResultsPipelineUpdateJob writes the save blocker comment to the visible parent when all child pools are below minimum players", async () => {
+  const playersRepository = createPlayersRepository(new InMemoryPlayersAdapter());
+  const resultsRepository = createCompetitionResultsRepository(
+    new InMemoryCompetitionResultsAdapter(),
+  );
+  const commentsAdapter = new InMemoryCompetitionCommentsAdapter([
+    {
+      competition_id: "event-100",
+      parent_id: null,
+      record_type: "4",
+      players_count: 8,
+      comment: null,
+    },
+    {
+      competition_id: "pool-100-pro",
+      parent_id: "event-100",
+      record_type: "3",
+      players_count: 3,
+      comment: null,
+    },
+    {
+      competition_id: "pool-100-am",
+      parent_id: "event-100",
+      record_type: "3",
+      players_count: 5,
+      comment: null,
+    },
+  ]);
+  const competitionCommentsRepository = createCompetitionCommentsRepository(
+    commentsAdapter,
+  );
+
+  await runResultsPipelineUpdateJob(
+    {
+      dateFrom: "2026-04-01",
+      dateTo: "2026-04-30",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      playersRepository,
+      resultsRepository,
+      competitionCommentsRepository,
+      readCompetitions: async () => ({
+        competitions: [
+          {
+            competitionId: "event-100",
+            metrixId: null,
+            competitionDate: "2026-04-10",
+          },
+          {
+            competitionId: "pool-100-pro",
+            metrixId: null,
+            competitionDate: "2026-04-10",
+          },
+          {
+            competitionId: "pool-100-am",
+            metrixId: null,
+            competitionDate: "2026-04-10",
+          },
+        ],
+        skippedCount: 0,
+        issues: [],
+      }),
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            Competition: {
+              Results: [
+                {
+                  UserID: "player-1",
+                  Name: "Ivan",
+                  Class: "MPO",
+                  Sum: 54,
+                  Diff: -6,
+                  Place: 1,
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
+  const parentCompetition = commentsAdapter.snapshot().find((row) => {
+    return row.competition_id === "event-100";
+  });
+
+  assert.equal(parentCompetition?.comment, RESULTS_SAVE_SMALL_POOLS_BLOCKER_COMMENT);
+});
+
+test("runResultsPipelineUpdateJob clears a worker-managed save blocker comment after successful reconciliation", async () => {
+  const playersRepository = createPlayersRepository(new InMemoryPlayersAdapter());
+  const resultsRepository = createCompetitionResultsRepository(
+    new InMemoryCompetitionResultsAdapter(),
+  );
+  const commentsAdapter = new InMemoryCompetitionCommentsAdapter([
+    {
+      competition_id: "competition-101",
+      parent_id: null,
+      record_type: "4",
+      players_count: 18,
+      comment: RESULTS_SAVE_SMALL_POOLS_BLOCKER_COMMENT,
+    },
+  ]);
+  const competitionCommentsRepository = createCompetitionCommentsRepository(
+    commentsAdapter,
+  );
+
+  await runResultsPipelineUpdateJob(
+    {
+      dateFrom: "2026-04-01",
+      dateTo: "2026-04-30",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      playersRepository,
+      resultsRepository,
+      competitionCommentsRepository,
+      readCompetitions: async () => ({
+        competitions: [
+          {
+            competitionId: "competition-101",
+            metrixId: null,
+            competitionDate: "2026-04-10",
+          },
+        ],
+        skippedCount: 0,
+        issues: [],
+      }),
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            Competition: {
+              Results: [
+                {
+                  UserID: "player-1",
+                  Name: "Ivan",
+                  Class: "MPO",
+                  Sum: 54,
+                  Diff: -6,
+                  Place: 1,
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
+  assert.equal(commentsAdapter.snapshot()[0]?.comment, null);
 });

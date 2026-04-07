@@ -8,6 +8,8 @@ import type {
 
 const COMPETITION_RESULTS_SELECT_COLUMNS =
   "id, competition_id, player_id, class_name, sum, diff, order_number, dnf, raw_payload, source_fetched_at";
+const COMPETITION_RESULTS_LOOKUP_SELECT_COLUMNS =
+  "id, competition_id, player_id, order_number";
 const APP_PUBLIC_SCHEMA = "app_public";
 
 export function createSupabaseCompetitionResultsAdapter(
@@ -41,7 +43,7 @@ export function createSupabaseCompetitionResultsAdapter(
       const { data, error } = await supabase
         .schema(APP_PUBLIC_SCHEMA)
         .from("competition_results")
-        .select(COMPETITION_RESULTS_SELECT_COLUMNS)
+        .select(COMPETITION_RESULTS_LOOKUP_SELECT_COLUMNS)
         .in("competition_id", competitionIds);
 
       if (error) {

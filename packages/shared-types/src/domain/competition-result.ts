@@ -9,6 +9,7 @@ export interface CompetitionResult {
   diff: number | null;
   orderNumber: number;
   dnf: boolean;
+  seasonPoints?: number | null;
 }
 
 export interface CompetitionResultDbRecord {
@@ -22,6 +23,7 @@ export interface CompetitionResultDbRecord {
   diff: number | null;
   order_number: number;
   dnf: boolean;
+  season_points?: number | null;
 }
 
 export function toCompetitionResultDbRecord(
@@ -35,5 +37,6 @@ export function toCompetitionResultDbRecord(
     diff: result.diff,
     order_number: result.orderNumber,
     dnf: result.dnf,
+    season_points: result.seasonPoints ?? null,
   };
 }

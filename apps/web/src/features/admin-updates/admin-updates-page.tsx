@@ -73,6 +73,7 @@ export function AdminUpdatesPage() {
     [],
   );
   const [period, setPeriod] = useState<UpdatePeriod>(() => createDefaultUpdatePeriod());
+  const [overwriteExisting, setOverwriteExisting] = useState(false);
   const [phase, setPhase] = useState<UpdateLifecyclePhase>("idle");
   const [activeScenario, setActiveScenario] = useState<UpdateScenarioDefinition | null>(null);
   const [result, setResult] = useState<UpdateOperationResult | null>(null);
@@ -89,7 +90,10 @@ export function AdminUpdatesPage() {
     setResult(null);
 
     try {
-      const response = await triggerUpdate(scenario.operation, submittedPeriod);
+      const response = await triggerUpdate(scenario.operation, {
+        ...submittedPeriod,
+        overwriteExisting,
+      });
       setPhase(response.finalStatus === "failed" ? "error" : "success");
       setResult(response);
     } catch (error) {
@@ -128,7 +132,19 @@ export function AdminUpdatesPage() {
             </div>
             <p>Введите период и запустите нужное действие.</p>
           </div>
-          <UpdatePeriodPicker value={period} onChange={setPeriod} />
+          <div className="update-launcher__controls">
+            <UpdatePeriodPicker value={period} onChange={setPeriod} />
+            <label className="update-launcher__checkbox">
+              <input
+                type="checkbox"
+                checked={overwriteExisting}
+                onChange={(event) => {
+                  setOverwriteExisting(event.target.checked);
+                }}
+              />
+              <span>Перезаписать имеющиеся данные</span>
+            </label>
+          </div>
           <div className="update-launcher__actions" aria-label="Сценарии обновления">
             {scenarios.map((scenario) => {
               return (

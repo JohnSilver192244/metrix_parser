@@ -46,7 +46,8 @@ class InMemoryPlayersAdapter implements PlayersPersistenceAdapter {
       throw new Error(`Player row ${id} not found`);
     }
 
-    const updated = { id, ...record };
+    const existing = this.rows[index]!;
+    const updated = { ...existing, ...record, id };
     this.rows[index] = updated;
     return updated;
   }
@@ -56,7 +57,7 @@ class InMemoryPlayersAdapter implements PlayersPersistenceAdapter {
       const existing = this.rows.find((row) => row.player_id === record.player_id);
 
       if (existing) {
-        const updated = { id: existing.id, ...record };
+        const updated = { ...existing, ...record, id: existing.id };
         const index = this.rows.findIndex((row) => row.id === existing.id);
         this.rows[index] = updated;
         return updated;
@@ -371,12 +372,14 @@ test("runPlayersUpdateJob reports completed_with_issues when fetch succeeds but 
   assert.equal(result.diagnostics?.results?.summary.found, 0);
 });
 
-test("runPlayersUpdateJob updates existing players by player_id without creating duplicates", async () => {
+test("runPlayersUpdateJob skips existing players when overwriteExisting is disabled", async () => {
   const adapter = new InMemoryPlayersAdapter([
     {
       id: 1,
       player_id: "player-1",
       player_name: "Ivan Ivanov",
+      division: "MPO",
+      rdga: true,
       raw_payload: { playerId: "player-1", playerName: "Ivan Ivanov" },
       source_fetched_at: "2026-03-22T10:00:00.000Z",
     },
@@ -422,12 +425,77 @@ test("runPlayersUpdateJob updates existing players by player_id without creating
   assert.deepEqual(result.summary, {
     found: 1,
     created: 0,
+    updated: 0,
+    skipped: 2,
+    errors: 1,
+  });
+  assert.equal(adapter.snapshot().length, 1);
+  assert.equal(adapter.snapshot()[0]?.player_name, "Ivan Ivanov");
+  assert.equal(result.diagnostics?.players?.summary.updated, 0);
+  assert.equal(result.diagnostics?.players?.summary.skipped, 1);
+  assert.equal(result.diagnostics?.results?.summary.found, 0);
+});
+
+test("runPlayersUpdateJob updates existing players by player_id when overwriteExisting is enabled", async () => {
+  const adapter = new InMemoryPlayersAdapter([
+    {
+      id: 1,
+      player_id: "player-1",
+      player_name: "Ivan Ivanov",
+      division: "MPO",
+      rdga: true,
+      raw_payload: { playerId: "player-1", playerName: "Ivan Ivanov" },
+      source_fetched_at: "2026-03-22T10:00:00.000Z",
+    },
+  ]);
+  const repository = createPlayersRepository(adapter);
+  const resultsRepository = createCompetitionResultsRepository(
+    new InMemoryCompetitionResultsAdapter(),
+  );
+
+  const result = await runPlayersUpdateJob(
+    {
+      dateFrom: "2026-04-01",
+      dateTo: "2026-04-30",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      overwriteExisting: true,
+      repository,
+      resultsRepository,
+      readCompetitions: async () => ({
+        competitions: [
+          {
+            competitionId: "competition-101",
+            metrixId: "metrix-101",
+            competitionDate: "2026-04-10",
+          },
+        ],
+        skippedCount: 0,
+        issues: [],
+      }),
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            results: [{ playerId: "player-1", playerName: "Ivan S. Ivanov" }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
+  assert.equal(result.finalStatus, "completed_with_issues");
+  assert.deepEqual(result.summary, {
+    found: 1,
+    created: 0,
     updated: 1,
     skipped: 1,
     errors: 1,
   });
-  assert.equal(adapter.snapshot().length, 1);
   assert.equal(adapter.snapshot()[0]?.player_name, "Ivan S. Ivanov");
+  assert.equal(adapter.snapshot()[0]?.division, "MPO");
+  assert.equal(adapter.snapshot()[0]?.rdga, true);
   assert.equal(result.diagnostics?.players?.summary.updated, 1);
-  assert.equal(result.diagnostics?.results?.summary.found, 0);
 });

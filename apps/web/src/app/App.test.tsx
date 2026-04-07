@@ -10,10 +10,12 @@ import {
   shouldHandleInAppNavigation,
 } from "./App";
 import { AuthContext, type AuthContextValue } from "../features/auth/auth-context";
+import { getNextTheme } from "../shared/theme-toggle";
 
 function renderWithAuth(
   pathname: string,
   authValue: Partial<AuthContextValue> = {},
+  theme: "light" | "dark" = "light",
 ): string {
   const value: AuthContextValue = {
     status: "authenticated",
@@ -29,7 +31,12 @@ function renderWithAuth(
 
   return renderToStaticMarkup(
     <AuthContext.Provider value={value}>
-      <AppShellView pathname={pathname} onNavigate={() => {}} />
+      <AppShellView
+        pathname={pathname}
+        theme={theme}
+        onNavigate={() => {}}
+        onToggleTheme={() => {}}
+      />
     </AuthContext.Provider>,
   );
 }
@@ -80,14 +87,15 @@ test("AppShellView renders project title and linear SPA navigation", () => {
   const markup = renderWithAuth("/competitions/competition-100");
 
   assert.match(markup, /MetrixParser/);
+  assert.match(markup, /Тёмная тема/);
   assert.match(markup, /Обновления/);
+  assert.match(markup, /Сезоны и очки/);
   assert.match(markup, /Соревнования/);
   assert.match(markup, /Парки/);
   assert.match(markup, /Игроки/);
   assert.match(markup, /Подтягиваем результаты соревнования/);
   assert.match(markup, />Выйти</);
   assert.doesNotMatch(markup, /Вы вошли как/);
-  assert.doesNotMatch(markup, /admin/);
   assert.doesNotMatch(markup, /Пользователи/);
   assert.doesNotMatch(markup, /href="\/results"/);
   assert.match(markup, /app-topbar__link app-topbar__link--active/);
@@ -104,18 +112,19 @@ test("AppShellView renders only the active route so page data loads on demand", 
 });
 
 test("AppShellView hides admin navigation for guests and blocks direct access", () => {
-  const markup = renderWithAuth("/", {
+  const markup = renderWithAuth("/admin", {
     status: "anonymous",
     user: null,
   });
 
   assert.doesNotMatch(markup, /href="\/users"/);
-  assert.doesNotMatch(markup, /href="\/">/);
+  assert.doesNotMatch(markup, /href="\/admin">/);
+  assert.doesNotMatch(markup, /href="\/season-config">/);
   assert.match(markup, />Войти</);
   assert.doesNotMatch(markup, /topbar-login/);
   assert.doesNotMatch(markup, /Редактирование и раздел обновлений доступны после входа/);
   assert.match(markup, /Доступ к странице ограничен/);
-  assert.match(markup, /Открыть игроков/);
+  assert.match(markup, /Открыть соревнования/);
 });
 
 test("shouldHandleInAppNavigation ignores modified or non-primary clicks", () => {
@@ -149,4 +158,16 @@ test("shouldHandleInAppNavigation ignores modified or non-primary clicks", () =>
     }),
     false,
   );
+});
+
+test("getNextTheme alternates between light and dark without persistence", () => {
+  assert.equal(getNextTheme("light"), "dark");
+  assert.equal(getNextTheme("dark"), "light");
+});
+
+test("AppShellView renders the dark theme toggle state when requested", () => {
+  const markup = renderWithAuth("/competitions/competition-100", {}, "dark");
+
+  assert.match(markup, /Светлая тема/);
+  assert.match(markup, /aria-pressed="true"/);
 });

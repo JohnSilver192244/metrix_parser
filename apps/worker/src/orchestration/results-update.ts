@@ -5,11 +5,13 @@ import { runResultsPipelineUpdateJob } from "../jobs/results-pipeline-update-job
 
 export async function executeResultsUpdate(
   period: UpdatePeriod,
+  overwriteExisting: boolean,
   env: Pick<WorkerEnv, "discGolfMetrixBaseUrl" | "discGolfMetrixCountryCode" | "discGolfMetrixApiCode">,
 ) {
   return runResultsPipelineUpdateJob(period, {
     baseUrl: env.discGolfMetrixBaseUrl,
     countryCode: env.discGolfMetrixCountryCode,
     apiCode: env.discGolfMetrixApiCode,
+    overwriteExisting,
   });
 }

@@ -25,6 +25,8 @@ function createStoredRow(overrides: Partial<PlayerRow> = {}): PlayerRow {
     player_name: "Ivan Ivanov",
     division: "MPO",
     rdga: true,
+    rdga_since: "2026-01-15",
+    season_division: "MPO",
     raw_payload: { playerId: "player-1", playerName: "Ivan Ivanov" },
     source_fetched_at: "2026-03-22T12:00:00.000Z",
     ...overrides,
@@ -105,7 +107,7 @@ test("repository creates a new player when no existing record matches", async ()
   assert.equal(adapter.snapshot()[0]?.player_id, "player-1");
 });
 
-test("repository treats repeat-run of the same player as update without creating duplicates", async () => {
+test("repository skips an existing player when overwriteExisting is disabled", async () => {
   const adapter = new InMemoryPlayersAdapter([createStoredRow()]);
   const repository = createPlayersRepository(adapter);
 
@@ -115,30 +117,65 @@ test("repository treats repeat-run of the same player as update without creating
     sourceFetchedAt: "2026-03-22T12:05:00.000Z",
   });
 
-  assert.equal(result.action, "updated");
+  assert.equal(result.action, "skipped");
   assert.equal(result.matchedExisting, true);
   assert.equal(result.issue, undefined);
   assert.equal(adapter.snapshot().length, 1);
   assert.equal(adapter.snapshot()[0]?.player_name, "Ivan Ivanov");
   assert.equal(adapter.snapshot()[0]?.division, "MPO");
   assert.equal(adapter.snapshot()[0]?.rdga, true);
+  assert.equal(adapter.snapshot()[0]?.rdga_since, "2026-01-15");
+  assert.equal(adapter.snapshot()[0]?.season_division, "MPO");
 });
 
 test("repository updates changed player_name in place when a match is found", async () => {
   const adapter = new InMemoryPlayersAdapter([createStoredRow()]);
   const repository = createPlayersRepository(adapter);
 
-  const result = await repository.savePlayer({
-    player: createPlayer({ playerName: "Ivan S. Ivanov" }),
-    rawPayload: { playerId: "player-1", playerName: "Ivan S. Ivanov" },
-    sourceFetchedAt: "2026-03-22T12:10:00.000Z",
-  });
+  const result = await repository.savePlayer(
+    {
+      player: createPlayer({ playerName: "Ivan S. Ivanov" }),
+      rawPayload: { playerId: "player-1", playerName: "Ivan S. Ivanov" },
+      sourceFetchedAt: "2026-03-22T12:10:00.000Z",
+    },
+    { overwriteExisting: true },
+  );
 
   assert.equal(result.action, "updated");
   assert.equal(result.matchedExisting, true);
   assert.equal(adapter.snapshot()[0]?.player_name, "Ivan S. Ivanov");
   assert.equal(adapter.snapshot()[0]?.division, "MPO");
   assert.equal(adapter.snapshot()[0]?.rdga, true);
+  assert.equal(adapter.snapshot()[0]?.rdga_since, "2026-01-15");
+  assert.equal(adapter.snapshot()[0]?.season_division, "MPO");
+});
+
+test("repository does not overwrite user-managed fields when overwriteExisting is enabled", async () => {
+  const adapter = new InMemoryPlayersAdapter([createStoredRow()]);
+  const repository = createPlayersRepository(adapter);
+
+  const result = await repository.savePlayer(
+    {
+      player: createPlayer({
+        playerName: "Ivan S. Ivanov",
+        division: "MA3",
+        rdga: false,
+        rdgaSince: "2026-02-01",
+        seasonDivision: "MA3",
+      }),
+      rawPayload: { playerId: "player-1", playerName: "Ivan S. Ivanov" },
+      sourceFetchedAt: "2026-03-22T12:10:00.000Z",
+    },
+    { overwriteExisting: true },
+  );
+
+  assert.equal(result.action, "updated");
+  assert.equal(result.matchedExisting, true);
+  assert.equal(adapter.snapshot()[0]?.player_name, "Ivan S. Ivanov");
+  assert.equal(adapter.snapshot()[0]?.division, "MPO");
+  assert.equal(adapter.snapshot()[0]?.rdga, true);
+  assert.equal(adapter.snapshot()[0]?.rdga_since, "2026-01-15");
+  assert.equal(adapter.snapshot()[0]?.season_division, "MPO");
 });
 
 test("repository skips problematic player records with missing player_id", async () => {
@@ -175,7 +212,7 @@ test("repository skips problematic player records with missing player_name", asy
   assert.equal(adapter.snapshot().length, 0);
 });
 
-test("repository batch-upserts players while preserving user-managed fields", async () => {
+test("repository batch-skips existing players when overwriteExisting is disabled", async () => {
   const adapter = new InMemoryPlayersAdapter([
     createStoredRow({
       player_id: "player-1",
@@ -202,6 +239,55 @@ test("repository batch-upserts players while preserving user-managed fields", as
   assert.deepEqual(result.summary, {
     found: 2,
     created: 1,
+    updated: 0,
+    skipped: 1,
+    errors: 0,
+  });
+  assert.equal(adapter.snapshot().length, 2);
+  assert.equal(adapter.snapshot()[0]?.player_name, "Ivan Ivanov");
+  assert.equal(adapter.snapshot()[0]?.division, "MPO");
+  assert.equal(adapter.snapshot()[0]?.rdga, true);
+  assert.equal(adapter.snapshot()[0]?.rdga_since, "2026-01-15");
+  assert.equal(adapter.snapshot()[0]?.season_division, "MPO");
+});
+
+test("repository batch-upserts players while preserving user-managed fields", async () => {
+  const adapter = new InMemoryPlayersAdapter([
+    createStoredRow({
+      player_id: "player-1",
+      player_name: "Ivan Ivanov",
+      division: "MPO",
+      rdga: true,
+    }),
+  ]);
+  const repository = createPlayersRepository(adapter);
+
+  const result = await repository.savePlayers(
+    [
+      {
+        player: createPlayer({
+          playerId: "player-1",
+          playerName: "Ivan S. Ivanov",
+          division: "MA3",
+          rdga: false,
+          rdgaSince: "2026-02-01",
+          seasonDivision: "MA3",
+        }),
+        rawPayload: { playerId: "player-1", playerName: "Ivan S. Ivanov" },
+        sourceFetchedAt: "2026-03-22T12:10:00.000Z",
+      },
+      {
+        player: createPlayer({ playerId: "player-2", playerName: "Petr Petrov" }),
+        rawPayload: { playerId: "player-2", playerName: "Petr Petrov" },
+        sourceFetchedAt: "2026-03-22T12:15:00.000Z",
+      },
+    ],
+    { overwriteExisting: true },
+  );
+
+  assert.deepEqual(result.summary, {
+    found: 2,
+    created: 1,
     updated: 1,
     skipped: 0,
     errors: 0,
@@ -210,4 +296,6 @@ test("repository batch-upserts players while preserving user-managed fields", as
   assert.equal(adapter.snapshot()[0]?.player_name, "Ivan S. Ivanov");
   assert.equal(adapter.snapshot()[0]?.division, "MPO");
   assert.equal(adapter.snapshot()[0]?.rdga, true);
+  assert.equal(adapter.snapshot()[0]?.rdga_since, "2026-01-15");
+  assert.equal(adapter.snapshot()[0]?.season_division, "MPO");
 });

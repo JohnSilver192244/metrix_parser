@@ -1,0 +1,255 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - heading "MetrixParser" [level=1] [ref=e7]
+      - generic [ref=e8]:
+        - button "Переключить на светлую тему" [active] [pressed] [ref=e31] [cursor=pointer]:
+          - generic [ref=e10]: Светлая тема
+        - button "Войти" [ref=e12] [cursor=pointer]
+    - navigation "Основная навигация" [ref=e13]:
+      - link "Соревнования" [ref=e14] [cursor=pointer]:
+        - /url: /
+      - link "Парки" [ref=e15] [cursor=pointer]:
+        - /url: /courses
+      - link "Игроки" [ref=e16] [cursor=pointer]:
+        - /url: /players
+      - link "Категории турниров" [ref=e17] [cursor=pointer]:
+        - /url: /tournament-categories
+  - region "Список соревнований" [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - paragraph [ref=e23]: Данные
+        - generic [ref=e24]:
+          - heading "Список соревнований" [level=1] [ref=e25]
+          - generic [ref=e32]:
+            - button "Правила отображения record_type на странице соревнований" [ref=e33]: "?"
+            - 'tooltip "Правила record_type Показываем: 2 (Single round event), 4 (Event) Скрываем: 1 (Round), 3 (Pool), 5 (Tour), а также записи без `record_type`."':
+              - strong: Правила record_type
+              - list:
+                - listitem: "Показываем: 2 (Single round event), 4 (Event)"
+                - listitem: "Скрываем: 1 (Round), 3 (Pool), 5 (Tour), а также записи без `record_type`."
+      - paragraph [ref=e26]: В системе доступно 145 соревнований для дальнейшей работы.
+    - region "Фильтры соревнований" [ref=e34]:
+      - generic [ref=e35]:
+        - generic [ref=e36]: Название
+        - searchbox "Название" [ref=e37]
+      - generic [ref=e38]:
+        - generic [ref=e39]: Период
+        - button "01.01.2026 - 31.12.2026" [ref=e41] [cursor=pointer]:
+          - strong [ref=e42]: 01.01.2026 - 31.12.2026
+      - generic [ref=e43]:
+        - generic [ref=e44]: Парк
+        - combobox "Парк" [ref=e45]:
+          - option "Все парки" [selected]
+          - option "1 круг"
+          - option "12"
+          - option "18 корзин 2025"
+          - option "18 корзин PRO"
+          - option "2"
+          - option "2024"
+          - option "2025 TS20 Long"
+          - option "9 корзин 2025"
+          - option "Большой дебют 2025 Уктус"
+          - option "Жигули"
+          - option "Зимняя схема 2025 (TS20+3 без OB)"
+          - option "Зимняя схема 2026 (TS19+3 без OB)"
+          - option "Лига"
+          - option "Матрица"
+          - option "Полный"
+          - option "Половинка"
+          - option "ПроТур тест"
+          - option "Старая схема 2023"
+          - option "Турнирная 2025"
+          - option "Уктус Изумрудный 18"
+          - option "Уктус Кварцевый 5"
+          - option "Уктус Рубиновый 18"
+          - option "Уктус Сапфировый 12"
+          - option "Черняховск парк Победы"
+          - option "Amateur (2025)"
+          - option "Amateur 2025"
+          - option "Dunes 12, 9+ДР"
+          - option "Dunes 9"
+          - option "Dunes 921"
+          - option "Dunes F9x2=18"
+          - option "Esenina DGP_only PORTABLE"
+          - option "Green_10_2024 (no OB)"
+          - option "Hill 10x2=20_2025 ParkLigue"
+          - option "Junior (2025)"
+          - option "Kalina 2025"
+          - option "Kurakina Dacha_only PORTABLE"
+          - option "Layout 1 Short (2026)"
+          - option "Layout 2 (2025)"
+          - option "Layout 3 (2025)"
+          - option "MC-2024 (TS20 Long)"
+          - option "Metro_2025"
+          - option "Mixed 9 (2025)"
+          - option "PL_2025"
+          - option "Pro 18 layout 2024"
+          - option "Pro14_oct.2025"
+          - 'option "PRO18 #2 (2025)"'
+          - option "ProTour 2024"
+          - option "ProTour 2025"
+          - option "TS16ob 2025"
+          - option "Upper Park 2025 TS20"
+          - option "VLopen_2025"
+          - option "zigzag-18 уровень-новичковый"
+          - option "zigzag-f9-vniz уровень-новичковый"
+      - generic [ref=e46]:
+        - generic [ref=e47]: Категория
+        - combobox "Категория" [ref=e48]:
+          - option "Все категории" [selected]
+          - option "Не указано"
+          - option "1"
+          - option "2"
+          - option "3"
+          - option "4"
+          - option "5"
+          - option "6"
+      - generic [ref=e49]:
+        - generic [ref=e50]: Статус результатов
+        - generic [ref=e51]:
+          - checkbox "Статус результатов Нет результатов" [ref=e52]
+          - text: Нет результатов
+    - region "Сохранённые соревнования" [ref=e53]:
+      - table [ref=e55]:
+        - rowgroup [ref=e56]:
+          - row "Название Дата Парк / курс Категория Рейтинг парка Отрезков Игроков Тип записи" [ref=e57]:
+            - columnheader "Название" [ref=e58]
+            - columnheader "Дата" [ref=e59]
+            - columnheader "Парк / курс" [ref=e60]
+            - columnheader "Категория" [ref=e61]
+            - columnheader "Рейтинг парка" [ref=e62]
+            - columnheader "Отрезков" [ref=e63]
+            - columnheader "Игроков" [ref=e64]
+            - columnheader "Тип записи" [ref=e65]
+        - rowgroup [ref=e66]:
+          - row "Открыть соревнование Всей толпой по лужам на Disc Golf Metrix в новой вкладке Открыть результаты соревнования Всей толпой по лужам 28.03.2026 Половинка Не задана 937.9 Показать исходные значения рейтинга для Половинка 11 8 Single round event" [ref=e67]:
+            - cell "Открыть соревнование Всей толпой по лужам на Disc Golf Metrix в новой вкладке Открыть результаты соревнования Всей толпой по лужам" [ref=e68]:
+              - generic [ref=e69]:
+                - link "Открыть соревнование Всей толпой по лужам на Disc Golf Metrix в новой вкладке" [ref=e70] [cursor=pointer]:
+                  - /url: https://discgolfmetrix.com/3555151
+                  - img [ref=e71]
+                - button "Открыть результаты соревнования Всей толпой по лужам" [ref=e73] [cursor=pointer]: Всей толпой по лужам
+            - cell "28.03.2026" [ref=e74]
+            - cell "Половинка" [ref=e75]
+            - cell "Не задана" [ref=e76]
+            - cell "937.9 Показать исходные значения рейтинга для Половинка" [ref=e77]:
+              - generic [ref=e78]:
+                - generic [ref=e79]: "937.9"
+                - button "Показать исходные значения рейтинга для Половинка" [ref=e80]: "?"
+            - cell "11" [ref=e81]
+            - cell "8" [ref=e82]
+            - cell "Single round event" [ref=e83]
+          - row "Открыть соревнование DGWL 2026, Moscow → 10. Round на Disc Golf Metrix в новой вкладке Открыть результаты соревнования DGWL 2026, Moscow → 10. Round 22.03.2026 Зимняя схема 2026 (TS19+3 без OB) 4 912.9 Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB) 22 10 Single round event" [ref=e84]:
+            - cell "Открыть соревнование DGWL 2026, Moscow → 10. Round на Disc Golf Metrix в новой вкладке Открыть результаты соревнования DGWL 2026, Moscow → 10. Round" [ref=e85]:
+              - generic [ref=e86]:
+                - link "Открыть соревнование DGWL 2026, Moscow → 10. Round на Disc Golf Metrix в новой вкладке" [ref=e87] [cursor=pointer]:
+                  - /url: https://discgolfmetrix.com/3544772
+                  - img [ref=e88]
+                - button "Открыть результаты соревнования DGWL 2026, Moscow → 10. Round" [ref=e90] [cursor=pointer]: DGWL 2026, Moscow → 10. Round
+            - cell "22.03.2026" [ref=e91]
+            - cell "Зимняя схема 2026 (TS19+3 без OB)" [ref=e92]
+            - cell "4" [ref=e93]
+            - cell "912.9 Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB)" [ref=e94]:
+              - generic [ref=e95]:
+                - generic [ref=e96]: "912.9"
+                - button "Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB)" [ref=e97]: "?"
+            - cell "22" [ref=e98]
+            - cell "10" [ref=e99]
+            - cell "Single round event" [ref=e100]
+          - row "Открыть соревнование DGWL 2026, Moscow → 9. Round на Disc Golf Metrix в новой вкладке Открыть результаты соревнования DGWL 2026, Moscow → 9. Round 15.03.2026 Зимняя схема 2026 (TS19+3 без OB) 4 912.9 Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB) 22 11 Single round event" [ref=e101]:
+            - cell "Открыть соревнование DGWL 2026, Moscow → 9. Round на Disc Golf Metrix в новой вкладке Открыть результаты соревнования DGWL 2026, Moscow → 9. Round" [ref=e102]:
+              - generic [ref=e103]:
+                - link "Открыть соревнование DGWL 2026, Moscow → 9. Round на Disc Golf Metrix в новой вкладке" [ref=e104] [cursor=pointer]:
+                  - /url: https://discgolfmetrix.com/3535497
+                  - img [ref=e105]
+                - button "Открыть результаты соревнования DGWL 2026, Moscow → 9. Round" [ref=e107] [cursor=pointer]: DGWL 2026, Moscow → 9. Round
+            - cell "15.03.2026" [ref=e108]
+            - cell "Зимняя схема 2026 (TS19+3 без OB)" [ref=e109]
+            - cell "4" [ref=e110]
+            - cell "912.9 Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB)" [ref=e111]:
+              - generic [ref=e112]:
+                - generic [ref=e113]: "912.9"
+                - button "Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB)" [ref=e114]: "?"
+            - cell "22" [ref=e115]
+            - cell "11" [ref=e116]
+            - cell "Single round event" [ref=e117]
+          - row "Открыть соревнование Калининград Сезон 2026 → Ростех Арена 9 марта на Disc Golf Metrix в новой вкладке Открыть результаты соревнования Калининград Сезон 2026 → Ростех Арена 9 марта 09.03.2026 Layout 1 Short (2026) Не задана Нет данных 8 14 Event" [ref=e118]:
+            - cell "Открыть соревнование Калининград Сезон 2026 → Ростех Арена 9 марта на Disc Golf Metrix в новой вкладке Открыть результаты соревнования Калининград Сезон 2026 → Ростех Арена 9 марта" [ref=e119]:
+              - generic [ref=e120]:
+                - link "Открыть соревнование Калининград Сезон 2026 → Ростех Арена 9 марта на Disc Golf Metrix в новой вкладке" [ref=e121] [cursor=pointer]:
+                  - /url: https://discgolfmetrix.com/3536366
+                  - img [ref=e122]
+                - button "Открыть результаты соревнования Калининград Сезон 2026 → Ростех Арена 9 марта" [ref=e124] [cursor=pointer]: Калининград Сезон 2026 → Ростех Арена 9 марта
+            - cell "09.03.2026" [ref=e125]
+            - cell "Layout 1 Short (2026)" [ref=e126]
+            - cell "Не задана" [ref=e127]
+            - cell "Нет данных" [ref=e128]
+            - cell "8" [ref=e129]
+            - cell "14" [ref=e130]
+            - cell "Event" [ref=e131]
+          - row "Открыть соревнование DGWL 2026, Moscow → 8. Round на Disc Golf Metrix в новой вкладке Открыть результаты соревнования DGWL 2026, Moscow → 8. Round 15.02.2026 Зимняя схема 2026 (TS19+3 без OB) 4 912.9 Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB) 22 10 Single round event" [ref=e132]:
+            - cell "Открыть соревнование DGWL 2026, Moscow → 8. Round на Disc Golf Metrix в новой вкладке Открыть результаты соревнования DGWL 2026, Moscow → 8. Round" [ref=e133]:
+              - generic [ref=e134]:
+                - link "Открыть соревнование DGWL 2026, Moscow → 8. Round на Disc Golf Metrix в новой вкладке" [ref=e135] [cursor=pointer]:
+                  - /url: https://discgolfmetrix.com/3530658
+                  - img [ref=e136]
+                - button "Открыть результаты соревнования DGWL 2026, Moscow → 8. Round" [ref=e138] [cursor=pointer]: DGWL 2026, Moscow → 8. Round
+            - cell "15.02.2026" [ref=e139]
+            - cell "Зимняя схема 2026 (TS19+3 без OB)" [ref=e140]
+            - cell "4" [ref=e141]
+            - cell "912.9 Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB)" [ref=e142]:
+              - generic [ref=e143]:
+                - generic [ref=e144]: "912.9"
+                - button "Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB)" [ref=e145]: "?"
+            - cell "22" [ref=e146]
+            - cell "10" [ref=e147]
+            - cell "Single round event" [ref=e148]
+          - row "Открыть соревнование DGWL 2026, Moscow → 6. Раунд на Disc Golf Metrix в новой вкладке Открыть результаты соревнования DGWL 2026, Moscow → 6. Раунд 18.01.2026 Зимняя схема 2026 (TS19+3 без OB) 4 912.9 Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB) 22 10 Single round event" [ref=e149]:
+            - cell "Открыть соревнование DGWL 2026, Moscow → 6. Раунд на Disc Golf Metrix в новой вкладке Открыть результаты соревнования DGWL 2026, Moscow → 6. Раунд" [ref=e150]:
+              - generic [ref=e151]:
+                - link "Открыть соревнование DGWL 2026, Moscow → 6. Раунд на Disc Golf Metrix в новой вкладке" [ref=e152] [cursor=pointer]:
+                  - /url: https://discgolfmetrix.com/3526304
+                  - img [ref=e153]
+                - button "Открыть результаты соревнования DGWL 2026, Moscow → 6. Раунд" [ref=e155] [cursor=pointer]: DGWL 2026, Moscow → 6. Раунд
+            - cell "18.01.2026" [ref=e156]
+            - cell "Зимняя схема 2026 (TS19+3 без OB)" [ref=e157]
+            - cell "4" [ref=e158]
+            - cell "912.9 Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB)" [ref=e159]:
+              - generic [ref=e160]:
+                - generic [ref=e161]: "912.9"
+                - button "Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB)" [ref=e162]: "?"
+            - cell "22" [ref=e163]
+            - cell "10" [ref=e164]
+            - cell "Single round event" [ref=e165]
+          - row "Открыть соревнование DGWL 2026, Moscow → 5 Этап на Disc Golf Metrix в новой вкладке Открыть результаты соревнования DGWL 2026, Moscow → 5 Этап 08.01.2026 Зимняя схема 2026 (TS19+3 без OB) 4 912.9 Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB) 22 14 Single round event" [ref=e166]:
+            - cell "Открыть соревнование DGWL 2026, Moscow → 5 Этап на Disc Golf Metrix в новой вкладке Открыть результаты соревнования DGWL 2026, Moscow → 5 Этап" [ref=e167]:
+              - generic [ref=e168]:
+                - link "Открыть соревнование DGWL 2026, Moscow → 5 Этап на Disc Golf Metrix в новой вкладке" [ref=e169] [cursor=pointer]:
+                  - /url: https://discgolfmetrix.com/3524701
+                  - img [ref=e170]
+                - button "Открыть результаты соревнования DGWL 2026, Moscow → 5 Этап" [ref=e172] [cursor=pointer]: DGWL 2026, Moscow → 5 Этап
+            - cell "08.01.2026" [ref=e173]
+            - cell "Зимняя схема 2026 (TS19+3 без OB)" [ref=e174]
+            - cell "4" [ref=e175]
+            - cell "912.9 Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB)" [ref=e176]:
+              - generic [ref=e177]:
+                - generic [ref=e178]: "912.9"
+                - button "Показать исходные значения рейтинга для Зимняя схема 2026 (TS19+3 без OB)" [ref=e179]: "?"
+            - cell "22" [ref=e180]
+            - cell "14" [ref=e181]
+            - cell "Single round event" [ref=e182]
+          - row "Открыть соревнование Первая Новогодняя 2026 на Disc Golf Metrix в новой вкладке Открыть результаты соревнования Первая Новогодняя 2026 04.01.2026 Green_10_2024 (no OB) Не задана Нет данных 10 8 Single round event" [ref=e183]:
+            - cell "Открыть соревнование Первая Новогодняя 2026 на Disc Golf Metrix в новой вкладке Открыть результаты соревнования Первая Новогодняя 2026" [ref=e184]:
+              - generic [ref=e185]:
+                - link "Открыть соревнование Первая Новогодняя 2026 на Disc Golf Metrix в новой вкладке" [ref=e186] [cursor=pointer]:
+                  - /url: https://discgolfmetrix.com/3523816
+                  - img [ref=e187]
+                - button "Открыть результаты соревнования Первая Новогодняя 2026" [ref=e189] [cursor=pointer]: Первая Новогодняя 2026
+            - cell "04.01.2026" [ref=e190]
+            - cell "Green_10_2024 (no OB)" [ref=e191]
+            - cell "Не задана" [ref=e192]
+            - cell "Нет данных" [ref=e193]
+            - cell "10" [ref=e194]
+            - cell "8" [ref=e195]
+            - cell "Single round event" [ref=e196]

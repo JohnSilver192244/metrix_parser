@@ -1,20 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildCompetitionResultsPath } from "./route-paths";
+import { buildCompetitionResultsPath, buildPlayerPath } from "./route-paths";
 import { appRoutes, getAppRoutesByGroup, resolveAppRoute } from "./router";
 
 test("app route map registers admin and all data view pages", () => {
   assert.deepEqual(
     appRoutes.map((route) => route.path),
-    ["/", "/competitions", "/courses", "/players"],
+    ["/", "/courses", "/players", "/tournament-categories", "/admin", "/season-config"],
   );
-  assert.equal(getAppRoutesByGroup("admin").length, 1);
-  assert.equal(getAppRoutesByGroup("browse").length, 3);
+  assert.equal(getAppRoutesByGroup("admin").length, 2);
+  assert.equal(getAppRoutesByGroup("browse").length, 4);
 });
 
 test("resolveAppRoute returns configured top-level route metadata", () => {
-  const route = resolveAppRoute("/competitions");
+  const route = resolveAppRoute("/");
 
   assert.equal(route?.label, "Соревнования");
   assert.equal(route?.group, "browse");
@@ -27,11 +27,37 @@ test("resolveAppRoute does not expose the hidden users page", () => {
   assert.equal(route, null);
 });
 
+test("resolveAppRoute exposes the tournament categories page", () => {
+  const route = resolveAppRoute("/tournament-categories");
+
+  assert.equal(route?.label, "Категории турниров");
+  assert.equal(route?.group, "browse");
+  assert.match(route?.description ?? "", /редактирование справочника/);
+});
+
+test("resolveAppRoute exposes the season config admin page", () => {
+  const route = resolveAppRoute("/season-config");
+
+  assert.equal(route?.label, "Сезоны и очки");
+  assert.equal(route?.group, "admin");
+  assert.equal(route?.requiresAuth, true);
+  assert.match(route?.description ?? "", /начисления очков/);
+});
+
 test("resolveAppRoute maps competition detail paths to the results detail page", () => {
   const route = resolveAppRoute(buildCompetitionResultsPath("competition-701"));
 
   assert.equal(route?.label, "Результаты соревнования");
   assert.equal(route?.group, "browse");
-  assert.equal(route?.activePath, "/competitions");
+  assert.equal(route?.activePath, "/");
   assert.match(route?.description ?? "", /DNF/);
+});
+
+test("resolveAppRoute maps player detail paths to the player page", () => {
+  const route = resolveAppRoute(buildPlayerPath("player-701"));
+
+  assert.equal(route?.label, "Игрок");
+  assert.equal(route?.group, "browse");
+  assert.equal(route?.activePath, "/players");
+  assert.match(route?.description ?? "", /результатов игрока/);
 });

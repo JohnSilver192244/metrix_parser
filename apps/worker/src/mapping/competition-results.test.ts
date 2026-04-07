@@ -36,6 +36,7 @@ test("mapDiscGolfMetrixCompetitionResults maps regular result records into the s
     diff: -6,
     order_number: 1,
     dnf: false,
+    season_points: null,
   });
 });
 

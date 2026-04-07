@@ -113,19 +113,39 @@ export function createSupabaseCompetitionCourseIdsAdapter(
 ): CompetitionCourseIdsAdapter {
   return {
     async listCompetitionSources() {
-      const { data, error } = await supabase
-        .schema(APP_PUBLIC_SCHEMA)
-        .from("competitions")
-        .select("competition_id, course_id, raw_payload")
-        .order("competition_id", { ascending: true });
+      const [directRowsResult, legacyRowsResult] = await Promise.all([
+        supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("competitions")
+          .select("competition_id, course_id")
+          .not("course_id", "is", null)
+          .order("competition_id", { ascending: true }),
+        supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("competitions")
+          .select("competition_id, course_id, raw_payload")
+          .is("course_id", null)
+          .order("competition_id", { ascending: true }),
+      ]);
 
-      if (error) {
+      if (directRowsResult.error) {
         throw new Error(
-          `Не удалось загрузить сохранённые соревнования для поиска park/course идентификаторов: ${error.message}`,
+          `Не удалось загрузить сохранённые соревнования для поиска park/course идентификаторов: ${directRowsResult.error.message}`,
         );
       }
 
-      return (data ?? []) as CompetitionSourceRow[];
+      if (legacyRowsResult.error) {
+        throw new Error(
+          `Не удалось загрузить сохранённые соревнования для поиска park/course идентификаторов: ${legacyRowsResult.error.message}`,
+        );
+      }
+
+      const directRows = (directRowsResult.data ?? []).map((row) => ({
+        ...row,
+        raw_payload: null,
+      }));
+
+      return [...directRows, ...(legacyRowsResult.data ?? [])] as CompetitionSourceRow[];
     },
   };
 }

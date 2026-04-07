@@ -4,6 +4,10 @@ import type {
   Competition,
   CompetitionResult,
 } from "@metrix-parser/shared-types";
+import {
+  buildCompetitionChildrenByParentId,
+  resolveCompetitionResultSourceIds,
+} from "@metrix-parser/shared-types";
 
 import {
   createCourseNamesById,
@@ -40,6 +44,7 @@ type CompetitionResultsPageState =
       competition: Competition;
       courseName: string;
       results: CompetitionResultsRow[];
+      comment?: string | null;
     };
 
 export interface CompetitionRoundBreakdown {
@@ -49,10 +54,11 @@ export interface CompetitionRoundBreakdown {
 }
 
 export interface CompetitionResultsRow extends CompetitionResult {
+  placementLabel?: string;
   roundBreakdown?: CompetitionRoundBreakdown[];
 }
 
-type CompetitionResultsSortField = "placement" | "className" | "diff";
+type CompetitionResultsSortField = "placement" | "diff";
 
 interface CompetitionResultsSort {
   field: CompetitionResultsSortField;
@@ -80,12 +86,146 @@ function formatSum(value: number | null): string {
   return value === null ? "Не указан" : `${value}`;
 }
 
+function formatSeasonPoints(value: number | null | undefined): string {
+  return value == null ? "—" : value.toFixed(2);
+}
+
+function resolveCompetitionComment(competition: Competition): string | null {
+  const value = (competition as Competition & { comment?: string | null }).comment;
+  const normalized = value?.trim() ?? "";
+
+  return normalized.length > 0 ? normalized : null;
+}
+
 function resolvePlayerLabel(result: CompetitionResult): string {
   return decodeHtmlEntities(result.playerName?.trim()) || result.playerId;
 }
 
-function formatClassName(value: string | null): string {
-  return value === null ? "Не указан" : value;
+interface ResolvedCompetitionDisplayContext {
+  competition: Competition;
+  resultCompetitionIds: string[];
+}
+
+type CompetitionHierarchyEntry = {
+  competitionId: string;
+  parentId: string | null;
+  recordType: string | null;
+  competition: Competition;
+};
+
+function resolveCompetitionNameTail(value: string): string {
+  const normalizedValue = decodeHtmlEntities(value)
+    .split("→")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  return normalizedValue[normalizedValue.length - 1] ?? decodeHtmlEntities(value).trim();
+}
+
+function composeParentPoolCompetitionName(
+  parentCompetition: Competition,
+  poolCompetition: Competition,
+): string {
+  const parentName = resolveCompetitionNameTail(parentCompetition.competitionName);
+  const poolName = resolveCompetitionNameTail(poolCompetition.competitionName);
+
+  if (!parentName) {
+    return decodeHtmlEntities(poolCompetition.competitionName);
+  }
+
+  if (!poolName || poolName === parentName) {
+    return parentName;
+  }
+
+  return `${parentName} · ${poolName}`;
+}
+
+export function resolveCompetitionDisplayContext(
+  selectedCompetition: Competition,
+  competitions: readonly Competition[],
+): ResolvedCompetitionDisplayContext {
+  const hierarchyEntries: CompetitionHierarchyEntry[] = competitions.map((competition) => ({
+    competitionId: competition.competitionId,
+    parentId: competition.parentId ?? null,
+    recordType: competition.recordType,
+    competition,
+  }));
+  const childrenByParentId = buildCompetitionChildrenByParentId(hierarchyEntries);
+  const selectedCompetitionEntry: CompetitionHierarchyEntry = {
+    competitionId: selectedCompetition.competitionId,
+    parentId: selectedCompetition.parentId ?? null,
+    recordType: selectedCompetition.recordType,
+    competition: selectedCompetition,
+  };
+  const directChildren =
+    (childrenByParentId.get(selectedCompetition.competitionId) ?? []).map(
+      (entry) => entry.competition,
+    );
+  const directRoundChildren = directChildren.filter((competition) => competition.recordType === "1");
+
+  if (directRoundChildren.length > 0) {
+    return {
+      competition: selectedCompetition,
+      resultCompetitionIds: resolveCompetitionResultSourceIds(
+        selectedCompetitionEntry,
+        childrenByParentId,
+      ),
+    };
+  }
+
+  if (selectedCompetition.recordType === "3") {
+    const parentCompetition =
+      selectedCompetition.parentId
+        ? competitions.find((competition) => {
+            return competition.competitionId === selectedCompetition.parentId;
+          }) ?? null
+        : null;
+
+    const roundChildren = directChildren.filter((competition) => competition.recordType === "1");
+    if (roundChildren.length > 0) {
+      return {
+        competition: {
+          ...selectedCompetition,
+          competitionName: parentCompetition
+            ? composeParentPoolCompetitionName(parentCompetition, selectedCompetition)
+            : selectedCompetition.competitionName,
+        },
+        resultCompetitionIds: resolveCompetitionResultSourceIds(selectedCompetitionEntry, childrenByParentId),
+      };
+    }
+  }
+
+  if (selectedCompetition.recordType === "4") {
+    const directPoolChildren = directChildren.filter((competition) => competition.recordType === "3");
+
+    if (directPoolChildren.length === 1) {
+      const [poolCompetition] = directPoolChildren;
+      if (poolCompetition) {
+        const poolRoundChildren =
+          (childrenByParentId.get(poolCompetition.competitionId) ?? [])
+            .map((entry) => entry.competition)
+            .filter((competition) => competition.recordType === "1");
+
+        if (poolRoundChildren.length > 0) {
+          return {
+            competition: {
+              ...poolCompetition,
+              competitionName: composeParentPoolCompetitionName(
+                selectedCompetition,
+                poolCompetition,
+              ),
+            },
+            resultCompetitionIds: resolveCompetitionResultSourceIds(selectedCompetitionEntry, childrenByParentId),
+          };
+        }
+      }
+    }
+  }
+
+  return {
+    competition: selectedCompetition,
+    resultCompetitionIds: [selectedCompetition.competitionId],
+  };
 }
 
 function compareCompetitionResults(
@@ -113,27 +253,90 @@ function compareCompetitionResults(
   return resolvePlayerLabel(left).localeCompare(resolvePlayerLabel(right), "ru");
 }
 
+function assignCalculatedPlacements(
+  results: readonly CompetitionResultsRow[],
+): CompetitionResultsRow[] {
+  const rankedResults = [...results].sort(compareCompetitionResults);
+  const placementByPlayerId = new Map<
+    string,
+    {
+      orderNumber: number;
+      placementLabel: string;
+    }
+  >();
+
+  let currentPlacement = 1;
+  let index = 0;
+
+  while (index < rankedResults.length) {
+    const result = rankedResults[index];
+
+    if (!result || result.dnf || result.sum === null) {
+      placementByPlayerId.set(result?.playerId ?? `${index}`, {
+        orderNumber: Number.MAX_SAFE_INTEGER,
+        placementLabel: "DNF",
+      });
+      index += 1;
+      continue;
+    }
+
+    let tieEndIndex = index + 1;
+    while (tieEndIndex < rankedResults.length) {
+      const nextResult = rankedResults[tieEndIndex];
+      if (!nextResult || nextResult.dnf || nextResult.sum !== result.sum) {
+        break;
+      }
+
+      tieEndIndex += 1;
+    }
+
+    const isTie = tieEndIndex - index > 1;
+    const placementLabel = isTie ? `T${currentPlacement}` : `${currentPlacement}`;
+
+    for (let tieIndex = index; tieIndex < tieEndIndex; tieIndex += 1) {
+      const tiedResult = rankedResults[tieIndex];
+      if (!tiedResult) {
+        continue;
+      }
+
+      placementByPlayerId.set(tiedResult.playerId, {
+        orderNumber: currentPlacement,
+        placementLabel,
+      });
+    }
+
+    currentPlacement += tieEndIndex - index;
+    index = tieEndIndex;
+  }
+
+  return results.map((result) => {
+    const placement = placementByPlayerId.get(result.playerId);
+
+    return {
+      ...result,
+      orderNumber: placement?.orderNumber ?? Number.MAX_SAFE_INTEGER,
+      placementLabel: placement?.placementLabel ?? "DNF",
+    };
+  });
+}
+
 export function resolveCompetitionResults(
   competition: Competition,
   competitions: readonly Competition[],
   resultsByCompetitionId: Readonly<Record<string, readonly CompetitionResult[]>>,
 ): CompetitionResultsRow[] {
-  if (competition.recordType !== "4") {
-    return [...(resultsByCompetitionId[competition.competitionId] ?? [])].map((result) => ({
-      ...result,
-      roundBreakdown: [],
-    }));
-  }
-
   const roundCompetitions = competitions
     .filter((item) => item.parentId === competition.competitionId)
+    .filter((item) => item.recordType === "1")
     .sort((left, right) => left.competitionDate.localeCompare(right.competitionDate));
 
   if (roundCompetitions.length === 0) {
-    return [...(resultsByCompetitionId[competition.competitionId] ?? [])].map((result) => ({
-      ...result,
-      roundBreakdown: [],
-    }));
+    return assignCalculatedPlacements(
+      [...(resultsByCompetitionId[competition.competitionId] ?? [])].map((result) => ({
+        ...result,
+        roundBreakdown: [],
+      })),
+    );
   }
 
   const expectedRoundIds = new Set(
@@ -193,35 +396,15 @@ export function resolveCompetitionResults(
       sum,
       diff,
       dnf,
+      seasonPoints:
+        playerResults.find((playerResult) => playerResult.seasonPoints != null)?.seasonPoints ??
+        null,
       orderNumber: Number.MAX_SAFE_INTEGER,
       roundBreakdown,
     };
   });
 
-  const placementsByPlayerId = new Map<string, number>();
-  const resultsByClassName = new Map<string, CompetitionResultsRow[]>();
-
-  for (const result of aggregatedResults) {
-    const classKey = formatClassName(result.className);
-    const classResults = resultsByClassName.get(classKey) ?? [];
-    classResults.push(result);
-    resultsByClassName.set(classKey, classResults);
-  }
-
-  for (const classResults of resultsByClassName.values()) {
-    const rankedResults = classResults
-      .filter((result) => !result.dnf && result.sum !== null)
-      .sort(compareCompetitionResults);
-
-    rankedResults.forEach((result, index) => {
-      placementsByPlayerId.set(result.playerId, index + 1);
-    });
-  }
-
-  return aggregatedResults.map((result) => ({
-    ...result,
-    orderNumber: placementsByPlayerId.get(result.playerId) ?? Number.MAX_SAFE_INTEGER,
-  }));
+  return assignCalculatedPlacements(aggregatedResults);
 }
 
 export function sortCompetitionResults(
@@ -237,24 +420,6 @@ export function sortCompetitionResults(
 
     if (sort.field === "placement" && left.orderNumber !== right.orderNumber) {
       return (left.orderNumber - right.orderNumber) * direction;
-    }
-
-    if (sort.field === "className") {
-      const classNameComparison = formatClassName(left.className).localeCompare(
-        formatClassName(right.className),
-        "ru",
-      );
-
-      if (classNameComparison !== 0) {
-        return classNameComparison * direction;
-      }
-
-      const leftDiff = left.diff ?? Number.POSITIVE_INFINITY;
-      const rightDiff = right.diff ?? Number.POSITIVE_INFINITY;
-
-      if (leftDiff !== rightDiff) {
-        return leftDiff - rightDiff;
-      }
     }
 
     if (sort.field === "diff") {
@@ -280,7 +445,11 @@ export function sortCompetitionResults(
 }
 
 export function formatCompetitionPlacement(result: CompetitionResult): string {
-  return result.dnf ? "DNF" : `${result.orderNumber}`;
+  return "placementLabel" in result && typeof result.placementLabel === "string"
+    ? result.placementLabel
+    : result.dnf
+      ? "DNF"
+      : `${result.orderNumber}`;
 }
 
 function resolveCompetitionResultsErrorMessage(
@@ -309,7 +478,7 @@ export function CompetitionResultsPageView({
       className="page-back-link"
       type="button"
       onClick={() => {
-        onNavigate("/competitions");
+        onNavigate("/");
       }}
     >
       К списку соревнований
@@ -363,6 +532,7 @@ export function CompetitionResultsPageView({
   const { competition, courseName, results } = state;
   const orderedResults = sortCompetitionResults(results, sort);
   const competitionName = decodeHtmlEntities(competition.competitionName);
+  const competitionComment = state.comment ?? null;
   const courseLabel = decodeHtmlEntities(courseName);
   const externalUrl = resolveCompetitionExternalUrl(competition.competitionId);
   const toggleSort = (field: CompetitionResultsSortField) => {
@@ -432,6 +602,9 @@ export function CompetitionResultsPageView({
           {formatCompetitionDate(competition.competitionDate)} · {courseLabel} ·{" "}
           {formatCompetitionRecordType(competition.recordType)}
         </p>
+        {competitionComment ? (
+          <p className="competition-results-page__comment">{competitionComment}</p>
+        ) : null}
       </header>
 
       {orderedResults.length === 0 ? (
@@ -463,17 +636,6 @@ export function CompetitionResultsPageView({
                       Место{resolveSortIndicator("placement")}
                     </button>
                   </th>
-                  <th scope="col" aria-sort={resolveAriaSort("className")}>
-                    <button
-                      className="data-table__sort-button"
-                      type="button"
-                      onClick={() => {
-                        toggleSort("className");
-                      }}
-                    >
-                      Class{resolveSortIndicator("className")}
-                    </button>
-                  </th>
                   <th scope="col">Игрок</th>
                   <th scope="col">Сумма</th>
                   <th scope="col" aria-sort={resolveAriaSort("diff")}>
@@ -487,6 +649,7 @@ export function CompetitionResultsPageView({
                       Diff{resolveSortIndicator("diff")}
                     </button>
                   </th>
+                  <th scope="col">Очки</th>
                   <th scope="col">Раунд</th>
                   <th scope="col">Результат</th>
                 </tr>
@@ -504,10 +667,10 @@ export function CompetitionResultsPageView({
                         className={result.dnf ? "data-table__row--warning" : undefined}
                       >
                         <td>{formatCompetitionPlacement(result)}</td>
-                        <td>{formatClassName(result.className)}</td>
                         <td className="data-table__cell-primary">{playerLabel}</td>
                         <td>{formatSum(result.sum)}</td>
                         <td>{formatDiff(result.diff)}</td>
+                        <td>{formatSeasonPoints(result.seasonPoints)}</td>
                         <td>{primaryRound ? primaryRound.roundName : "—"}</td>
                         <td>{primaryRound ? formatDiff(primaryRound.diff) : "—"}</td>
                       </tr>
@@ -577,11 +740,11 @@ export function CompetitionResultsPage({
         }
 
         const allCompetitions = competitionsResult.value.data;
-        const competition = allCompetitions.find((item) => {
+        const selectedCompetition = allCompetitions.find((item) => {
           return item.competitionId === competitionId;
         });
 
-        if (!competition) {
+        if (!selectedCompetition) {
           setState({
             status: "not-found",
             competitionId,
@@ -594,16 +757,12 @@ export function CompetitionResultsPage({
           coursesResult.status === "fulfilled"
             ? createCourseNamesById(coursesResult.value.data)
             : {};
-        const roundCompetitions =
-          competition.recordType === "4"
-            ? allCompetitions.filter((item) => item.parentId === competition.competitionId)
-            : [];
-        const resultCompetitionIds =
-          roundCompetitions.length > 0
-            ? roundCompetitions.map((item) => item.competitionId)
-            : [competition.competitionId];
+        const displayContext = resolveCompetitionDisplayContext(
+          selectedCompetition,
+          allCompetitions,
+        );
         const resultEnvelopes = await Promise.all(
-          resultCompetitionIds.map(async (resultCompetitionId) => {
+          displayContext.resultCompetitionIds.map(async (resultCompetitionId) => {
             const response = await listResults({
               competitionId: resultCompetitionId,
             });
@@ -618,10 +777,14 @@ export function CompetitionResultsPage({
 
         setState({
           status: "ready",
-          competition,
-          courseName: resolveCompetitionCourseName(competition, courseNamesById),
+          competition: displayContext.competition,
+          comment: resolveCompetitionComment(selectedCompetition),
+          courseName: resolveCompetitionCourseName(
+            displayContext.competition,
+            courseNamesById,
+          ),
           results: resolveCompetitionResults(
-            competition,
+            displayContext.competition,
             allCompetitions,
             Object.fromEntries(resultEnvelopes),
           ),

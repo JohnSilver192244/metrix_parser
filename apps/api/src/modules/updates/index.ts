@@ -66,6 +66,10 @@ function resolvePeriod(body: TriggerUpdateRequestBody): UpdatePeriod {
   return period;
 }
 
+function resolveOverwriteExisting(body: TriggerUpdateRequestBody): boolean {
+  return body.overwriteExisting === true;
+}
+
 export interface UpdatesRouteDependencies extends UpdatesExecutionDependencies {}
 
 function createUpdateRoute(
@@ -81,7 +85,12 @@ function createUpdateRoute(
 
       const body = await readJsonBody<TriggerUpdateRequestBody>(req);
       const period = PERIOD_OPERATIONS.has(operation) ? resolvePeriod(body) : undefined;
-      const result = await executeUpdateOperation(operation, period, dependencies);
+      const result = await executeUpdateOperation(
+        operation,
+        period,
+        resolveOverwriteExisting(body),
+        dependencies,
+      );
 
       sendSuccess(res, result, undefined, 202);
     },
