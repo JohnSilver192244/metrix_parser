@@ -1,37 +1,55 @@
 # TODO
 
--- 1. Исправить начисление очков: начислять на все турниры, а не только на 4.--
-проверить начисление баллов
-2. Начислять очки по реальному месту, а не табличному.
---3. Сделать темную тему и переключатель тем.--
-4. Игроки -> игрок -> турнир: сделать нормальные хлебные крошки.
+1. Игроки -> игрок -> турнир: сделать нормальные хлебные крошки.
 
-## План: унификация сущностей и алгоритмов
+## План: унификация competition-сущностей и алгоритмов
 
-1. Унифицировать `Competition.hasResults`.
-- Привести `GET /competitions` и `PUT /competitions/category` к одной descendant-aware логике.
-- Убрать ситуацию, когда после обновления категории соревнование временно считается "без результатов", хотя в списке оно "с результатами".
+### Инварианты из AGENTS.md (обязательные)
 
-2. Вынести единую политику иерархии соревнований.
-- Сделать один shared-layer для `event -> pool -> round`.
-- Через него определять:
-  - source ids для результатов
-  - owner id для season points
-  - owner/source для сегментов и course rating
-  - display context для detail-страниц
+1. Источник истины для того, что считается отдельным соревнованием:
+- страница `Список соревнований` + вложенная detail-логика результатов.
 
-3. Унифицировать модель `PlayerCompetitionResult`.
-- Решить, что именно означает строка в карточке игрока:
-  - либо raw result из `competition_results`
-  - либо scoring competition / owner tournament
-- После этого привести к одному смыслу поля:
+2. Классификация competition для scoring/read-side:
+- `Single round event (2)` и `Event (4)` считаются отдельными соревнованиями.
+- `Round (1)` без родителя считается отдельным соревнованием.
+- `Round (1)` с родителем не считается отдельным соревнованием и агрегируется в родителя.
+
+3. Для `Event (4)` с дочерними `round` (напрямую или через единственный `pool`) scoring берет дочерние результаты,
+   но сущность соревнования определяется list/detail-моделью, а не сырыми `competition_results`.
+
+4. Для lookup в `season_points_table` использовать `players_count` scoring-сущности соревнования,
+   а не число валидно ранжированных финишировавших после фильтрации (`DNF`, `null sum`, неполные `round`).
+
+5. Изменения производных метрик (особенно `season_points`) считаются завершенными только после проверки
+   согласованности минимум между списком соревнований и detail-экраном одной и той же сущности.
+
+## Сделано
+
+1. Унифицирована identity/hierarchy policy в shared-layer (`event -> pool -> round`):
+- добавлен минимальный identity API с owner/source semantics;
+- `GET /competitions` и `GET /results` используют единый owner/source смысл.
+
+2. Унифицирован `Competition.hasResults`:
+- descendant-aware логика применена согласованно;
+- убрана проблема, когда parent competition мог временно считаться "без результатов".
+
+3. Исправлена сезонная проекция `season_points`:
+- в `GET /results` убран неоднозначный ключ `competition_id:player_id` без `season_code`;
+- в `GET /competitions` убрана агрегация только по `competition_id` без сезонной дисамбигуации;
+- добавлены регрессии на owner remapping и multi-season selection.
+
+## Рабочий план (осталось)
+
+1. Унифицировать модель `PlayerCompetitionResult`.
+- Зафиксировать единый смысл строки в карточке игрока: scoring competition (owner tournament), а не raw запись.
+- Привести к одному смыслу поля:
   - `competitionId`
   - `competitionName`
   - `category`
   - `seasonPoints`
   - навигацию в detail page
 
-4. Развести raw order и вычисленное место.
+2. Развести raw order и вычисленное место.
 - Не использовать `CompetitionResult.orderNumber` одновременно как:
   - исходное место из импорта
   - пересчитанное место на detail-странице
@@ -41,31 +59,30 @@
   - `placement`
   - `placementLabel`
 
-5. Унифицировать `Player.competitionsCount`.
+3. Унифицировать `Player.competitionsCount`.
 - Сейчас без сезона это count raw competitions, а с сезоном count scoring competitions.
 - Нужен один смысл на все приложение.
 - Если оба сценария важны, разделить на два поля:
   - `resultsCount`
   - `seasonCompetitionsCount`
 
-6. Унифицировать правила eligibility турниров.
+4. Унифицировать правила eligibility турниров.
 - Свести в один источник правила минимального числа игроков.
 - Сейчас threshold живет и в importer, и в season accrual.
 - Либо использовать season config, либо shared constant/validator, но не две независимые проверки.
 
 ## Рекомендуемый порядок
 
-1. `Competition.hasResults`
-2. Shared hierarchy policy
-3. `PlayerCompetitionResult`
-4. `Player.competitionsCount`
-5. `CompetitionResult.orderNumber` / `placement`
-6. Eligibility rules
+1. `PlayerCompetitionResult`
+2. `Player.competitionsCount`
+3. `CompetitionResult.orderNumber` / `placement`
+4. Eligibility rules
+5. Хлебные крошки `Игрок -> Турнир`
 
 ## Code Review (uncommitted) — action items
 
-1. Исправить агрегацию `seasonPoints` в `GET /competitions`: не суммировать очки по всем сезонам только по `competition_id` без `season_code`.
-2. Исправить загрузку `seasonPoints` в `GET /results`: убрать неоднозначный ключ `competition_id:player_id` без `season_code`.
-3. Добавить fallback в `competitions` API для отсутствующего столбца `comment` (по аналогии с `category_id`) для частично мигрированных окружений.
+1. Добавить fallback в `competitions` API для отсутствующего столбца `comment` (по аналогии с `category_id`) для частично мигрированных окружений.
+2. (done) Исправить агрегацию `seasonPoints` в `GET /competitions`: убрать агрегацию только по `competition_id` без сезонной дисамбигуации.
+3. (done) Исправить загрузку `seasonPoints` в `GET /results`: убрать неоднозначный ключ `competition_id:player_id` без `season_code`.
 4. Добавить совместимость по маршруту `/competitions` (redirect/alias на `/`), чтобы не ломать старые ссылки.
 5. Добавить/уточнить `.gitignore` для служебных артефактов (`.omx/*`, `.playwright-mcp/*`), чтобы исключить случайный коммит.

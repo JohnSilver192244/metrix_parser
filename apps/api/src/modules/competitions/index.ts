@@ -1,13 +1,16 @@
 import type {
   CompetitionCommentReasonCode,
   Competition,
+  CompetitionHierarchyNode,
   CompetitionDbRecord,
   UpdateCompetitionCategoryRequest,
 } from "@metrix-parser/shared-types";
 import {
+  buildCompetitionChildrenByParentId,
   buildCompetitionComment,
   clearCompetitionCommentIfMatches,
   normalizeCompetitionComment,
+  resolveCompetitionIdentityById,
   shouldOverwriteCompetitionComment,
 } from "@metrix-parser/shared-types";
 
@@ -55,6 +58,8 @@ interface SupabaseQueryError {
 
 interface SeasonStandingCompetitionRow {
   competition_id: string | null;
+  season_code?: string | null;
+  player_id?: string | null;
   season_points: number | string | null;
 }
 
@@ -107,21 +112,40 @@ export function resolveCompetitionIdsWithResultsIncludingDescendants(
   records: readonly CompetitionDbRecord[],
   directCompetitionIdsWithResults: ReadonlySet<string>,
 ): Set<string> {
-  const parentIdByCompetitionId = new Map<string, string | null>();
-  for (const record of records) {
-    parentIdByCompetitionId.set(record.competition_id, record.parent_id ?? null);
-  }
-
+  const hierarchyNodes = records.map(
+    (record) =>
+      ({
+        competitionId: record.competition_id,
+        parentId: record.parent_id ?? null,
+        recordType: record.record_type,
+      }) satisfies CompetitionHierarchyNode,
+  );
+  const competitionsById = new Map(
+    hierarchyNodes.map((node) => [node.competitionId, node]),
+  );
+  const childrenByParentId = buildCompetitionChildrenByParentId(hierarchyNodes);
   const competitionIdsWithResults = new Set<string>();
-
-  for (const directCompetitionId of directCompetitionIdsWithResults) {
-    let currentCompetitionId: string | null = directCompetitionId;
-    const visitedCompetitionIds = new Set<string>();
-
-    while (currentCompetitionId && !visitedCompetitionIds.has(currentCompetitionId)) {
-      visitedCompetitionIds.add(currentCompetitionId);
-      competitionIdsWithResults.add(currentCompetitionId);
-      currentCompetitionId = parentIdByCompetitionId.get(currentCompetitionId) ?? null;
+  const parentIdByCompetitionId = new Map(
+    hierarchyNodes.map((node) => [node.competitionId, node.parentId ?? null]),
+  );
+  for (const node of hierarchyNodes) {
+    const identity = resolveCompetitionIdentityById(
+      node.competitionId,
+      competitionsById,
+      childrenByParentId,
+    );
+    if (
+      identity.resultSourceCompetitionIds.some((sourceCompetitionId) =>
+        directCompetitionIdsWithResults.has(sourceCompetitionId),
+      )
+    ) {
+      let currentCompetitionId: string | null = node.competitionId;
+      const visitedCompetitionIds = new Set<string>();
+      while (currentCompetitionId && !visitedCompetitionIds.has(currentCompetitionId)) {
+        visitedCompetitionIds.add(currentCompetitionId);
+        competitionIdsWithResults.add(currentCompetitionId);
+        currentCompetitionId = parentIdByCompetitionId.get(currentCompetitionId) ?? null;
+      }
     }
   }
 
@@ -169,7 +193,8 @@ async function listCompetitionIdsWithResults(): Promise<Set<string>> {
 export function aggregateSeasonStandingsByCompetition(
   rows: readonly SeasonStandingCompetitionRow[],
 ): Map<string, number> {
-  const seasonPointsByCompetitionId = new Map<string, number>();
+  const totalsByCompetitionAndSeason = new Map<string, number>();
+  const playersByCompetitionAndSeason = new Map<string, Set<string>>();
 
   for (const row of rows) {
     const competitionId = row.competition_id?.trim();
@@ -182,9 +207,87 @@ export function aggregateSeasonStandingsByCompetition(
       continue;
     }
 
+    const seasonCode = row.season_code?.trim() ?? "";
+    const key = `${competitionId}::${seasonCode}`;
+    totalsByCompetitionAndSeason.set(
+      key,
+      (totalsByCompetitionAndSeason.get(key) ?? 0) + seasonPoints,
+    );
+
+    const playerId = row.player_id?.trim() ?? "";
+    if (playerId.length > 0) {
+      const players = playersByCompetitionAndSeason.get(key) ?? new Set<string>();
+      players.add(playerId);
+      playersByCompetitionAndSeason.set(key, players);
+    }
+  }
+
+  const seasonPointsByCompetitionId = new Map<
+    string,
+    { seasonCode: string; total: number; playersCount: number }
+  >();
+  for (const [key, total] of totalsByCompetitionAndSeason.entries()) {
+    const [competitionId, seasonCode = ""] = key.split("::");
+    if (!competitionId) {
+      continue;
+    }
+
+    const playersCount = playersByCompetitionAndSeason.get(key)?.size ?? 0;
+    const current = seasonPointsByCompetitionId.get(competitionId);
+    if (
+      !current ||
+      playersCount > current.playersCount ||
+      (playersCount === current.playersCount &&
+        seasonCode.localeCompare(current.seasonCode, "ru") > 0)
+    ) {
+      seasonPointsByCompetitionId.set(competitionId, { seasonCode, total, playersCount });
+    }
+  }
+
+  const totalsByCompetitionId = new Map<string, number>();
+  for (const [competitionId, value] of seasonPointsByCompetitionId.entries()) {
+    totalsByCompetitionId.set(competitionId, value.total);
+  }
+
+  return totalsByCompetitionId;
+}
+
+function buildCompetitionIdentityMaps(records: readonly CompetitionDbRecord[]): {
+  competitionsById: Map<string, CompetitionHierarchyNode>;
+  childrenByParentId: Map<string, CompetitionHierarchyNode[]>;
+} {
+  const hierarchyNodes = records.map(
+    (record) =>
+      ({
+        competitionId: record.competition_id,
+        parentId: record.parent_id ?? null,
+        recordType: record.record_type,
+      }) satisfies CompetitionHierarchyNode,
+  );
+
+  return {
+    competitionsById: new Map(hierarchyNodes.map((node) => [node.competitionId, node])),
+    childrenByParentId: buildCompetitionChildrenByParentId(hierarchyNodes),
+  };
+}
+
+export function resolveCompetitionSeasonPointsByCompetitionId(
+  records: readonly CompetitionDbRecord[],
+  seasonPointsByOwnerCompetitionId: ReadonlyMap<string, number>,
+): Map<string, number | null> {
+  const { competitionsById, childrenByParentId } = buildCompetitionIdentityMaps(records);
+  const seasonPointsByCompetitionId = new Map<string, number | null>();
+
+  for (const record of records) {
+    const identity = resolveCompetitionIdentityById(
+      record.competition_id,
+      competitionsById,
+      childrenByParentId,
+    );
+
     seasonPointsByCompetitionId.set(
-      competitionId,
-      (seasonPointsByCompetitionId.get(competitionId) ?? 0) + seasonPoints,
+      record.competition_id,
+      seasonPointsByOwnerCompetitionId.get(identity.ownerCompetitionId) ?? null,
     );
   }
 
@@ -206,7 +309,7 @@ async function listSeasonPointsByCompetition(
   const { data, error } = await supabase
     .schema(APP_PUBLIC_SCHEMA)
     .from("season_standings")
-    .select("competition_id, season_points")
+    .select("competition_id, season_code, player_id, season_points")
     .in("competition_id", [...competitionIds]);
 
   if (error) {
@@ -318,12 +421,16 @@ async function listCompetitionsFromRuntime(): Promise<Competition[]> {
     adapter.listCompetitions(),
     listCompetitionIdsWithResults(),
   ]);
+  const seasonPointsByOwnerCompetitionId = await listSeasonPointsByCompetition(
+    records.map((record) => record.competition_id),
+  );
+  const seasonPointsByCompetitionId = resolveCompetitionSeasonPointsByCompetitionId(
+    records,
+    seasonPointsByOwnerCompetitionId,
+  );
   const competitionIdsWithResults = resolveCompetitionIdsWithResultsIncludingDescendants(
     records,
     directCompetitionIdsWithResults,
-  );
-  const seasonPointsByCompetitionId = await listSeasonPointsByCompetition(
-    records.map((record) => record.competition_id),
   );
 
   return records.map((record) =>
@@ -385,11 +492,23 @@ async function updateCompetitionCategoryFromRuntime(
   payload: UpdateCompetitionCategoryRequest,
 ): Promise<Competition> {
   const adapter = createSupabaseCompetitionWriteAdapter();
-  const [record, competitionIdsWithResults, seasonPointsByCompetitionId] = await Promise.all([
+  const readAdapter = createSupabaseCompetitionReadAdapter();
+  const [record, records, directCompetitionIdsWithResults] = await Promise.all([
     adapter.updateCompetitionCategory(payload),
+    readAdapter.listCompetitions(),
     listCompetitionIdsWithResults(),
-    listSeasonPointsByCompetition([payload.competitionId]),
   ]);
+  const seasonPointsByOwnerCompetitionId = await listSeasonPointsByCompetition(
+    records.map((competitionRecord) => competitionRecord.competition_id),
+  );
+  const competitionIdsWithResults = resolveCompetitionIdsWithResultsIncludingDescendants(
+    records,
+    directCompetitionIdsWithResults,
+  );
+  const seasonPointsByCompetitionId = resolveCompetitionSeasonPointsByCompetitionId(
+    records,
+    seasonPointsByOwnerCompetitionId,
+  );
 
   return toCompetition({
     ...record,

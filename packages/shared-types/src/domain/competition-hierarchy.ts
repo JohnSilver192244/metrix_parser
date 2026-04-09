@@ -4,6 +4,13 @@ export interface CompetitionHierarchyNode {
   recordType: string | null;
 }
 
+export interface CompetitionIdentity {
+  competitionId: string;
+  isScoringCompetition: boolean;
+  ownerCompetitionId: string;
+  resultSourceCompetitionIds: string[];
+}
+
 const LIST_VISIBLE_COMPETITION_RECORD_TYPES = new Set(["2", "4"]);
 
 function normalizeParentId(parentId: string | null | undefined): string | null {
@@ -78,6 +85,43 @@ export function resolveCompetitionResultSourceIds<T extends CompetitionHierarchy
   }
 
   return [competition.competitionId];
+}
+
+export function resolveCompetitionIdentity<T extends CompetitionHierarchyNode>(
+  competition: T,
+  competitionsById: ReadonlyMap<string, T>,
+  childrenByParentId: ReadonlyMap<string, readonly T[]>,
+): CompetitionIdentity {
+  return {
+    competitionId: competition.competitionId,
+    isScoringCompetition: isCompetitionScoringUnitCandidate(competition),
+    ownerCompetitionId: resolveSeasonPointsCompetitionOwnerId(
+      competition.competitionId,
+      competitionsById,
+    ),
+    resultSourceCompetitionIds: resolveCompetitionResultSourceIds(
+      competition,
+      childrenByParentId,
+    ),
+  };
+}
+
+export function resolveCompetitionIdentityById<T extends CompetitionHierarchyNode>(
+  competitionId: string,
+  competitionsById: ReadonlyMap<string, T>,
+  childrenByParentId: ReadonlyMap<string, readonly T[]>,
+): CompetitionIdentity {
+  const competition = competitionsById.get(competitionId);
+  if (!competition) {
+    return {
+      competitionId,
+      isScoringCompetition: true,
+      ownerCompetitionId: competitionId,
+      resultSourceCompetitionIds: [competitionId],
+    };
+  }
+
+  return resolveCompetitionIdentity(competition, competitionsById, childrenByParentId);
 }
 
 export function resolveSeasonPointsCompetitionOwnerId<T extends CompetitionHierarchyNode>(

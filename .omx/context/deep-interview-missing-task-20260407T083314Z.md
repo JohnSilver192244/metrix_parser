@@ -1,0 +1,23 @@
+# Deep Interview Context Snapshot
+
+- Task statement: The user invoked `deep-interview` without providing a concrete task payload.
+- Desired outcome: Collect the actual change request and clarify its intent, scope, constraints, and decision boundaries before planning or implementation.
+- Stated solution: Start the deep-interview workflow.
+- Probable intent hypothesis: The user wants a clarification-first workflow for an unspecified codebase change.
+- Known facts/evidence:
+  - Repository is a brownfield monorepo.
+  - Relevant files visible in context include `packages/shared-types/src/domain/competition-hierarchy.ts` and `supabase/migrations/0019_reset_season_standings.sql`.
+- Constraints:
+  - No implementation should start until the task is specified and clarified.
+  - The interview should stay to one question per round.
+- Unknowns/open questions:
+  - What change the user actually wants.
+  - Whether the task is bugfix, refactor, feature, or review.
+  - What success looks like.
+- Decision-boundary unknowns:
+  - What should be in scope.
+  - What should be explicitly out of scope.
+  - What OMX may decide without confirmation.
+- Likely codebase touchpoints:
+  - `packages/shared-types/src/domain/competition-hierarchy.ts`
+  - `supabase/migrations/0019_reset_season_standings.sql`

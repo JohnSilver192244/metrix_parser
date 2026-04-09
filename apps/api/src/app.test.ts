@@ -9,10 +9,15 @@ import { createRouter, type RouteDefinition } from "./lib/router";
 import type { ApiModuleDependencies } from "./modules";
 import {
   aggregateSeasonStandingsByCompetition,
+  resolveCompetitionSeasonPointsByCompetitionId,
   resolveCompetitionIdsWithResultsIncludingDescendants,
 } from "./modules/competitions";
 import { aggregateSeasonStandingsByPlayer } from "./modules/players";
-import { resolveSeasonPointsCompetitionIdForResult } from "./modules/results";
+import {
+  resolveCanonicalSeasonCodeByCompetition,
+  resolveSeasonPointsByResultIdentity,
+  resolveSeasonPointsCompetitionIdForResult,
+} from "./modules/results";
 import {
   buildSeasonScoringCompetitionUnits,
   loadPaginatedCompetitionResults,
@@ -712,22 +717,27 @@ test("aggregateSeasonStandingsByCompetition sums season points per competition",
   const aggregated = aggregateSeasonStandingsByCompetition([
     {
       competition_id: "competition-1",
+      season_code: "2026",
       season_points: 120.5,
     },
     {
       competition_id: "competition-1",
+      season_code: "2026",
       season_points: 77,
     },
     {
       competition_id: "competition-2",
+      season_code: "2026",
       season_points: "15.25",
     },
     {
       competition_id: "competition-2",
+      season_code: "2026",
       season_points: null,
     },
     {
       competition_id: null,
+      season_code: "2026",
       season_points: 10,
     },
   ]);
@@ -735,6 +745,86 @@ test("aggregateSeasonStandingsByCompetition sums season points per competition",
   assert.equal(aggregated.get("competition-1"), 197.5);
   assert.equal(aggregated.get("competition-2"), 15.25);
   assert.equal(aggregated.get("competition-3"), undefined);
+});
+
+test("aggregateSeasonStandingsByCompetition keeps only the latest season per competition", () => {
+  const aggregated = aggregateSeasonStandingsByCompetition([
+    {
+      competition_id: "competition-1",
+      season_code: "2025",
+      season_points: 200,
+    },
+    {
+      competition_id: "competition-1",
+      season_code: "2026",
+      season_points: 110,
+    },
+    {
+      competition_id: "competition-1",
+      season_code: "2026",
+      season_points: 40,
+    },
+  ]);
+
+  assert.equal(aggregated.get("competition-1"), 150);
+});
+
+test("aggregateSeasonStandingsByCompetition prefers season with more players", () => {
+  const aggregated = aggregateSeasonStandingsByCompetition([
+    {
+      competition_id: "competition-1",
+      player_id: "player-1",
+      season_code: "2027",
+      season_points: 100,
+    },
+    {
+      competition_id: "competition-1",
+      player_id: "player-1",
+      season_code: "2026",
+      season_points: 40,
+    },
+    {
+      competition_id: "competition-1",
+      player_id: "player-2",
+      season_code: "2026",
+      season_points: 40,
+    },
+  ]);
+
+  assert.equal(aggregated.get("competition-1"), 80);
+});
+
+test("resolveCompetitionSeasonPointsByCompetitionId projects owner season points to child rounds", () => {
+  const projected = resolveCompetitionSeasonPointsByCompetitionId(
+    [
+      {
+        competition_id: "event-100",
+        competition_name: "Event",
+        competition_date: "2026-06-01",
+        parent_id: null,
+        course_id: null,
+        course_name: null,
+        record_type: "4",
+        players_count: 20,
+        metrix_id: null,
+      },
+      {
+        competition_id: "round-100-1",
+        competition_name: "Round 1",
+        competition_date: "2026-06-01",
+        parent_id: "event-100",
+        course_id: null,
+        course_name: null,
+        record_type: "1",
+        players_count: 20,
+        metrix_id: null,
+      },
+    ],
+    new Map([["event-100", 321.5]]),
+  );
+
+  assert.equal(projected.get("event-100"), 321.5);
+  assert.equal(projected.get("round-100-1"), 321.5);
 });
 
 test("resolveSeasonPointsCompetitionIdForResult uses scoring parent for round rows", () => {
@@ -802,6 +892,84 @@ test("resolveSeasonPointsCompetitionIdForResult uses scoring parent for round ro
     resolveSeasonPointsCompetitionIdForResult("unknown-100", competitionsById),
     "unknown-100",
   );
+});
+
+test("resolveCanonicalSeasonCodeByCompetition chooses season with most owner rows", () => {
+  const canonical = resolveCanonicalSeasonCodeByCompetition([
+    {
+      competition_id: "event-100",
+      player_id: "player-1",
+      season_code: "2025",
+      season_points: 120,
+    },
+    {
+      competition_id: "event-100",
+      player_id: "player-1",
+      season_code: "2026",
+      season_points: 100,
+    },
+    {
+      competition_id: "event-100",
+      player_id: "player-2",
+      season_code: "2026",
+      season_points: 90,
+    },
+  ]);
+
+  assert.equal(canonical.get("event-100"), "2026");
+});
+
+test("resolveSeasonPointsByResultIdentity maps child round rows to owner season points", () => {
+  const competitionsById = new Map([
+    [
+      "event-100",
+      {
+        competition_id: "event-100",
+        parent_id: null,
+        record_type: "4",
+      },
+    ],
+    [
+      "round-1",
+      {
+        competition_id: "round-1",
+        parent_id: "event-100",
+        record_type: "1",
+      },
+    ],
+  ]);
+
+  const seasonPointsByResultIdentity = resolveSeasonPointsByResultIdentity(
+    [
+      {
+        competition_id: "round-1",
+        player_id: "player-1",
+      },
+    ],
+    competitionsById,
+    [
+      {
+        competition_id: "event-100",
+        player_id: "player-1",
+        season_code: "2026",
+        season_points: 88.5,
+      },
+      {
+        competition_id: "event-100",
+        player_id: "player-1",
+        season_code: "2025",
+        season_points: 12,
+      },
+      {
+        competition_id: "event-100",
+        player_id: "player-2",
+        season_code: "2026",
+        season_points: 71,
+      },
+    ],
+  );
+
+  assert.equal(seasonPointsByResultIdentity.get("round-1:player-1"), 88.5);
 });
 
 test("GET /tournament-categories returns persisted categories via the API envelope", async () => {
