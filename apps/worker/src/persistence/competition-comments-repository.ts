@@ -312,7 +312,6 @@ export function resolveResultsSaveFailureComment(
   if (
     issueCode === "invalid_competition_result_record" ||
     issueCode === "competition_result_missing_identity" ||
-    issueCode === "competition_result_missing_order" ||
     issueCode === "competition_result_missing_score"
   ) {
     return RESULTS_SAVE_INVALID_BLOCKER_COMMENT;

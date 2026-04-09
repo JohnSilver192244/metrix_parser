@@ -1,6 +1,6 @@
 # TODO
 
-1. Игроки -> игрок -> турнир: сделать нормальные хлебные крошки.
+1. (done) Игроки -> игрок -> турнир: сделать нормальные хлебные крошки.
 
 ## План: унификация competition-сущностей и алгоритмов
 
@@ -38,26 +38,34 @@
 - в `GET /competitions` убрана агрегация только по `competition_id` без сезонной дисамбигуации;
 - добавлены регрессии на owner remapping и multi-season selection.
 
+4. Унифицирована модель `PlayerCompetitionResult` в `GET /players/results`:
+- строка карточки игрока теперь формируется как scoring competition (owner tournament), а не raw запись;
+- `competitionId`, `competitionName`, `category`, `seasonPoints` отдаются в owner-смысле;
+- detail-навигация через `competitionId` теперь стабильно ведет на owner competition;
+- добавлена регрессия на owner-based collapse и выбор representative source-row.
+
+5. Добавлены хлебные крошки для сценария `Игроки -> игрок -> турнир`:
+- при переходе из карточки игрока в турнир сохраняется контекст источника;
+- на detail-странице турнира показываются breadcrumbs:
+  - `Игроки`
+  - `{имя игрока}`
+  - `{название турнира}`
+- при переходе в турнир из списка соревнований контекст breadcrumbs очищается.
+
 ## Рабочий план (осталось)
 
-1. Унифицировать модель `PlayerCompetitionResult`.
-- Зафиксировать единый смысл строки в карточке игрока: scoring competition (owner tournament), а не raw запись.
-- Привести к одному смыслу поля:
+1. (done) Унифицировать модель `PlayerCompetitionResult`.
+- Зафиксирован единый смысл строки в карточке игрока: scoring competition (owner tournament), а не raw запись.
+- Приведен к одному смыслу набор полей:
   - `competitionId`
   - `competitionName`
   - `category`
   - `seasonPoints`
-  - навигацию в detail page
+  - навигация в detail page
 
-2. Развести raw order и вычисленное место.
-- Не использовать `CompetitionResult.orderNumber` одновременно как:
-  - исходное место из импорта
-  - пересчитанное место на detail-странице
-  - место в player view
-- Ввести отдельные поля или отдельный view-model:
-  - `sourceOrderNumber`
-  - `placement`
-  - `placementLabel`
+2. (done) Убрать raw place (`order_number`) и оставить только вычисляемое место.
+- Поле `order_number` удалено из БД, ingestion-пайплайна и API-модели `CompetitionResult`.
+- Для UI используется только вычисляемый placement (`placement` / `placementLabel`).
 
 3. Унифицировать `Player.competitionsCount`.
 - Сейчас без сезона это count raw competitions, а с сезоном count scoring competitions.
@@ -75,7 +83,7 @@
 
 1. `PlayerCompetitionResult`
 2. `Player.competitionsCount`
-3. `CompetitionResult.orderNumber` / `placement`
+3. Raw place removal / `placement`
 4. Eligibility rules
 5. Хлебные крошки `Игрок -> Турнир`
 

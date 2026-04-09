@@ -20,6 +20,7 @@ import {
 import { listSeasons, resolveSeasonsErrorMessage } from "../../shared/api/seasons";
 import { useSessionStorageState } from "../../shared/session-storage";
 import { decodeHtmlEntities } from "../../shared/text";
+import { setCompetitionResultsSourcePlayerContext } from "../../shared/navigation-context";
 
 type PlayerHeaderState =
   | {
@@ -274,6 +275,10 @@ export function PlayerPageView({
                         className="data-table__link-button"
                         type="button"
                         onClick={() => {
+                          setCompetitionResultsSourcePlayerContext(row.competitionId, {
+                            playerId: player.playerId,
+                            playerName: resolvePlayerName(player),
+                          });
                           onNavigate(buildCompetitionResultsPath(row.competitionId));
                         }}
                         aria-label={`Открыть результаты соревнования ${decodeHtmlEntities(row.competitionName)}`}

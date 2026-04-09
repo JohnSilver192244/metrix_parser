@@ -66,7 +66,6 @@ export interface ParsedCompetitionResultFragment {
   className: string | undefined;
   sum: number | undefined;
   diff: number | undefined;
-  orderNumber: number | undefined;
   dnf: boolean;
 }
 
@@ -116,16 +115,6 @@ export function parseCompetitionResultFragment(
       "ToPar",
       "toPar",
       "to_par",
-    ]),
-    orderNumber: readOptionalNumberField(record, [
-      "Place",
-      "place",
-      "Position",
-      "position",
-      "Order",
-      "order",
-      "orderNumber",
-      "order_number",
     ]),
     dnf,
   };

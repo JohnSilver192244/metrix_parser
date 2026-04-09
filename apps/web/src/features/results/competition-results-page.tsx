@@ -26,6 +26,11 @@ import {
   resolveResultsErrorMessage,
 } from "../../shared/api/results";
 import { decodeHtmlEntities } from "../../shared/text";
+import {
+  consumeCompetitionResultsSourcePlayerContext,
+  type CompetitionResultsSourcePlayer,
+} from "../../shared/navigation-context";
+import { buildPlayerPath } from "../../app/route-paths";
 
 type CompetitionResultsPageState =
   | {
@@ -54,7 +59,8 @@ export interface CompetitionRoundBreakdown {
 }
 
 export interface CompetitionResultsRow extends CompetitionResult {
-  placementLabel?: string;
+  placement: number | null;
+  placementLabel: string;
   roundBreakdown?: CompetitionRoundBreakdown[];
 }
 
@@ -229,8 +235,8 @@ export function resolveCompetitionDisplayContext(
 }
 
 function compareCompetitionResults(
-  left: CompetitionResultsRow,
-  right: CompetitionResultsRow,
+  left: CompetitionResult,
+  right: CompetitionResult,
 ): number {
   if (left.dnf !== right.dnf) {
     return left.dnf ? 1 : -1;
@@ -260,7 +266,7 @@ function assignCalculatedPlacements(
   const placementByPlayerId = new Map<
     string,
     {
-      orderNumber: number;
+      placement: number | null;
       placementLabel: string;
     }
   >();
@@ -273,7 +279,7 @@ function assignCalculatedPlacements(
 
     if (!result || result.dnf || result.sum === null) {
       placementByPlayerId.set(result?.playerId ?? `${index}`, {
-        orderNumber: Number.MAX_SAFE_INTEGER,
+        placement: null,
         placementLabel: "DNF",
       });
       index += 1;
@@ -300,7 +306,7 @@ function assignCalculatedPlacements(
       }
 
       placementByPlayerId.set(tiedResult.playerId, {
-        orderNumber: currentPlacement,
+        placement: currentPlacement,
         placementLabel,
       });
     }
@@ -314,7 +320,7 @@ function assignCalculatedPlacements(
 
     return {
       ...result,
-      orderNumber: placement?.orderNumber ?? Number.MAX_SAFE_INTEGER,
+      placement: placement?.placement ?? null,
       placementLabel: placement?.placementLabel ?? "DNF",
     };
   });
@@ -334,6 +340,8 @@ export function resolveCompetitionResults(
     return assignCalculatedPlacements(
       [...(resultsByCompetitionId[competition.competitionId] ?? [])].map((result) => ({
         ...result,
+        placement: null,
+        placementLabel: "DNF",
         roundBreakdown: [],
       })),
     );
@@ -399,7 +407,8 @@ export function resolveCompetitionResults(
       seasonPoints:
         playerResults.find((playerResult) => playerResult.seasonPoints != null)?.seasonPoints ??
         null,
-      orderNumber: Number.MAX_SAFE_INTEGER,
+      placement: null,
+      placementLabel: "DNF",
       roundBreakdown,
     };
   });
@@ -418,8 +427,10 @@ export function sortCompetitionResults(
 
     const direction = sort.direction === "asc" ? 1 : -1;
 
-    if (sort.field === "placement" && left.orderNumber !== right.orderNumber) {
-      return (left.orderNumber - right.orderNumber) * direction;
+    const leftPlacement = left.placement ?? Number.MAX_SAFE_INTEGER;
+    const rightPlacement = right.placement ?? Number.MAX_SAFE_INTEGER;
+    if (sort.field === "placement" && leftPlacement !== rightPlacement) {
+      return (leftPlacement - rightPlacement) * direction;
     }
 
     if (sort.field === "diff") {
@@ -436,8 +447,8 @@ export function sortCompetitionResults(
       return leadingComparison;
     }
 
-    if (left.orderNumber !== right.orderNumber) {
-      return left.orderNumber - right.orderNumber;
+    if (leftPlacement !== rightPlacement) {
+      return leftPlacement - rightPlacement;
     }
 
     return resolvePlayerLabel(left).localeCompare(resolvePlayerLabel(right), "ru");
@@ -445,11 +456,15 @@ export function sortCompetitionResults(
 }
 
 export function formatCompetitionPlacement(result: CompetitionResult): string {
-  return "placementLabel" in result && typeof result.placementLabel === "string"
-    ? result.placementLabel
-    : result.dnf
-      ? "DNF"
-      : `${result.orderNumber}`;
+  if ("placementLabel" in result && typeof result.placementLabel === "string") {
+    return result.placementLabel;
+  }
+
+  if ("placement" in result && typeof result.placement === "number") {
+    return `${result.placement}`;
+  }
+
+  return result.dnf ? "DNF" : "—";
 }
 
 function resolveCompetitionResultsErrorMessage(
@@ -466,11 +481,13 @@ function resolveCompetitionResultsErrorMessage(
 export interface CompetitionResultsPageViewProps {
   state: CompetitionResultsPageState;
   onNavigate: (pathname: string) => void;
+  sourcePlayer?: CompetitionResultsSourcePlayer | null;
 }
 
 export function CompetitionResultsPageView({
   state,
   onNavigate,
+  sourcePlayer,
 }: CompetitionResultsPageViewProps) {
   const [sort, setSort] = useState<CompetitionResultsSort>(DEFAULT_SORT);
   const backButton = (
@@ -485,9 +502,45 @@ export function CompetitionResultsPageView({
     </button>
   );
 
+  const currentPageLabel =
+    state.status === "ready" ? decodeHtmlEntities(state.competition.competitionName) : "Турнир";
+  const playerLabel = sourcePlayer
+    ? decodeHtmlEntities(sourcePlayer.playerName.trim()) || sourcePlayer.playerId
+    : null;
+  const breadcrumbs = sourcePlayer && playerLabel ? (
+    <nav className="page-breadcrumbs" aria-label="Хлебные крошки">
+      <button
+        className="page-breadcrumbs__link"
+        type="button"
+        onClick={() => {
+          onNavigate("/players");
+        }}
+      >
+        Игроки
+      </button>
+      <span className="page-breadcrumbs__separator" aria-hidden="true">
+        /
+      </span>
+      <button
+        className="page-breadcrumbs__link"
+        type="button"
+        onClick={() => {
+          onNavigate(buildPlayerPath(sourcePlayer.playerId));
+        }}
+      >
+        {playerLabel}
+      </button>
+      <span className="page-breadcrumbs__separator" aria-hidden="true">
+        /
+      </span>
+      <span className="page-breadcrumbs__current">{currentPageLabel}</span>
+    </nav>
+  ) : null;
+
   if (state.status === "loading") {
     return (
       <section className="data-page-shell" aria-labelledby="competition-results-title">
+        {breadcrumbs}
         {backButton}
 
         <section className="state-panel state-panel--pending" aria-live="polite">
@@ -502,6 +555,7 @@ export function CompetitionResultsPageView({
   if (state.status === "error") {
     return (
       <section className="data-page-shell" aria-labelledby="competition-results-title">
+        {breadcrumbs}
         {backButton}
 
         <section className="state-panel state-panel--error" role="alert">
@@ -516,6 +570,7 @@ export function CompetitionResultsPageView({
   if (state.status === "not-found") {
     return (
       <section className="data-page-shell" aria-labelledby="competition-results-title">
+        {breadcrumbs}
         {backButton}
 
         <section className="state-panel" aria-live="polite">
@@ -569,6 +624,7 @@ export function CompetitionResultsPageView({
 
   return (
     <section className="data-page-shell" aria-labelledby="competition-results-title">
+      {breadcrumbs}
       {backButton}
 
       <header className="competition-results-page__header">
@@ -712,6 +768,9 @@ export function CompetitionResultsPage({
   const [state, setState] = useState<CompetitionResultsPageState>({
     status: "loading",
   });
+  const [sourcePlayer] = useState<CompetitionResultsSourcePlayer | null>(() =>
+    consumeCompetitionResultsSourcePlayerContext(competitionId),
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -806,5 +865,11 @@ export function CompetitionResultsPage({
     };
   }, [competitionId]);
 
-  return <CompetitionResultsPageView state={state} onNavigate={onNavigate} />;
+  return (
+    <CompetitionResultsPageView
+      state={state}
+      onNavigate={onNavigate}
+      sourcePlayer={sourcePlayer}
+    />
+  );
 }

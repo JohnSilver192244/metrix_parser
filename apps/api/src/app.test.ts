@@ -12,7 +12,10 @@ import {
   resolveCompetitionSeasonPointsByCompetitionId,
   resolveCompetitionIdsWithResultsIncludingDescendants,
 } from "./modules/competitions";
-import { aggregateSeasonStandingsByPlayer } from "./modules/players";
+import {
+  aggregateSeasonStandingsByPlayer,
+  pickOwnerCompetitionResultRows,
+} from "./modules/players";
 import {
   resolveCanonicalSeasonCodeByCompetition,
   resolveSeasonPointsByResultIdentity,
@@ -711,6 +714,66 @@ test("aggregateSeasonStandingsByPlayer counts unique season competitions per pla
   assert.equal(aggregated.seasonCompetitionCountByPlayerId.get("player-100"), 2);
   assert.equal(aggregated.seasonPointsByPlayerId.get("player-101"), 50);
   assert.equal(aggregated.seasonCompetitionCountByPlayerId.get("player-101"), undefined);
+});
+
+test("pickOwnerCompetitionResultRows collapses rows by owner and prefers owner competition row", () => {
+  const selectedRowsByOwnerCompetitionId = pickOwnerCompetitionResultRows([
+    {
+      sourceCompetitionId: "round-2",
+      ownerCompetitionId: "event-1",
+      sum: 56,
+      dnf: false,
+    },
+    {
+      sourceCompetitionId: "event-1",
+      ownerCompetitionId: "event-1",
+      sum: 112,
+      dnf: false,
+    },
+    {
+      sourceCompetitionId: "round-1",
+      ownerCompetitionId: "event-1",
+      sum: 55,
+      dnf: false,
+    },
+  ]);
+
+  assert.deepEqual(selectedRowsByOwnerCompetitionId.get("event-1"), {
+    sourceCompetitionId: "event-1",
+    ownerCompetitionId: "event-1",
+    sum: 112,
+    dnf: false,
+  });
+});
+
+test("pickOwnerCompetitionResultRows chooses the best ranked non-DNF row when owner row is absent", () => {
+  const selectedRowsByOwnerCompetitionId = pickOwnerCompetitionResultRows([
+    {
+      sourceCompetitionId: "round-2",
+      ownerCompetitionId: "event-2",
+      sum: 58,
+      dnf: false,
+    },
+    {
+      sourceCompetitionId: "round-1",
+      ownerCompetitionId: "event-2",
+      sum: 55,
+      dnf: false,
+    },
+    {
+      sourceCompetitionId: "round-3",
+      ownerCompetitionId: "event-2",
+      sum: null,
+      dnf: true,
+    },
+  ]);
+
+  assert.deepEqual(selectedRowsByOwnerCompetitionId.get("event-2"), {
+    sourceCompetitionId: "round-1",
+    ownerCompetitionId: "event-2",
+    sum: 55,
+    dnf: false,
+  });
 });
 
 test("aggregateSeasonStandingsByCompetition sums season points per competition", () => {
@@ -2159,7 +2222,6 @@ test("GET /results returns persisted competition results via the API envelope", 
             className: "MPO",
             sum: 54,
             diff: -6,
-            orderNumber: 1,
             dnf: false,
             seasonPoints: 52.9,
           },
@@ -2172,7 +2234,6 @@ test("GET /results returns persisted competition results via the API envelope", 
             className: "FPO",
             sum: null,
             diff: null,
-            orderNumber: 2,
             dnf: true,
             seasonPoints: null,
           },
@@ -2190,7 +2251,6 @@ test("GET /results returns persisted competition results via the API envelope", 
       className: string | null;
       sum: number | null;
       diff: number | null;
-      orderNumber: number;
       dnf: boolean;
       seasonPoints?: number | null;
     }>;
@@ -2210,7 +2270,6 @@ test("GET /results returns persisted competition results via the API envelope", 
     className: "MPO",
     sum: 54,
     diff: -6,
-    orderNumber: 1,
     dnf: false,
     seasonPoints: 52.9,
   });
@@ -2223,7 +2282,6 @@ test("GET /results returns persisted competition results via the API envelope", 
     className: "FPO",
     sum: null,
     diff: null,
-    orderNumber: 2,
     dnf: true,
     seasonPoints: null,
   });
@@ -2253,7 +2311,6 @@ test("GET /results forwards competitionId filter to the results module", async (
               className: "MPO",
               sum: 54,
               diff: -6,
-              orderNumber: 1,
               dnf: false,
             },
           ];
@@ -2676,7 +2733,7 @@ test("POST /updates/players accepts a period-based update command", async () => 
             },
             {
               code: "invalid_competition_result_record",
-              message: "missing orderNumber",
+              message: "missing sum",
               recoverable: true,
               stage: "validation",
               recordKey: "competition:competition-101:player:player-2",
@@ -2712,7 +2769,7 @@ test("POST /updates/players accepts a period-based update command", async () => 
               issues: [
                 {
                   code: "invalid_competition_result_record",
-                  message: "missing orderNumber",
+                  message: "missing sum",
                   recoverable: true,
                   stage: "validation",
                   recordKey: "competition:competition-101:player:player-2",

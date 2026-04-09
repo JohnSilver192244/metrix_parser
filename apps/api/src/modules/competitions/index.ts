@@ -162,10 +162,9 @@ async function listCompetitionIdsWithResults(): Promise<Set<string>> {
     const { data, error } = await supabase
       .schema(APP_PUBLIC_SCHEMA)
       .from("competition_results")
-      .select("competition_id, player_id, order_number")
+      .select("competition_id, player_id")
       .order("competition_id", { ascending: true })
       .order("player_id", { ascending: true })
-      .order("order_number", { ascending: true })
       .range(from, to);
 
     if (error) {

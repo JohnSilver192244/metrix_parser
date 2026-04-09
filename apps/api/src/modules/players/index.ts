@@ -112,6 +112,13 @@ interface RankedCompetitionResult {
   placement: number;
 }
 
+export interface PlayerCompetitionOwnerProjectionRow {
+  sourceCompetitionId: string;
+  ownerCompetitionId: string;
+  sum: number | null;
+  dnf: boolean;
+}
+
 interface CompetitionHierarchyRow {
   competition_id: string;
   parent_id: string | null;
@@ -187,6 +194,55 @@ function resolveSeasonPointsCompetitionIdForPlayerResult(
   );
 
   return resolveSeasonPointsCompetitionOwnerId(competitionId, hierarchyCompetitionsById);
+}
+
+function comparePlayerCompetitionOwnerProjectionRows(
+  left: PlayerCompetitionOwnerProjectionRow,
+  right: PlayerCompetitionOwnerProjectionRow,
+): number {
+  const leftIsOwnerRow = left.sourceCompetitionId === left.ownerCompetitionId;
+  const rightIsOwnerRow = right.sourceCompetitionId === right.ownerCompetitionId;
+  if (leftIsOwnerRow !== rightIsOwnerRow) {
+    return leftIsOwnerRow ? -1 : 1;
+  }
+
+  const leftIsRanked = !left.dnf && left.sum !== null;
+  const rightIsRanked = !right.dnf && right.sum !== null;
+  if (leftIsRanked !== rightIsRanked) {
+    return leftIsRanked ? -1 : 1;
+  }
+
+  const leftSum = left.sum ?? Number.POSITIVE_INFINITY;
+  const rightSum = right.sum ?? Number.POSITIVE_INFINITY;
+  if (leftSum !== rightSum) {
+    return leftSum - rightSum;
+  }
+
+  return left.sourceCompetitionId.localeCompare(right.sourceCompetitionId, "ru");
+}
+
+export function pickOwnerCompetitionResultRows(
+  rows: readonly PlayerCompetitionOwnerProjectionRow[],
+): Map<string, PlayerCompetitionOwnerProjectionRow> {
+  const rowsByOwnerCompetitionId = new Map<string, PlayerCompetitionOwnerProjectionRow[]>();
+
+  for (const row of rows) {
+    const currentRows = rowsByOwnerCompetitionId.get(row.ownerCompetitionId) ?? [];
+    currentRows.push(row);
+    rowsByOwnerCompetitionId.set(row.ownerCompetitionId, currentRows);
+  }
+
+  const selectedByOwnerCompetitionId = new Map<string, PlayerCompetitionOwnerProjectionRow>();
+  for (const [ownerCompetitionId, ownerRows] of rowsByOwnerCompetitionId.entries()) {
+    const [selectedRow] = [...ownerRows].sort(comparePlayerCompetitionOwnerProjectionRows);
+    if (!selectedRow) {
+      continue;
+    }
+
+    selectedByOwnerCompetitionId.set(ownerCompetitionId, selectedRow);
+  }
+
+  return selectedByOwnerCompetitionId;
 }
 
 function toPlayer(record: PlayerDbRecord): Player {
@@ -322,11 +378,27 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
         return [];
       }
 
+      const competitionsById = await loadCompetitionHierarchy(competitionIds);
+      const ownerCompetitionIdBySourceCompetitionId = new Map<string, string>();
+      for (const competitionId of competitionIds) {
+        ownerCompetitionIdBySourceCompetitionId.set(
+          competitionId,
+          resolveSeasonPointsCompetitionIdForPlayerResult(competitionId, competitionsById),
+        );
+      }
+
+      const ownerCompetitionIds = [
+        ...new Set(ownerCompetitionIdBySourceCompetitionId.values()),
+      ];
+      if (ownerCompetitionIds.length === 0) {
+        return [];
+      }
+
       let competitionsQuery = supabase
         .schema(APP_PUBLIC_SCHEMA)
         .from("competitions")
         .select(PLAYER_COMPETITIONS_SELECT_COLUMNS)
-        .in("competition_id", competitionIds)
+        .in("competition_id", ownerCompetitionIds)
         .order("competition_date", { ascending: false });
 
       if (filters.dateFrom) {
@@ -357,8 +429,6 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
       if (visibleCompetitionIds.size === 0) {
         return [];
       }
-
-      const competitionsById = await loadCompetitionHierarchy([...visibleCompetitionIds]);
 
       const categoryIds = [
         ...new Set(
@@ -391,7 +461,24 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
         .schema(APP_PUBLIC_SCHEMA)
         .from("competition_results")
         .select("competition_id, player_id, sum, dnf")
-        .in("competition_id", [...visibleCompetitionIds]);
+        .in(
+          "competition_id",
+          [
+            ...new Set(
+              playerResultRows
+                .map((row) => row.competition_id?.trim() ?? "")
+                .filter((competitionId) => competitionId.length > 0)
+                .filter((competitionId) => {
+                  const ownerCompetitionId = ownerCompetitionIdBySourceCompetitionId.get(
+                    competitionId,
+                  );
+                  return ownerCompetitionId
+                    ? visibleCompetitionIds.has(ownerCompetitionId)
+                    : false;
+                }),
+            ),
+          ],
+        );
 
       if (allResultsError) {
         throw new Error(
@@ -439,21 +526,13 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
 
       let seasonPointsByCompetitionId = new Map<string, number>();
       if (filters.seasonCode) {
-        const seasonPointsCompetitionIds = [
-          ...new Set(
-            [...visibleCompetitionIds].map((competitionId) =>
-              resolveSeasonPointsCompetitionIdForPlayerResult(competitionId, competitionsById),
-            ),
-          ),
-        ];
-
         const { data: seasonRows, error: seasonError } = await supabase
           .schema(APP_PUBLIC_SCHEMA)
           .from("season_standings")
           .select("competition_id, season_points")
           .eq("player_id", filters.playerId)
           .eq("season_code", filters.seasonCode)
-          .in("competition_id", seasonPointsCompetitionIds);
+          .in("competition_id", [...visibleCompetitionIds]);
 
         if (seasonError && !isMissingSeasonStandingsTableError(seasonError)) {
           throw new Error(
@@ -472,36 +551,57 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
         competitionSummaries.map((competition) => [competition.competition_id, competition]),
       );
 
-      return playerResultRows
-        .filter((row) => visibleCompetitionIds.has(row.competition_id))
+      const ownerProjectionRows = playerResultRows
         .map((row) => {
-          const competition = competitionById.get(row.competition_id);
+          const sourceCompetitionId = row.competition_id?.trim() ?? "";
+          if (sourceCompetitionId.length === 0) {
+            return null;
+          }
+
+          const ownerCompetitionId = ownerCompetitionIdBySourceCompetitionId.get(
+            sourceCompetitionId,
+          );
+          if (!ownerCompetitionId || !visibleCompetitionIds.has(ownerCompetitionId)) {
+            return null;
+          }
+
+          return {
+            sourceCompetitionId,
+            ownerCompetitionId,
+            sum: row.sum,
+            dnf: row.dnf,
+          } satisfies PlayerCompetitionOwnerProjectionRow;
+        })
+        .filter((row): row is PlayerCompetitionOwnerProjectionRow => row !== null);
+
+      const selectedRowsByOwnerCompetitionId = pickOwnerCompetitionResultRows(
+        ownerProjectionRows,
+      );
+
+      return [...selectedRowsByOwnerCompetitionId.entries()]
+        .map(([ownerCompetitionId, selectedRow]) => {
+          const competition = competitionById.get(ownerCompetitionId);
           if (!competition) {
             return null;
           }
 
           const categoryId = competition.category_id?.trim() ?? "";
-          const categoryName = categoryId.length > 0 ? (categoriesById.get(categoryId) ?? categoryId) : null;
+          const categoryName =
+            categoryId.length > 0 ? (categoriesById.get(categoryId) ?? categoryId) : null;
 
           return {
             competitionId: competition.competition_id,
             competitionName: competition.competition_name,
             competitionDate: competition.competition_date,
             category: categoryName,
-            placement: row.dnf
+            placement: selectedRow.dnf
               ? null
               : (placementByCompetitionPlayerKey.get(
-                  `${row.competition_id}:${filters.playerId}`,
+                  `${selectedRow.sourceCompetitionId}:${filters.playerId}`,
                 ) ?? null),
-            sum: row.sum,
-            dnf: row.dnf,
-            seasonPoints:
-              seasonPointsByCompetitionId.get(
-                resolveSeasonPointsCompetitionIdForPlayerResult(
-                  row.competition_id,
-                  competitionsById,
-                ),
-              ) ?? null,
+            sum: selectedRow.sum,
+            dnf: selectedRow.dnf,
+            seasonPoints: seasonPointsByCompetitionId.get(ownerCompetitionId) ?? null,
           } satisfies PlayerCompetitionResult;
         })
         .filter((row): row is PlayerCompetitionResult => row !== null)

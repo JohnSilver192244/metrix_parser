@@ -94,14 +94,12 @@ class InMemoryCompetitionResultsAdapter
   async findByIdentity(
     competitionId: string,
     playerId: string,
-    orderNumber: number,
   ): Promise<CompetitionResultRow | null> {
     return (
       this.rows.find(
         (row) =>
           row.competition_id === competitionId &&
-          row.player_id === playerId &&
-          row.order_number === orderNumber,
+          row.player_id === playerId
       ) ?? null
     );
   }
@@ -136,8 +134,7 @@ class InMemoryCompetitionResultsAdapter
       const existing = this.rows.find(
         (row) =>
           row.competition_id === record.competition_id &&
-          row.player_id === record.player_id &&
-          row.order_number === record.order_number,
+          row.player_id === record.player_id
       );
 
       if (existing) {
@@ -387,7 +384,6 @@ test("runResultsPipelineUpdateJob skips existing players and results when overwr
       class_name: "MPO",
       sum: 54,
       diff: -6,
-      order_number: 1,
       dnf: false,
       raw_payload: { UserID: "player-1", Place: 1 },
       source_fetched_at: "2026-03-22T10:00:00.000Z",
@@ -484,7 +480,6 @@ test("runResultsPipelineUpdateJob updates existing players and results when over
       class_name: "MPO",
       sum: 54,
       diff: -6,
-      order_number: 1,
       dnf: false,
       raw_payload: { UserID: "player-1", Place: 1 },
       source_fetched_at: "2026-03-22T10:00:00.000Z",

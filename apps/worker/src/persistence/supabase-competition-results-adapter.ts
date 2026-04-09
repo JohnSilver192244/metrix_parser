@@ -7,23 +7,22 @@ import type {
 } from "./competition-results-repository";
 
 const COMPETITION_RESULTS_SELECT_COLUMNS =
-  "id, competition_id, player_id, class_name, sum, diff, order_number, dnf, raw_payload, source_fetched_at";
+  "id, competition_id, player_id, class_name, sum, diff, dnf, raw_payload, source_fetched_at";
 const COMPETITION_RESULTS_LOOKUP_SELECT_COLUMNS =
-  "id, competition_id, player_id, order_number";
+  "id, competition_id, player_id";
 const APP_PUBLIC_SCHEMA = "app_public";
 
 export function createSupabaseCompetitionResultsAdapter(
   supabase: SupabaseClient,
 ): CompetitionResultsPersistenceAdapter {
   return {
-    async findByIdentity(competitionId, playerId, orderNumber) {
+    async findByIdentity(competitionId, playerId) {
       const { data, error } = await supabase
         .schema(APP_PUBLIC_SCHEMA)
         .from("competition_results")
         .select(COMPETITION_RESULTS_SELECT_COLUMNS)
         .eq("competition_id", competitionId)
         .eq("player_id", playerId)
-        .eq("order_number", orderNumber)
         .maybeSingle();
 
       if (error) {
@@ -95,7 +94,7 @@ export function createSupabaseCompetitionResultsAdapter(
         .schema(APP_PUBLIC_SCHEMA)
         .from("competition_results")
         .upsert(records, {
-          onConflict: "competition_id,player_id,order_number",
+          onConflict: "competition_id,player_id",
         })
         .select(COMPETITION_RESULTS_SELECT_COLUMNS);
 

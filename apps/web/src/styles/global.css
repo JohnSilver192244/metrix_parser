@@ -1631,6 +1631,40 @@ body {
   color: var(--accent-strong);
 }
 
+.page-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  font-size: 0.88rem;
+  color: var(--text-soft);
+}
+
+.page-breadcrumbs__link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 150ms;
+}
+
+.page-breadcrumbs__link:hover {
+  color: var(--accent-strong);
+}
+
+.page-breadcrumbs__separator {
+  color: var(--text-soft);
+}
+
+.page-breadcrumbs__current {
+  color: var(--app-text);
+  font-weight: 600;
+}
+
 .competition-results-page__header {
   display: grid;
   gap: 6px;

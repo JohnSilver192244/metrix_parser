@@ -21,7 +21,6 @@ test("listResults reads data and meta from the backend envelope", async () => {
               className: "MPO",
               sum: 56,
               diff: -4,
-              orderNumber: 3,
               dnf: false,
               seasonPoints: 52.9,
             },

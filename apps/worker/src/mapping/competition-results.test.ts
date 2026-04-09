@@ -25,7 +25,6 @@ test("mapDiscGolfMetrixCompetitionResults maps regular result records into the s
     className: "MPO",
     sum: 54,
     diff: -6,
-    orderNumber: 1,
     dnf: false,
   });
   assert.deepEqual(toCompetitionResultDbRecord(result.results[0]!), {
@@ -34,7 +33,6 @@ test("mapDiscGolfMetrixCompetitionResults maps regular result records into the s
     class_name: "MPO",
     sum: 54,
     diff: -6,
-    order_number: 1,
     dnf: false,
     season_points: null,
   });
@@ -52,7 +50,6 @@ test("mapDiscGolfMetrixCompetitionResults keeps DNF as a separate logical state"
     className: "MA3",
     sum: null,
     diff: null,
-    orderNumber: 17,
     dnf: true,
   });
 });

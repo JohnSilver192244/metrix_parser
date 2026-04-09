@@ -22,6 +22,7 @@ import {
 } from "../../shared/api/tournament-categories";
 import { useSessionStorageState } from "../../shared/session-storage";
 import { decodeHtmlEntities } from "../../shared/text";
+import { clearCompetitionResultsSourcePlayerContext } from "../../shared/navigation-context";
 import {
   COMPETITION_RECORD_TYPE_LABELS,
   UNCATEGORIZED_COMPETITION_FILTER_VALUE,
@@ -920,6 +921,7 @@ export function CompetitionsPageView({
                                 className="data-table__link-button"
                                 type="button"
                                 onClick={() => {
+                                  clearCompetitionResultsSourcePlayerContext();
                                   onNavigate(buildCompetitionResultsPath(competition.competitionId));
                                 }}
                                 aria-label={`Открыть результаты соревнования ${competitionName}`}

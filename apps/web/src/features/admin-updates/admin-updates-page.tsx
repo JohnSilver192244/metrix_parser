@@ -22,9 +22,9 @@ const updateSkipConditions = [
   "Парки пропускаются, если в payload курса нет courseId, name или course_par.",
   "Игроки пропускаются, если во фрагменте результата нет playerId или playerName.",
   "Игроки пропускаются при сохранении, если playerId или playerName пустые.",
-  "Результаты пропускаются, если во фрагменте результата нет playerId или orderNumber.",
+  "Результаты пропускаются, если во фрагменте результата нет playerId.",
   "Результаты пропускаются, если запись не DNF и в ней нет sum или diff.",
-  "Результаты пропускаются при сохранении, если пусты competitionId или playerId, отсутствует целочисленный orderNumber, либо для не-DNF записи отсутствуют sum или diff.",
+  "Результаты пропускаются при сохранении, если пусты competitionId или playerId, либо для не-DNF записи отсутствуют sum или diff.",
 ] as const;
 
 function PendingStatus({ scenario, period }: { scenario: UpdateScenarioDefinition; period: UpdatePeriod }) {

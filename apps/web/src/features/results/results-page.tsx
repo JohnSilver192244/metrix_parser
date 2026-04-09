@@ -57,6 +57,82 @@ function resolvePlayerLabel(result: CompetitionResult): string {
   return decodeHtmlEntities(result.playerName?.trim()) || result.playerId;
 }
 
+function compareResultsForPlacement(
+  left: CompetitionResult,
+  right: CompetitionResult,
+): number {
+  if (left.dnf !== right.dnf) {
+    return left.dnf ? 1 : -1;
+  }
+
+  const leftSum = left.sum ?? Number.POSITIVE_INFINITY;
+  const rightSum = right.sum ?? Number.POSITIVE_INFINITY;
+  if (leftSum !== rightSum) {
+    return leftSum - rightSum;
+  }
+
+  const leftDiff = left.diff ?? Number.POSITIVE_INFINITY;
+  const rightDiff = right.diff ?? Number.POSITIVE_INFINITY;
+  if (leftDiff !== rightDiff) {
+    return leftDiff - rightDiff;
+  }
+
+  return left.playerId.localeCompare(right.playerId, "ru");
+}
+
+function resolvePlacementLabelsByResult(
+  results: readonly CompetitionResult[],
+): Map<string, string> {
+  const byCompetitionId = new Map<string, CompetitionResult[]>();
+
+  for (const result of results) {
+    const rows = byCompetitionId.get(result.competitionId) ?? [];
+    rows.push(result);
+    byCompetitionId.set(result.competitionId, rows);
+  }
+
+  const placementByResultKey = new Map<string, string>();
+
+  for (const [competitionId, competitionResults] of byCompetitionId.entries()) {
+    const ranked = [...competitionResults].sort(compareResultsForPlacement);
+    let currentPlacement = 1;
+    let index = 0;
+
+    while (index < ranked.length) {
+      const row = ranked[index];
+      if (!row || row.dnf || row.sum === null) {
+        placementByResultKey.set(`${competitionId}:${row?.playerId ?? index}`, "DNF");
+        index += 1;
+        continue;
+      }
+
+      let tieEndIndex = index + 1;
+      while (tieEndIndex < ranked.length) {
+        const next = ranked[tieEndIndex];
+        if (!next || next.dnf || next.sum !== row.sum) {
+          break;
+        }
+        tieEndIndex += 1;
+      }
+
+      const label = tieEndIndex - index > 1 ? `T${currentPlacement}` : `${currentPlacement}`;
+      for (let tieIndex = index; tieIndex < tieEndIndex; tieIndex += 1) {
+        const tied = ranked[tieIndex];
+        if (!tied) {
+          continue;
+        }
+
+        placementByResultKey.set(`${competitionId}:${tied.playerId}`, label);
+      }
+
+      currentPlacement += tieEndIndex - index;
+      index = tieEndIndex;
+    }
+  }
+
+  return placementByResultKey;
+}
+
 export interface ResultsPageViewProps {
   state: ResultsPageState;
   rdgaFilter?: ResultsRdgaFilter;
@@ -123,6 +199,7 @@ export function ResultsPageView({
 
   const { results, total } = state;
   const visibleResults = filterResultsByRdga(results, rdgaFilter);
+  const placementLabelsByResult = resolvePlacementLabelsByResult(visibleResults);
 
   return (
     <section className="data-page-shell" aria-labelledby="results-page-title">
@@ -189,7 +266,7 @@ export function ResultsPageView({
 
                       return (
                         <tr
-                          key={`${result.competitionId}-${result.playerId}-${result.orderNumber}`}
+                          key={`${result.competitionId}-${result.playerId}`}
                           className={isDnf ? "data-table__row--warning" : undefined}
                         >
                           <td>{resolveCompetitionLabel(result)}</td>
@@ -206,7 +283,11 @@ export function ResultsPageView({
                           <td className="data-table__cell-primary">
                             {formatClassName(result.className)}
                           </td>
-                          <td>{result.orderNumber}</td>
+                          <td>
+                            {placementLabelsByResult.get(
+                              `${result.competitionId}:${result.playerId}`,
+                            ) ?? "DNF"}
+                          </td>
                           <td>{isDnf ? "DNF" : formatSum(result.sum)}</td>
                           <td>{isDnf ? "DNF" : formatDiff(result.diff)}</td>
                           <td>

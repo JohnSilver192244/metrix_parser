@@ -32,7 +32,6 @@ export interface CompetitionResultsPersistenceAdapter {
   findByIdentity(
     competitionId: string,
     playerId: string,
-    orderNumber: number,
   ): Promise<CompetitionResultRow | null>;
   findByCompetitionIds(competitionIds: string[]): Promise<CompetitionResultRow[]>;
   insert(record: StoredCompetitionResultRecord): Promise<CompetitionResultRow>;
@@ -92,7 +91,7 @@ function normalizeRecordResult(recordResult: UpdateRecordResult): UpdateRecordRe
 }
 
 function buildResultIdentityKey(result: CompetitionResult): string {
-  return `${result.competitionId}::${result.playerId}::${result.orderNumber}`;
+  return `${result.competitionId}::${result.playerId}`;
 }
 
 export function createCompetitionResultsRepository(
@@ -118,19 +117,6 @@ export function createCompetitionResultsRepository(
       };
     }
 
-    if (!Number.isInteger(result.orderNumber)) {
-      return {
-        action: "skipped",
-        matchedExisting: false,
-        issue: createCompetitionResultIssue(
-          "competition_result_missing_order",
-          "Перед сохранением у результата должен быть orderNumber.",
-          "validation",
-          recordKey,
-        ),
-      };
-    }
-
     if (!result.dnf && (result.sum === null || result.diff === null)) {
       return {
         action: "skipped",
@@ -147,7 +133,6 @@ export function createCompetitionResultsRepository(
     const existingRow = await adapter.findByIdentity(
       result.competitionId,
       result.playerId,
-      result.orderNumber,
     );
     const dbRecord = toStoredCompetitionResultRecord(record);
 
@@ -208,7 +193,7 @@ export function createCompetitionResultsRepository(
         const existingRows = await adapter.findByCompetitionIds(competitionIds);
         const existingRowsByIdentity = new Map<string, CompetitionResultRow>(
           existingRows.map((row) => [
-            `${row.competition_id}::${row.player_id}::${row.order_number}`,
+            `${row.competition_id}::${row.player_id}`,
             row,
           ]),
         );
@@ -272,19 +257,6 @@ async function saveCompetitionResultValidation(
       issue: createCompetitionResultIssue(
         "competition_result_missing_identity",
         "Перед сохранением у результата должны быть competitionId и playerId.",
-        "validation",
-        recordKey,
-      ),
-    };
-  }
-
-  if (!Number.isInteger(result.orderNumber)) {
-    return {
-      action: "skipped",
-      matchedExisting: false,
-      issue: createCompetitionResultIssue(
-        "competition_result_missing_order",
-        "Перед сохранением у результата должен быть orderNumber.",
         "validation",
         recordKey,
       ),

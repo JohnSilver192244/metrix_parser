@@ -88,14 +88,12 @@ class InMemoryCompetitionResultsAdapter
   async findByIdentity(
     competitionId: string,
     playerId: string,
-    orderNumber: number,
   ): Promise<CompetitionResultRow | null> {
     return (
       this.rows.find(
         (row) =>
           row.competition_id === competitionId &&
-          row.player_id === playerId &&
-          row.order_number === orderNumber,
+          row.player_id === playerId
       ) ?? null
     );
   }
@@ -130,8 +128,7 @@ class InMemoryCompetitionResultsAdapter
       const existing = this.rows.find(
         (row) =>
           row.competition_id === record.competition_id &&
-          row.player_id === record.player_id &&
-          row.order_number === record.order_number,
+          row.player_id === record.player_id
       );
 
       if (existing) {

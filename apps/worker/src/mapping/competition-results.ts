@@ -73,10 +73,6 @@ export function mapDiscGolfMetrixCompetitionResultRecord(
     return { ok: false, issue: toInvalidCompetitionResultIssue(recordKey, "playerId") };
   }
 
-  if (fragment.orderNumber === undefined) {
-    return { ok: false, issue: toInvalidCompetitionResultIssue(recordKey, "orderNumber") };
-  }
-
   if (!fragment.dnf && fragment.sum === undefined) {
     return { ok: false, issue: toInvalidCompetitionResultIssue(recordKey, "sum") };
   }
@@ -96,7 +92,6 @@ export function mapDiscGolfMetrixCompetitionResultRecord(
         className: fragment.className ?? null,
         sum: fragment.sum ?? null,
         diff: fragment.diff ?? null,
-        orderNumber: fragment.orderNumber,
         dnf: fragment.dnf,
       },
       sourceRecord,

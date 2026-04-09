@@ -7,7 +7,6 @@ export interface CompetitionResult {
   className: string | null;
   sum: number | null;
   diff: number | null;
-  orderNumber: number;
   dnf: boolean;
   seasonPoints?: number | null;
 }
@@ -21,7 +20,6 @@ export interface CompetitionResultDbRecord {
   class_name: string | null;
   sum: number | null;
   diff: number | null;
-  order_number: number;
   dnf: boolean;
   season_points?: number | null;
 }
@@ -35,7 +33,6 @@ export function toCompetitionResultDbRecord(
     class_name: result.className,
     sum: result.sum,
     diff: result.diff,
-    order_number: result.orderNumber,
     dnf: result.dnf,
     season_points: result.seasonPoints ?? null,
   };

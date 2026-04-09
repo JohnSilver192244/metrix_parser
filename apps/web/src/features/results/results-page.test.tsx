@@ -37,7 +37,6 @@ test("ResultsPageView renders result fields and explicit DNF state", () => {
             className: "MPO",
             sum: 54,
             diff: -6,
-            orderNumber: 1,
             dnf: false,
           },
           {
@@ -49,7 +48,6 @@ test("ResultsPageView renders result fields and explicit DNF state", () => {
             className: "FPO",
             sum: null,
             diff: null,
-            orderNumber: 2,
             dnf: true,
           },
         ],
@@ -84,7 +82,6 @@ test("ResultsPageView filters results by RDGA", () => {
             className: "MPO",
             sum: 54,
             diff: -6,
-            orderNumber: 1,
             dnf: false,
           },
           {
@@ -96,7 +93,6 @@ test("ResultsPageView filters results by RDGA", () => {
             className: "FPO",
             sum: 60,
             diff: 0,
-            orderNumber: 2,
             dnf: false,
           },
         ],

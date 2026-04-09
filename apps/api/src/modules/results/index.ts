@@ -21,7 +21,6 @@ const RESULTS_SELECT_COLUMNS = [
   "class_name",
   "sum",
   "diff",
-  "order_number",
   "dnf",
 ].join(", ");
 
@@ -33,7 +32,6 @@ const RESULTS_SELECT_COLUMNS_LEGACY = [
   "class_name",
   "sum",
   "diff",
-  "order_number",
   "dnf",
 ].join(", ");
 
@@ -96,7 +94,6 @@ function toCompetitionResult(
     className: record.class_name,
     sum: record.sum,
     diff: record.diff,
-    orderNumber: record.order_number,
     dnf: record.dnf,
     seasonPoints: record.season_points ?? null,
   };
@@ -289,7 +286,10 @@ function createSupabaseResultReadAdapter(): ResultReadAdapter {
         .from("competition_results")
         .select(RESULTS_SELECT_COLUMNS)
         .order("competition_id", { ascending: false })
-        .order("order_number", { ascending: true });
+        .order("dnf", { ascending: true })
+        .order("sum", { ascending: true, nullsFirst: false })
+        .order("diff", { ascending: true, nullsFirst: false })
+        .order("player_id", { ascending: true });
 
       if (filters.competitionId) {
         query = query.eq("competition_id", filters.competitionId);
@@ -303,7 +303,10 @@ function createSupabaseResultReadAdapter(): ResultReadAdapter {
           .from("competition_results")
           .select(RESULTS_SELECT_COLUMNS_LEGACY)
           .order("competition_id", { ascending: false })
-          .order("order_number", { ascending: true });
+          .order("dnf", { ascending: true })
+          .order("sum", { ascending: true, nullsFirst: false })
+          .order("diff", { ascending: true, nullsFirst: false })
+          .order("player_id", { ascending: true });
 
         if (filters.competitionId) {
           legacyQuery = legacyQuery.eq("competition_id", filters.competitionId);

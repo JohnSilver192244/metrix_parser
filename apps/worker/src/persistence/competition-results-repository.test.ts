@@ -19,7 +19,6 @@ function createCompetitionResult(
     className: "MPO",
     sum: 54,
     diff: -6,
-    orderNumber: 1,
     dnf: false,
     ...overrides,
   };
@@ -35,7 +34,6 @@ function createStoredRow(
     class_name: "MPO",
     sum: 54,
     diff: -6,
-    order_number: 1,
     dnf: false,
     raw_payload: { UserID: "player-1" },
     source_fetched_at: "2026-03-22T10:00:00.000Z",
@@ -57,14 +55,12 @@ class InMemoryCompetitionResultsAdapter
   async findByIdentity(
     competitionId: string,
     playerId: string,
-    orderNumber: number,
   ): Promise<CompetitionResultRow | null> {
     return (
       this.rows.find(
         (row) =>
           row.competition_id === competitionId &&
-          row.player_id === playerId &&
-          row.order_number === orderNumber,
+          row.player_id === playerId,
       ) ?? null
     );
   }
@@ -99,8 +95,7 @@ class InMemoryCompetitionResultsAdapter
       const existing = this.rows.find(
         (row) =>
           row.competition_id === record.competition_id &&
-          row.player_id === record.player_id &&
-          row.order_number === record.order_number,
+          row.player_id === record.player_id,
       );
 
       if (existing) {
@@ -167,7 +162,6 @@ test("repository allows DNF results to persist without numeric score fields", as
       className: "MA3",
       sum: null,
       diff: null,
-      orderNumber: 17,
       dnf: true,
     }),
     rawPayload: { UserID: "player-2", Place: 17, DNF: true },
@@ -188,7 +182,6 @@ test("repository allows results without class name", async () => {
       className: null,
       sum: 53,
       diff: -7,
-      orderNumber: 2,
     }),
     rawPayload: { UserID: "player-2", Place: 2 },
     sourceFetchedAt: "2026-03-22T12:00:00.000Z",
@@ -205,7 +198,6 @@ test("repository does not persist derived season points into competition_results
   const result = await repository.saveCompetitionResult({
     result: createCompetitionResult({
       playerId: "player-3",
-      orderNumber: 3,
       seasonPoints: 120,
     }),
     rawPayload: { UserID: "player-3", Place: 3 },
@@ -256,7 +248,6 @@ test("repository batch-skips existing competition results when overwriteExisting
     {
       result: createCompetitionResult({
         playerId: "player-2",
-        orderNumber: 2,
         sum: 58,
         diff: -2,
       }),
@@ -294,7 +285,6 @@ test("repository batch-upserts competition results", async () => {
       {
         result: createCompetitionResult({
           playerId: "player-2",
-          orderNumber: 2,
           sum: 58,
           diff: -2,
         }),
