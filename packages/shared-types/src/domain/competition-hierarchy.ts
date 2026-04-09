@@ -95,9 +95,10 @@ export function resolveCompetitionIdentity<T extends CompetitionHierarchyNode>(
   return {
     competitionId: competition.competitionId,
     isScoringCompetition: isCompetitionScoringUnitCandidate(competition),
-    ownerCompetitionId: resolveSeasonPointsCompetitionOwnerId(
+    ownerCompetitionId: resolveSeasonPointsCompetitionOwnerIdWithHierarchy(
       competition.competitionId,
       competitionsById,
+      childrenByParentId,
     ),
     resultSourceCompetitionIds: resolveCompetitionResultSourceIds(
       competition,
@@ -124,9 +125,28 @@ export function resolveCompetitionIdentityById<T extends CompetitionHierarchyNod
   return resolveCompetitionIdentity(competition, competitionsById, childrenByParentId);
 }
 
-export function resolveSeasonPointsCompetitionOwnerId<T extends CompetitionHierarchyNode>(
+function hasDirectRoundChildren<T extends CompetitionHierarchyNode>(
+  competitionId: string,
+  childrenByParentId: ReadonlyMap<string, readonly T[]>,
+): boolean {
+  return (childrenByParentId.get(competitionId) ?? []).some((child) => child.recordType === "1");
+}
+
+function resolveDirectPoolChildrenWithRounds<T extends CompetitionHierarchyNode>(
+  competitionId: string,
+  childrenByParentId: ReadonlyMap<string, readonly T[]>,
+): T[] {
+  return (childrenByParentId.get(competitionId) ?? []).filter(
+    (child) =>
+      child.recordType === "3" &&
+      hasDirectRoundChildren(child.competitionId, childrenByParentId),
+  );
+}
+
+function resolveSeasonPointsCompetitionOwnerIdWithHierarchy<T extends CompetitionHierarchyNode>(
   competitionId: string,
   competitionsById: ReadonlyMap<string, T>,
+  childrenByParentId: ReadonlyMap<string, readonly T[]>,
 ): string {
   const visitedCompetitionIds = new Set<string>();
   let currentCompetitionId: string | null = competitionId;
@@ -141,13 +161,57 @@ export function resolveSeasonPointsCompetitionOwnerId<T extends CompetitionHiera
     }
 
     lastKnownCompetitionId = competition.competitionId;
+    const normalizedParentId = normalizeParentId(competition.parentId);
 
-    if (isCompetitionScoringUnitCandidate(competition)) {
+    if (isCompetitionListVisibleRecordType(competition.recordType)) {
+      if (competition.recordType === "4") {
+        const poolChildrenWithRounds = resolveDirectPoolChildrenWithRounds(
+          competition.competitionId,
+          childrenByParentId,
+        );
+        if (poolChildrenWithRounds.length > 1 && competition.competitionId !== competitionId) {
+          currentCompetitionId = normalizedParentId;
+          continue;
+        }
+      }
+
       return competition.competitionId;
     }
 
-    currentCompetitionId = normalizeParentId(competition.parentId);
+    if (isStandaloneRoundCompetition(competition)) {
+      return competition.competitionId;
+    }
+
+    if (competition.recordType === "3" && hasDirectRoundChildren(competition.competitionId, childrenByParentId)) {
+      const parentCompetition = normalizedParentId
+        ? competitionsById.get(normalizedParentId) ?? null
+        : null;
+      if (parentCompetition?.recordType === "4") {
+        const siblingPoolsWithRounds = resolveDirectPoolChildrenWithRounds(
+          parentCompetition.competitionId,
+          childrenByParentId,
+        );
+        if (siblingPoolsWithRounds.length === 1) {
+          return parentCompetition.competitionId;
+        }
+      }
+
+      return competition.competitionId;
+    }
+
+    currentCompetitionId = normalizedParentId;
   }
 
   return lastKnownCompetitionId;
+}
+
+export function resolveSeasonPointsCompetitionOwnerId<T extends CompetitionHierarchyNode>(
+  competitionId: string,
+  competitionsById: ReadonlyMap<string, T>,
+): string {
+  return resolveSeasonPointsCompetitionOwnerIdWithHierarchy(
+    competitionId,
+    competitionsById,
+    new Map<string, readonly T[]>(),
+  );
 }

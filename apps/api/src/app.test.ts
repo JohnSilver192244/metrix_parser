@@ -9,6 +9,7 @@ import { createRouter, type RouteDefinition } from "./lib/router";
 import type { ApiModuleDependencies } from "./modules";
 import {
   aggregateSeasonStandingsByCompetition,
+  loadPaginatedSeasonStandingsRows,
   resolveLegacyFallbackCompetitionSelectColumns,
   resolveCompetitionSeasonPointsByCompetitionId,
   resolveCompetitionIdsWithResultsIncludingDescendants,
@@ -25,6 +26,7 @@ import {
 import {
   buildSeasonScoringCompetitionUnits,
   loadPaginatedCompetitionResults,
+  loadPaginatedSeasonPointsMatrix,
   rankCompetitionResultsForSeasonPoints,
   runSeasonPointsAccrual,
 } from "./modules/season-standings";
@@ -551,6 +553,158 @@ test("GET /divisions returns reference divisions via the API envelope", async ()
   assert.deepEqual(payload.data, [{ code: "FPO" }, { code: "MPO" }]);
 });
 
+test("POST /divisions creates division for authenticated user", async () => {
+  let receivedPayload: { code: string } | undefined;
+
+  const response = await invokeRequest(
+    "/divisions",
+    {
+      method: "POST",
+      headers: {
+        authorization: "Bearer session-100",
+      },
+      body: JSON.stringify({
+        code: "MA3",
+      }),
+    },
+    {
+      divisions: {
+        createDivision: async (payload) => {
+          receivedPayload = payload;
+
+          return payload;
+        },
+      },
+      auth: {
+        requireAuthenticatedUser: async () => ({
+          login: "admin",
+        }),
+      },
+    },
+  );
+
+  assert.equal(response.statusCode, 201);
+  assert.deepEqual(receivedPayload, { code: "MA3" });
+  assert.deepEqual(JSON.parse(response.body), {
+    data: {
+      code: "MA3",
+    },
+  });
+});
+
+test("PUT /divisions updates division code for authenticated user", async () => {
+  let receivedPayload:
+    | {
+        code: string;
+        nextCode: string;
+      }
+    | undefined;
+
+  const response = await invokeRequest(
+    "/divisions",
+    {
+      method: "PUT",
+      headers: {
+        authorization: "Bearer session-100",
+      },
+      body: JSON.stringify({
+        code: "MP40",
+        nextCode: "MP50",
+      }),
+    },
+    {
+      divisions: {
+        updateDivision: async (payload) => {
+          receivedPayload = payload;
+
+          return {
+            code: payload.nextCode,
+          };
+        },
+      },
+      auth: {
+        requireAuthenticatedUser: async () => ({
+          login: "admin",
+        }),
+      },
+    },
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(receivedPayload, {
+    code: "MP40",
+    nextCode: "MP50",
+  });
+  assert.deepEqual(JSON.parse(response.body), {
+    data: {
+      code: "MP50",
+    },
+  });
+});
+
+test("DELETE /divisions removes division for authenticated user", async () => {
+  let receivedCode: string | undefined;
+
+  const response = await invokeRequest(
+    "/divisions",
+    {
+      method: "DELETE",
+      headers: {
+        authorization: "Bearer session-100",
+      },
+      body: JSON.stringify({
+        code: "MA4",
+      }),
+    },
+    {
+      divisions: {
+        deleteDivision: async (payload) => {
+          receivedCode = payload.code;
+        },
+      },
+      auth: {
+        requireAuthenticatedUser: async () => ({
+          login: "admin",
+        }),
+      },
+    },
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(receivedCode, "MA4");
+  assert.deepEqual(JSON.parse(response.body), {
+    data: null,
+  });
+});
+
+test("PUT /divisions rejects guest edits", async () => {
+  const response = await invokeRequest(
+    "/divisions",
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        code: "MP40",
+        nextCode: "MP50",
+      }),
+    },
+    {
+      auth: {
+        requireAuthenticatedUser: async () => {
+          throw new HttpError(401, "unauthorized", "Authentication required");
+        },
+      },
+    },
+  );
+
+  assert.equal(response.statusCode, 401);
+  assert.deepEqual(JSON.parse(response.body), {
+    error: {
+      code: "unauthorized",
+      message: "Authentication required",
+    },
+  });
+});
+
 test("GET /players returns persisted players via the API envelope", async () => {
   const response = await invokeRequest(
     "/players?seasonCode=2026",
@@ -698,24 +852,28 @@ test("aggregateSeasonStandingsByPlayer counts unique season competitions per pla
       player_id: "player-100",
       competition_id: "competition-1",
       category_id: "category-4",
+      placement: 1,
       season_points: 120,
     },
     {
       player_id: "player-100",
       competition_id: "competition-2",
       category_id: "category-2",
+      placement: 2,
       season_points: 77,
     },
     {
       player_id: "player-100",
       competition_id: "competition-2",
       category_id: "category-2",
+      placement: 3,
       season_points: 0,
     },
     {
       player_id: "player-101",
       competition_id: null,
       category_id: null,
+      placement: null,
       season_points: 50,
     },
   ]);
@@ -734,30 +892,35 @@ test("aggregateSeasonStandingsByPlayer calculates season credit points by class 
         player_id: "player-100",
         competition_id: "league-1",
         category_id: "category-4",
+        placement: 1,
         season_points: 40,
       },
       {
         player_id: "player-100",
         competition_id: "league-2",
         category_id: "category-5",
+        placement: 2,
         season_points: 30,
       },
       {
         player_id: "player-100",
         competition_id: "league-3",
         category_id: "category-6",
+        placement: 3,
         season_points: 20,
       },
       {
         player_id: "player-100",
         competition_id: "tournament-1",
         category_id: "category-2",
+        placement: 4,
         season_points: 50,
       },
       {
         player_id: "player-100",
         competition_id: "tournament-2",
         category_id: "category-3",
+        placement: 5,
         season_points: 45,
       },
     ],
@@ -772,9 +935,36 @@ test("aggregateSeasonStandingsByPlayer calculates season credit points by class 
         ["category-6", "league"],
       ]),
     },
+    new Map([
+      ["league-1", "League One"],
+      ["league-2", "League Two"],
+      ["league-3", "League Three"],
+      ["tournament-1", "Tournament One"],
+      ["tournament-2", "Tournament Two"],
+    ]),
   );
 
   assert.equal(aggregated.seasonCreditPointsByPlayerId.get("player-100"), 120);
+  assert.deepEqual(aggregated.seasonCreditCompetitionsByPlayerId.get("player-100"), [
+    {
+      competitionId: "tournament-1",
+      competitionName: "Tournament One",
+      placement: 4,
+      seasonPoints: 50,
+    },
+    {
+      competitionId: "league-1",
+      competitionName: "League One",
+      placement: 1,
+      seasonPoints: 40,
+    },
+    {
+      competitionId: "league-2",
+      competitionName: "League Two",
+      placement: 2,
+      seasonPoints: 30,
+    },
+  ]);
 });
 
 test("pickOwnerCompetitionResultRows collapses rows by owner and prefers owner competition row", () => {
@@ -833,6 +1023,36 @@ test("pickOwnerCompetitionResultRows chooses the best ranked non-DNF row when ow
     sourceCompetitionId: "round-1",
     ownerCompetitionId: "event-2",
     sum: 55,
+    dnf: false,
+  });
+});
+
+test("pickOwnerCompetitionResultRows ignores DNF owner row when ranked child row exists", () => {
+  const selectedRowsByOwnerCompetitionId = pickOwnerCompetitionResultRows([
+    {
+      sourceCompetitionId: "event-3",
+      ownerCompetitionId: "event-3",
+      sum: null,
+      dnf: true,
+    },
+    {
+      sourceCompetitionId: "round-3-1",
+      ownerCompetitionId: "event-3",
+      sum: 54,
+      dnf: false,
+    },
+    {
+      sourceCompetitionId: "round-3-2",
+      ownerCompetitionId: "event-3",
+      sum: 58,
+      dnf: false,
+    },
+  ]);
+
+  assert.deepEqual(selectedRowsByOwnerCompetitionId.get("event-3"), {
+    sourceCompetitionId: "round-3-1",
+    ownerCompetitionId: "event-3",
+    sum: 54,
     dnf: false,
   });
 });
@@ -916,6 +1136,70 @@ test("aggregateSeasonStandingsByCompetition prefers season with more players", (
   ]);
 
   assert.equal(aggregated.get("competition-1"), 80);
+});
+
+test("loadPaginatedSeasonStandingsRows reads all pages until the final partial page", async () => {
+  const requestedRanges: Array<{ from: number; to: number }> = [];
+  const rows = await loadPaginatedSeasonStandingsRows(
+    async (from, to) => {
+      requestedRanges.push({ from, to });
+      if (from === 0) {
+        return [
+          {
+            competition_id: "competition-1",
+            season_code: "2025",
+            player_id: "player-1",
+            season_points: 10,
+          },
+          {
+            competition_id: "competition-1",
+            season_code: "2025",
+            player_id: "player-2",
+            season_points: 8,
+          },
+        ];
+      }
+
+      if (from === 2) {
+        return [
+          {
+            competition_id: "competition-2",
+            season_code: "2025",
+            player_id: "player-3",
+            season_points: 14,
+          },
+          {
+            competition_id: "competition-2",
+            season_code: "2025",
+            player_id: "player-4",
+            season_points: 12,
+          },
+        ];
+      }
+
+      if (from === 4) {
+        return [
+          {
+            competition_id: "competition-3",
+            season_code: "2025",
+            player_id: "player-5",
+            season_points: 16,
+          },
+        ];
+      }
+
+      return [];
+    },
+    2,
+  );
+
+  assert.deepEqual(requestedRanges, [
+    { from: 0, to: 1 },
+    { from: 2, to: 3 },
+    { from: 4, to: 5 },
+  ]);
+  assert.equal(rows.length, 5);
+  assert.equal(rows[4]?.competition_id, "competition-3");
 });
 
 test("resolveCompetitionSeasonPointsByCompetitionId projects owner season points to child rounds", () => {
@@ -1015,6 +1299,60 @@ test("resolveSeasonPointsCompetitionIdForResult uses scoring parent for round ro
   assert.equal(
     resolveSeasonPointsCompetitionIdForResult("unknown-100", competitionsById),
     "unknown-100",
+  );
+});
+
+test("resolveSeasonPointsCompetitionIdForResult keeps pool as owner for multi-pool events", () => {
+  const competitionsById = new Map([
+    [
+      "event-200",
+      {
+        competition_id: "event-200",
+        parent_id: null,
+        record_type: "4",
+      },
+    ],
+    [
+      "pool-long",
+      {
+        competition_id: "pool-long",
+        parent_id: "event-200",
+        record_type: "3",
+      },
+    ],
+    [
+      "pool-short",
+      {
+        competition_id: "pool-short",
+        parent_id: "event-200",
+        record_type: "3",
+      },
+    ],
+    [
+      "round-long-1",
+      {
+        competition_id: "round-long-1",
+        parent_id: "pool-long",
+        record_type: "1",
+      },
+    ],
+    [
+      "round-short-1",
+      {
+        competition_id: "round-short-1",
+        parent_id: "pool-short",
+        record_type: "1",
+      },
+    ],
+  ]);
+
+  assert.equal(
+    resolveSeasonPointsCompetitionIdForResult("round-long-1", competitionsById),
+    "pool-long",
+  );
+  assert.equal(
+    resolveSeasonPointsCompetitionIdForResult("round-short-1", competitionsById),
+    "pool-short",
   );
 });
 
@@ -1486,6 +1824,56 @@ test("loadPaginatedCompetitionResults reads all pages past the default page limi
   });
 });
 
+test("loadPaginatedSeasonPointsMatrix reads all pages past the default page limit", async () => {
+  const requestedRanges: Array<{ from: number; to: number }> = [];
+
+  const matrix = await loadPaginatedSeasonPointsMatrix(async (from, to) => {
+    requestedRanges.push({ from, to });
+
+    if (from === 0) {
+      return Array.from({ length: 1000 }, (_, index) => ({
+        players_count: 57,
+        placement: index + 1,
+        points: 100 - index / 10,
+      }));
+    }
+
+    if (from === 1000) {
+      return [
+        {
+          players_count: 57,
+          placement: 1001,
+          points: 0.1,
+        },
+      ];
+    }
+
+    return [];
+  });
+
+  assert.deepEqual(requestedRanges, [
+    {
+      from: 0,
+      to: 999,
+    },
+    {
+      from: 1000,
+      to: 1999,
+    },
+  ]);
+  assert.equal(matrix.length, 1001);
+  assert.deepEqual(matrix.at(0), {
+    players_count: 57,
+    placement: 1,
+    points: 100,
+  });
+  assert.deepEqual(matrix.at(-1), {
+    players_count: 57,
+    placement: 1001,
+    points: 0.1,
+  });
+});
+
 test("season standings ranking requires all rounds for parent -> pool -> round", () => {
   const rankedResults = rankCompetitionResultsForSeasonPoints(
     [
@@ -1570,6 +1958,77 @@ test("buildSeasonScoringCompetitionUnits resolves visible event as scoring compe
       category_id: "category-pro",
       players_count: 42,
       source_competition_ids: ["round-1", "round-2"],
+    },
+  ]);
+});
+
+test("buildSeasonScoringCompetitionUnits uses pools as scoring units for multi-pool events", () => {
+  const units = buildSeasonScoringCompetitionUnits([
+    {
+      competition_id: "event-3234123",
+      category_id: "category-pro",
+      parent_id: null,
+      record_type: "4",
+      players_count: null,
+    },
+    {
+      competition_id: "pool-long",
+      category_id: null,
+      parent_id: "event-3234123",
+      record_type: "3",
+      players_count: 56,
+    },
+    {
+      competition_id: "pool-short",
+      category_id: null,
+      parent_id: "event-3234123",
+      record_type: "3",
+      players_count: 11,
+    },
+    {
+      competition_id: "round-long-1",
+      category_id: null,
+      parent_id: "pool-long",
+      record_type: "1",
+      players_count: null,
+    },
+    {
+      competition_id: "round-long-2",
+      category_id: null,
+      parent_id: "pool-long",
+      record_type: "1",
+      players_count: null,
+    },
+    {
+      competition_id: "round-short-1",
+      category_id: null,
+      parent_id: "pool-short",
+      record_type: "1",
+      players_count: null,
+    },
+    {
+      competition_id: "round-short-2",
+      category_id: null,
+      parent_id: "pool-short",
+      record_type: "1",
+      players_count: null,
+    },
+  ]);
+
+  assert.deepEqual(units, [
+    {
+      competition_id: "pool-long",
+      comment: null,
+      category_id: "category-pro",
+      players_count: 56,
+      source_competition_ids: ["round-long-1", "round-long-2"],
+    },
+    {
+      competition_id: "pool-short",
+      comment: null,
+      category_id: "category-pro",
+      players_count: 11,
+      source_competition_ids: ["round-short-1", "round-short-2"],
     },
   ]);
 });

@@ -24,7 +24,7 @@ test("formatCompetitionRecordType maps documented DiscGolfMetrix record types", 
   assert.equal(formatCompetitionRecordType(null), "Не указан");
 });
 
-test("filterVisibleCompetitions keeps only listable competition types", () => {
+test("filterVisibleCompetitions keeps listable types and shows pools for multi-pool events", () => {
   const visibleCompetitions = filterVisibleCompetitions([
     {
       competitionId: "competition-1",
@@ -66,11 +66,65 @@ test("filterVisibleCompetitions keeps only listable competition types", () => {
       playersCount: 40,
       metrixId: null,
     },
+    {
+      competitionId: "event-multi-pool",
+      competitionName: "Championship 2025",
+      competitionDate: "2026-06-05",
+      courseId: null,
+      courseName: null,
+      recordType: "4",
+      playersCount: 67,
+      metrixId: null,
+    },
+    {
+      competitionId: "pool-long",
+      competitionName: "Championship 2025 &rarr; Long pool",
+      competitionDate: "2026-06-05",
+      parentId: "event-multi-pool",
+      courseId: null,
+      courseName: null,
+      recordType: "3",
+      playersCount: 56,
+      metrixId: null,
+    },
+    {
+      competitionId: "pool-short",
+      competitionName: "Championship 2025 &rarr; Short pool",
+      competitionDate: "2026-06-05",
+      parentId: "event-multi-pool",
+      courseId: null,
+      courseName: null,
+      recordType: "3",
+      playersCount: 11,
+      metrixId: null,
+    },
+    {
+      competitionId: "round-long-1",
+      competitionName: "Round 1 long",
+      competitionDate: "2026-06-05",
+      parentId: "pool-long",
+      courseId: null,
+      courseName: null,
+      recordType: "1",
+      playersCount: 56,
+      metrixId: null,
+    },
+    {
+      competitionId: "round-short-1",
+      competitionName: "Round 1 short",
+      competitionDate: "2026-06-05",
+      parentId: "pool-short",
+      courseId: null,
+      courseName: null,
+      recordType: "1",
+      playersCount: 11,
+      metrixId: null,
+    },
   ]);
 
   assert.deepEqual(
     visibleCompetitions.map((competition) => competition.competitionId),
-    ["competition-2", "competition-4"],
+    ["competition-2", "competition-4", "pool-long", "pool-short"],
   );
   assert.equal(isVisibleCompetitionRecordType("2"), true);
   assert.equal(isVisibleCompetitionRecordType("4"), true);
@@ -383,6 +437,37 @@ test("resolveCompetitionDisplayName uses the parent plus pool name for event row
   assert.equal(
     resolveCompetitionDisplayName(competitions[0], competitions),
     "Stage 1 · Experienced",
+  );
+});
+
+test("resolveCompetitionDisplayName uses parent plus pool name for visible pool rows", () => {
+  const competitions = [
+    {
+      competitionId: "event-2",
+      competitionName: "Чемпионат 2025",
+      competitionDate: "2026-04-26",
+      courseId: null,
+      courseName: null,
+      recordType: "4",
+      playersCount: null,
+      metrixId: null,
+    },
+    {
+      competitionId: "pool-2",
+      competitionName: "Чемпионат 2025 &rarr; Long pool",
+      competitionDate: "2026-04-26",
+      parentId: "event-2",
+      courseId: null,
+      courseName: null,
+      recordType: "3",
+      playersCount: 56,
+      metrixId: null,
+    },
+  ];
+
+  assert.equal(
+    resolveCompetitionDisplayName(competitions[1], competitions),
+    "Чемпионат 2025 · Long pool",
   );
 });
 

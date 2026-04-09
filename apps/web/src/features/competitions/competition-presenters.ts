@@ -48,8 +48,51 @@ export function isVisibleCompetitionRecordType(value: string | null): boolean {
 export function filterVisibleCompetitions(
   competitions: readonly Competition[],
 ): Competition[] {
+  const competitionsById = new Map(
+    competitions.map((competition) => [competition.competitionId, competition] as const),
+  );
+  const childrenByParentId = new Map<string, Competition[]>();
+
+  for (const competition of competitions) {
+    if (!competition.parentId) {
+      continue;
+    }
+
+    const currentChildren = childrenByParentId.get(competition.parentId) ?? [];
+    currentChildren.push(competition);
+    childrenByParentId.set(competition.parentId, currentChildren);
+  }
+
+  const hasDirectRoundChildren = (competitionId: string): boolean =>
+    (childrenByParentId.get(competitionId) ?? []).some(
+      (child) => child.recordType === "1",
+    );
+  const resolvePoolChildrenWithRounds = (competitionId: string): Competition[] =>
+    (childrenByParentId.get(competitionId) ?? []).filter(
+      (child) => child.recordType === "3" && hasDirectRoundChildren(child.competitionId),
+    );
+
   return competitions.filter((competition) => {
-    return isVisibleCompetitionRecordType(competition.recordType);
+    if (competition.recordType === "2") {
+      return true;
+    }
+
+    if (competition.recordType === "4") {
+      return resolvePoolChildrenWithRounds(competition.competitionId).length <= 1;
+    }
+
+    if (competition.recordType !== "3" || !hasDirectRoundChildren(competition.competitionId)) {
+      return false;
+    }
+
+    const parentCompetition = competition.parentId
+      ? competitionsById.get(competition.parentId) ?? null
+      : null;
+    if (parentCompetition?.recordType !== "4") {
+      return false;
+    }
+
+    return resolvePoolChildrenWithRounds(parentCompetition.competitionId).length > 1;
   });
 }
 
@@ -229,6 +272,16 @@ export function resolveCompetitionDisplayName(
   competition: Competition,
   competitions: readonly Competition[],
 ): string {
+  if (competition.recordType === "3") {
+    const parentCompetition = competition.parentId
+      ? competitions.find((item) => item.competitionId === competition.parentId) ?? null
+      : null;
+
+    if (parentCompetition) {
+      return composeParentPoolCompetitionName(parentCompetition, competition);
+    }
+  }
+
   const directRoundChildren = competitions.filter((item) => {
     return item.parentId === competition.competitionId && item.recordType === "1";
   });

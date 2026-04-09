@@ -191,7 +191,6 @@ export function TournamentCategoriesPageView({
       <section className="data-page-shell" aria-labelledby="tournament-categories-page-title">
         <PageHeader
           titleId="tournament-categories-page-title"
-          eyebrow="Данные"
           title="Категории турниров"
           description="Загружаем сохранённые категории турниров через backend API."
         />
@@ -209,7 +208,6 @@ export function TournamentCategoriesPageView({
       <section className="data-page-shell" aria-labelledby="tournament-categories-page-title">
         <PageHeader
           titleId="tournament-categories-page-title"
-          eyebrow="Данные"
           title="Категории турниров"
           description="Страница показывает справочник категорий с параметрами отрезков и диапазона рейтинга."
         />
@@ -226,7 +224,6 @@ export function TournamentCategoriesPageView({
     <section className="data-page-shell" aria-labelledby="tournament-categories-page-title">
       <PageHeader
         titleId="tournament-categories-page-title"
-        eyebrow="Данные"
         title="Категории турниров"
       />
 
@@ -252,6 +249,20 @@ export function TournamentCategoriesPageView({
                 placeholder="Короткое описание категории"
                 onChange={(event) =>
                   onCreateFieldChange?.("description", event.target.value)
+                }
+              />
+            </label>
+            <label className="tournament-categories-page__field tournament-categories-page__field--coefficient">
+              <span>Коэффициент</span>
+              <input
+                className="tournament-categories-page__input tournament-categories-page__input--number tournament-categories-page__input--coefficient"
+                type="number"
+                min="0"
+                step="0.01"
+                value={createDraft.coefficient}
+                placeholder="1.00"
+                onChange={(event) =>
+                  onCreateFieldChange?.("coefficient", event.target.value)
                 }
               />
             </label>
@@ -310,20 +321,6 @@ export function TournamentCategoriesPageView({
                 }
               />
             </label>
-            <label className="tournament-categories-page__field tournament-categories-page__field--coefficient">
-              <span>Коэффициент</span>
-              <input
-                className="tournament-categories-page__input tournament-categories-page__input--number tournament-categories-page__input--coefficient"
-                type="number"
-                min="0"
-                step="0.01"
-                value={createDraft.coefficient}
-                placeholder="1.00"
-                onChange={(event) =>
-                  onCreateFieldChange?.("coefficient", event.target.value)
-                }
-              />
-            </label>
           </div>
           <div className="players-table__actions">
             <button
@@ -338,12 +335,6 @@ export function TournamentCategoriesPageView({
             </button>
           </div>
         </section>
-      ) : null}
-
-      {!canEdit ? (
-        <div className="players-table__notice" role="note">
-          Войдите в систему, чтобы добавлять, редактировать и удалять категории.
-        </div>
       ) : null}
 
       {visibleCategories.length === 0 ? (

@@ -1,0 +1,21 @@
+# Context Snapshot
+
+- Task statement: User invoked deep-interview workflow without a concrete task payload.
+- Desired outcome: Clarify intent into an execution-ready specification.
+- Stated solution: Run Socratic clarification before planning/implementation.
+- Probable intent hypothesis: User wants to avoid misaligned implementation and start with clear boundaries.
+- Known facts/evidence:
+  - Deep-interview skill explicitly invoked.
+  - No concrete feature/bug/request details provided yet.
+- Constraints:
+  - Interview mode only; no direct implementation in this phase.
+  - One question per round.
+- Unknowns/open questions:
+  - Actual target problem/feature.
+  - Desired business/user outcome.
+  - Scope boundaries and non-goals.
+  - Constraints, acceptance criteria, decision boundaries.
+- Decision-boundary unknowns:
+  - What OMX may decide autonomously vs what requires user confirmation.
+- Likely codebase touchpoints:
+  - Unknown until intent is specified.

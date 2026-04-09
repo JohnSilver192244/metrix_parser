@@ -44,7 +44,6 @@ test("TournamentCategoriesPageView renders readonly rows for guests", () => {
     />,
   );
 
-  assert.match(markup, /Войдите в систему, чтобы добавлять, редактировать и удалять категории/);
   assert.match(markup, /Любительские/);
   assert.match(markup, /Турниры начального уровня/);
   assert.match(markup, />Турнир</);

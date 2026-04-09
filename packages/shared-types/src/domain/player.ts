@@ -1,3 +1,10 @@
+export interface PlayerSeasonCreditCompetition {
+  competitionId: string;
+  competitionName: string;
+  placement: number | null;
+  seasonPoints: number;
+}
+
 export interface Player {
   playerId: string;
   playerName: string;
@@ -8,6 +15,7 @@ export interface Player {
   seasonPoints?: number | null;
   seasonCreditPoints?: number | null;
   competitionsCount?: number;
+  seasonCreditCompetitions?: PlayerSeasonCreditCompetition[];
 }
 
 export interface PlayerDbRecord {
@@ -22,6 +30,7 @@ export interface PlayerDbRecord {
   season_points?: number | null;
   season_credit_points?: number | null;
   competitions_count?: number;
+  season_credit_competitions?: PlayerSeasonCreditCompetition[];
 }
 
 export interface UpdatePlayerRequest {
@@ -54,5 +63,6 @@ export function toPlayerDbRecord(player: Player): PlayerDbRecord {
     season_points: player.seasonPoints,
     season_credit_points: player.seasonCreditPoints,
     competitions_count: player.competitionsCount,
+    season_credit_competitions: player.seasonCreditCompetitions,
   };
 }

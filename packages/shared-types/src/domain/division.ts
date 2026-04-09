@@ -5,3 +5,16 @@ export interface Division {
 export interface DivisionDbRecord {
   code: string;
 }
+
+export interface CreateDivisionRequest {
+  code: string;
+}
+
+export interface UpdateDivisionRequest {
+  code: string;
+  nextCode: string;
+}
+
+export interface DeleteDivisionRequest {
+  code: string;
+}

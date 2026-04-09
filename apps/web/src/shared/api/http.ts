@@ -6,7 +6,24 @@ import type {
 
 import { getStoredSessionToken } from "../../features/auth/auth-storage";
 
-const apiBaseUrl = import.meta.env?.VITE_API_BASE_URL ?? "http://localhost:3001";
+const apiBaseUrl = resolveApiBaseUrl();
+
+function resolveApiBaseUrl(): string {
+  const configuredBaseUrl = import.meta.env?.VITE_API_BASE_URL?.trim();
+  if (configuredBaseUrl) {
+    return configuredBaseUrl;
+  }
+
+  if (import.meta.env?.DEV) {
+    return "http://localhost:3001";
+  }
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+
+  return "http://localhost:3001";
+}
 
 export class ApiClientError extends Error {
   code: string;

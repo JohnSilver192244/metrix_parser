@@ -541,7 +541,6 @@ export function CompetitionsPageView({
       <section className="data-page-shell" aria-labelledby="competitions-page-title">
         <PageHeader
           titleId="competitions-page-title"
-          eyebrow="Данные"
           title="Список соревнований"
           description="Загружаем сохранённые соревнования через backend API."
         />
@@ -560,7 +559,6 @@ export function CompetitionsPageView({
       <section className="data-page-shell" aria-labelledby="competitions-page-title">
         <PageHeader
           titleId="competitions-page-title"
-          eyebrow="Данные"
           title="Список соревнований"
           description="Страница использует backend API и показывает только сохранённые записи."
         />
@@ -578,7 +576,6 @@ export function CompetitionsPageView({
     <section className="data-page-shell" aria-labelledby="competitions-page-title">
       <PageHeader
         titleId="competitions-page-title"
-        eyebrow="Данные"
         title="Список соревнований"
         titleAction={
           <span className="update-card__tooltip-anchor update-card__tooltip-anchor--info">
@@ -601,6 +598,7 @@ export function CompetitionsPageView({
                   {visibleCompetitionRecordTypes
                     .map((value) => `${value} (${COMPETITION_RECORD_TYPE_LABELS[value]})`)
                     .join(", ")}
+                  , а также 3 (Pool), если Event разбит на несколько pool с раундами.
                 </li>
                 <li>
                   Скрываем:

@@ -135,6 +135,8 @@ const EXCLUDED_COMPETITION_NAME_FRAGMENTS = [
   "master class",
   "даблс",
   "doubles",
+  "скинс",
+  "skins",
 ] as const;
 const COMPETITION_NAME_DASH_PATTERN = /[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g;
 const COMPETITION_NAME_WHITESPACE_PATTERN = /\s+/g;

@@ -147,7 +147,6 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
       <section className="data-page-shell" aria-labelledby="courses-page-title">
         <PageHeader
           titleId="courses-page-title"
-          eyebrow="Данные"
           title="Список парков"
           description="Загружаем сохранённые парки через backend API."
         />
@@ -166,7 +165,6 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
       <section className="data-page-shell" aria-labelledby="courses-page-title">
         <PageHeader
           titleId="courses-page-title"
-          eyebrow="Данные"
           title="Список парков"
           description="Страница использует backend API и показывает сохранённые park records."
         />
@@ -184,7 +182,6 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
     <section className="data-page-shell" aria-labelledby="courses-page-title">
       <PageHeader
         titleId="courses-page-title"
-        eyebrow="Данные"
         title="Список парков"
         description={
           total > 0

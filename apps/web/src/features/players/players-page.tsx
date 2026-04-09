@@ -34,7 +34,7 @@ type PlayersPageState =
     };
 
 type PlayersRdgaFilter = "all" | "rdga" | "non-rdga";
-type PlayersSortField = "playerId" | "playerName" | "seasonPoints";
+type PlayersSortField = "playerId" | "playerName" | "seasonPoints" | "seasonCreditPoints";
 
 interface PlayersSort {
   field: PlayersSortField;
@@ -42,14 +42,18 @@ interface PlayersSort {
 }
 
 const DEFAULT_PLAYERS_SORT: PlayersSort = {
-  field: "playerName",
-  direction: "asc",
+  field: "seasonCreditPoints",
+  direction: "desc",
 };
 
 const playersNameQueryStorageKey = "players-page:name-query";
 const playersDivisionFilterStorageKey = "players-page:division-filter";
 const playersRdgaFilterStorageKey = "players-page:rdga-filter";
 const playersSeasonFilterStorageKey = "players-page:season-filter";
+const discGolfMetrixBaseUrl =
+  import.meta.env?.VITE_DISCGOLFMETRIX_BASE_URL ??
+  import.meta.env?.DISCGOLFMETRIX_BASE_URL ??
+  "https://discgolfmetrix.com";
 
 export interface PlayersPageViewProps {
   state: PlayersPageState;
@@ -100,6 +104,10 @@ function normalizeNameQuery(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function resolvePlayerExternalUrl(playerId: string): string {
+  return new URL(`/player/${playerId}`, discGolfMetrixBaseUrl).toString();
+}
+
 function filterPlayersByRdga(
   players: Player[],
   rdgaFilter: PlayersRdgaFilter,
@@ -139,6 +147,14 @@ function formatSeasonPointsValue(value: number | null | undefined): string {
   return value.toFixed(2);
 }
 
+function formatPlacementValue(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "—";
+  }
+
+  return String(value);
+}
+
 function compareSeasonsByPeriod(left: Season, right: Season): number {
   const dateToDiff = right.dateTo.localeCompare(left.dateTo, "ru");
   if (dateToDiff !== 0) {
@@ -161,6 +177,15 @@ function comparePlayersByField(
   if (field === "seasonPoints") {
     const leftValue = left.seasonPoints ?? Number.NEGATIVE_INFINITY;
     const rightValue = right.seasonPoints ?? Number.NEGATIVE_INFINITY;
+
+    if (leftValue !== rightValue) {
+      return leftValue - rightValue;
+    }
+  }
+
+  if (field === "seasonCreditPoints") {
+    const leftValue = left.seasonCreditPoints ?? Number.NEGATIVE_INFINITY;
+    const rightValue = right.seasonCreditPoints ?? Number.NEGATIVE_INFINITY;
 
     if (leftValue !== rightValue) {
       return leftValue - rightValue;
@@ -277,7 +302,6 @@ export function PlayersPageView({
       <section className="data-page-shell" aria-labelledby="players-page-title">
         <PageHeader
           titleId="players-page-title"
-          eyebrow="Данные"
           title="Список игроков"
           description="Загружаем сохранённых игроков через backend API."
         />
@@ -296,7 +320,6 @@ export function PlayersPageView({
       <section className="data-page-shell" aria-labelledby="players-page-title">
         <PageHeader
           titleId="players-page-title"
-          eyebrow="Данные"
           title="Список игроков"
           description="Страница использует backend API и показывает отдельную player model."
         />
@@ -314,7 +337,6 @@ export function PlayersPageView({
     <section className="data-page-shell" aria-labelledby="players-page-title">
       <PageHeader
         titleId="players-page-title"
-        eyebrow="Данные"
         title="Список игроков"
         description={
           total > 0
@@ -400,22 +422,14 @@ export function PlayersPageView({
               <p>Попробуйте изменить имя, дивизион или фильтр RDGA.</p>
             </section>
           ) : (
-            <section className="data-table-panel" aria-label="Сохранённые игроки">
+            <section
+              className="data-table-panel players-page__table-panel"
+              aria-label="Сохранённые игроки"
+            >
               <div className="data-table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th scope="col" aria-sort={resolveAriaSort(sort, "playerId")}>
-                        <button
-                          className="data-table__sort-button"
-                          type="button"
-                          onClick={() => {
-                            onSortChange?.("playerId");
-                          }}
-                        >
-                          Metrix ID{resolveSortIndicator(sort, "playerId")}
-                        </button>
-                      </th>
                       <th scope="col" aria-sort={resolveAriaSort(sort, "playerName")}>
                         <button
                           className="data-table__sort-button"
@@ -441,7 +455,17 @@ export function PlayersPageView({
                           Очки сезона{resolveSortIndicator(sort, "seasonPoints")}
                         </button>
                       </th>
-                      <th scope="col">Очки зачета</th>
+                      <th scope="col" aria-sort={resolveAriaSort(sort, "seasonCreditPoints")}>
+                        <button
+                          className="data-table__sort-button"
+                          type="button"
+                          onClick={() => {
+                            onSortChange?.("seasonCreditPoints");
+                          }}
+                        >
+                          Очки зачета{resolveSortIndicator(sort, "seasonCreditPoints")}
+                        </button>
+                      </th>
                       <th scope="col">Соревнований</th>
                       {canEdit ? <th scope="col">Действия</th> : null}
                     </tr>
@@ -478,22 +502,46 @@ export function PlayersPageView({
 
                       return (
                         <tr key={player.playerId}>
-                          <td className="data-table__cell-primary">{player.playerId}</td>
                           <td className="data-table__cell-primary">
-                            {onNavigate ? (
-                              <button
-                                className="data-table__link-button"
-                                type="button"
-                                onClick={() => {
-                                  onNavigate(buildPlayerPath(player.playerId));
-                                }}
-                                aria-label={`Открыть страницу игрока ${decodeHtmlEntities(player.playerName)}`}
+                            <span className="data-table__primary-actions">
+                              <a
+                                className="data-table__external-link"
+                                href={resolvePlayerExternalUrl(player.playerId)}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label={`Открыть профиль игрока ${decodeHtmlEntities(player.playerName)} на Disc Golf Metrix в новой вкладке`}
                               >
-                                {decodeHtmlEntities(player.playerName)}
-                              </button>
-                            ) : (
-                              decodeHtmlEntities(player.playerName)
-                            )}
+                                <svg
+                                  className="data-table__external-link-icon"
+                                  viewBox="0 0 16 16"
+                                  aria-hidden="true"
+                                  focusable="false"
+                                >
+                                  <path
+                                    d="M6 3h7v7M13 3 6 10M10 6v7H3V6h7"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </a>
+                              {onNavigate ? (
+                                <button
+                                  className="data-table__link-button"
+                                  type="button"
+                                  onClick={() => {
+                                    onNavigate(buildPlayerPath(player.playerId));
+                                  }}
+                                  aria-label={`Открыть страницу игрока ${decodeHtmlEntities(player.playerName)}`}
+                                >
+                                  {decodeHtmlEntities(player.playerName)}
+                                </button>
+                              ) : (
+                                decodeHtmlEntities(player.playerName)
+                              )}
+                            </span>
                           </td>
                           <td>
                             {canEdit ? (
@@ -586,7 +634,35 @@ export function PlayersPageView({
                             )}
                           </td>
                           <td>{formatSeasonPointsValue(player.seasonPoints)}</td>
-                          <td>{formatSeasonPointsValue(player.seasonCreditPoints)}</td>
+                          <td>
+                            {(player.seasonCreditCompetitions?.length ?? 0) > 0 ? (
+                              <span
+                                className="update-card__tooltip-anchor update-card__tooltip-anchor--info players-page__credit-tooltip-anchor"
+                                tabIndex={0}
+                              >
+                                <span>{formatSeasonPointsValue(player.seasonCreditPoints)}</span>
+                                <span
+                                  role="tooltip"
+                                  className="update-card__tooltip update-card__tooltip--info players-page__credit-tooltip"
+                                >
+                                  <strong>Соревнования в зачете</strong>
+                                  <ul className="update-card__tooltip-list">
+                                    {[...(player.seasonCreditCompetitions ?? [])]
+                                      .sort((left, right) => right.seasonPoints - left.seasonPoints)
+                                      .map((competition) => (
+                                        <li key={competition.competitionId}>
+                                          {decodeHtmlEntities(competition.competitionName)},{" "}
+                                          {formatPlacementValue(competition.placement)},{" "}
+                                          {formatSeasonPointsValue(competition.seasonPoints)}
+                                        </li>
+                                      ))}
+                                  </ul>
+                                </span>
+                              </span>
+                            ) : (
+                              formatSeasonPointsValue(player.seasonCreditPoints)
+                            )}
+                          </td>
                           <td>
                             {formatCompetitionsCount(player.competitionsCount)}
                           </td>
@@ -877,7 +953,10 @@ export function PlayersPage({ onNavigate }: PlayersPageProps) {
 
           return {
             field,
-            direction: field === "seasonPoints" ? "desc" : "asc",
+            direction:
+              field === "seasonPoints" || field === "seasonCreditPoints"
+                ? "desc"
+                : "asc",
           };
         });
       }}

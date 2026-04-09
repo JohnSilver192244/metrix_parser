@@ -39,7 +39,6 @@ export function UsersPageView({ state }: { state: UsersPageState }) {
       <section className="data-page-shell" aria-labelledby="users-page-title">
         <PageHeader
           titleId="users-page-title"
-          eyebrow="Администрирование"
           title="Пользователи"
           description="Подтягиваем список логинов, которым разрешён административный доступ."
         />
@@ -58,7 +57,6 @@ export function UsersPageView({ state }: { state: UsersPageState }) {
       <section className="data-page-shell" aria-labelledby="users-page-title">
         <PageHeader
           titleId="users-page-title"
-          eyebrow="Администрирование"
           title="Пользователи"
           description="Страница показывает только логины и дату создания, без отображения паролей."
         />
@@ -78,7 +76,6 @@ export function UsersPageView({ state }: { state: UsersPageState }) {
     <section className="data-page-shell" aria-labelledby="users-page-title">
       <PageHeader
         titleId="users-page-title"
-        eyebrow="Администрирование"
         title="Пользователи"
         description={
           total > 0

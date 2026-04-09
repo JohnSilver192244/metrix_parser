@@ -7,6 +7,7 @@ import {
 import { AdminUpdatesPage } from "../features/admin-updates/admin-updates-page";
 import { CompetitionsPage } from "../features/competitions/competitions-page";
 import { CoursesPage } from "../features/courses/courses-page";
+import { DivisionsPage } from "../features/divisions/divisions-page";
 import { PlayersPage } from "../features/players/players-page";
 import { PlayerPage } from "../features/players/player-page";
 import { CompetitionResultsPage } from "../features/results/competition-results-page";
@@ -62,6 +63,16 @@ export const appRoutes: AppRouteDefinition[] = [
     title: "Категории турниров",
     description: "Просмотр и редактирование справочника категорий турниров с ограничением на запись по авторизации.",
     render: () => <TournamentCategoriesPage />,
+  },
+  {
+    path: "/divisions",
+    label: "Дивизионы",
+    group: "admin",
+    title: "Дивизионы",
+    description:
+      "Редактирование справочника дивизионов с каскадным обновлением значений у игроков.",
+    render: () => <DivisionsPage />,
+    requiresAuth: true,
   },
   {
     path: "/admin",

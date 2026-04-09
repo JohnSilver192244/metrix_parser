@@ -2,6 +2,8 @@ import type { Competition } from "../domain";
 import type { CompetitionResult } from "../domain";
 import type { Course } from "../domain";
 import type { Division } from "../domain";
+import type { CreateDivisionRequest } from "../domain";
+import type { DeleteDivisionRequest } from "../domain";
 import type { Player } from "../domain";
 import type { PlayerCompetitionResult } from "../domain";
 import type { Season } from "../domain";
@@ -11,6 +13,7 @@ import type {
 } from "../domain";
 import type { SeasonPointsEntry } from "../domain";
 import type { TournamentCategory } from "../domain";
+import type { UpdateDivisionRequest } from "../domain";
 import type { AppUser, AuthSession } from "../domain";
 import type { CreateSeasonPointsEntryRequest } from "../domain";
 import type { CreateSeasonRequest } from "../domain";
@@ -69,6 +72,11 @@ export interface DivisionsListMeta extends ApiMeta {
 }
 
 export type DivisionsListResponse = Division[];
+export type CreateDivisionApiRequest = CreateDivisionRequest;
+export type UpdateDivisionApiRequest = UpdateDivisionRequest;
+export type DeleteDivisionApiRequest = DeleteDivisionRequest;
+export type CreateDivisionResponse = Division;
+export type UpdateDivisionResponse = Division;
 
 export interface ResultsListMeta extends ApiMeta {
   count: number;

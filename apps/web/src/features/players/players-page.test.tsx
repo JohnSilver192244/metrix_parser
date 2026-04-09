@@ -68,8 +68,11 @@ test("PlayersPageView renders player identification fields", () => {
   assert.match(markup, /type="search"/);
   assert.match(markup, /<table/);
   assert.match(markup, /Pavel → Orlov/);
-  assert.match(markup, /player-500/);
-  assert.match(markup, /Metrix ID/);
+  assert.match(markup, /data-table__external-link/);
+  assert.match(
+    markup,
+    /https:\/\/discgolfmetrix\.com\/player\/player-500/,
+  );
   assert.match(markup, /Игрок/);
   assert.match(markup, /Дивизион/);
   assert.match(markup, /RDGA/);
@@ -268,6 +271,108 @@ test("PlayersPageView sorts players by season points descending", () => {
   assert.ok(markup.indexOf("Alpha") < markup.indexOf("Charlie"));
 });
 
+test("PlayersPageView sorts players by season credit points descending", () => {
+  const markup = renderToStaticMarkup(
+    <PlayersPageView
+      state={{
+        status: "ready",
+        divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
+        total: 3,
+        players: [
+          {
+            playerId: "player-100",
+            playerName: "Alpha",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonCreditPoints: 15.5,
+            competitionsCount: 3,
+          },
+          {
+            playerId: "player-101",
+            playerName: "Bravo",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonCreditPoints: 99.25,
+            competitionsCount: 4,
+          },
+          {
+            playerId: "player-102",
+            playerName: "Charlie",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonCreditPoints: null,
+            competitionsCount: 2,
+          },
+        ],
+      }}
+      sort={{
+        field: "seasonCreditPoints",
+        direction: "desc",
+      }}
+    />,
+  );
+
+  assert.match(markup, /Очки зачета ↓/);
+  assert.match(markup, /aria-sort="descending"/);
+  assert.ok(markup.indexOf("Bravo") < markup.indexOf("Alpha"));
+  assert.ok(markup.indexOf("Alpha") < markup.indexOf("Charlie"));
+});
+
+test("PlayersPageView renders season credit tooltip rows as name, place, points", () => {
+  const markup = renderToStaticMarkup(
+    <PlayersPageView
+      state={{
+        status: "ready",
+        divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
+        total: 1,
+        players: [
+          {
+            playerId: "player-500",
+            playerName: "Pavel Orlov",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonCreditPoints: 132.4,
+            seasonCreditCompetitions: [
+              {
+                competitionId: "competition-2",
+                competitionName: "Beta Cup",
+                placement: 3,
+                seasonPoints: 42.5,
+              },
+              {
+                competitionId: "competition-1",
+                competitionName: "Alpha Cup",
+                placement: 1,
+                seasonPoints: 89.9,
+              },
+            ],
+            competitionsCount: 5,
+          },
+        ],
+      }}
+      sort={{
+        field: "seasonCreditPoints",
+        direction: "desc",
+      }}
+    />,
+  );
+
+  assert.match(markup, /players-page__credit-tooltip-anchor/);
+  assert.match(markup, /Соревнования в зачете/);
+  assert.match(markup, /Alpha Cup, 1, 89\.90/);
+  assert.match(markup, /Beta Cup, 3, 42\.50/);
+});
+
 test("PlayersPageView sorts players by metrix id and player name", () => {
   const markupById = renderToStaticMarkup(
     <PlayersPageView
@@ -279,7 +384,7 @@ test("PlayersPageView sorts players by metrix id and player name", () => {
         players: [
           {
             playerId: "player-900",
-            playerName: "Zulu",
+            playerName: "Alpha",
             division: "MPO",
             rdga: true,
             rdgaSince: "2026-01-15",
@@ -289,7 +394,7 @@ test("PlayersPageView sorts players by metrix id and player name", () => {
           },
           {
             playerId: "player-100",
-            playerName: "Alpha",
+            playerName: "Zulu",
             division: "MPO",
             rdga: true,
             rdgaSince: "2026-01-15",
@@ -316,7 +421,7 @@ test("PlayersPageView sorts players by metrix id and player name", () => {
         players: [
           {
             playerId: "player-900",
-            playerName: "Zulu",
+            playerName: "Alpha",
             division: "MPO",
             rdga: true,
             rdgaSince: "2026-01-15",
@@ -326,7 +431,7 @@ test("PlayersPageView sorts players by metrix id and player name", () => {
           },
           {
             playerId: "player-100",
-            playerName: "Alpha",
+            playerName: "Zulu",
             division: "MPO",
             rdga: true,
             rdgaSince: "2026-01-15",
@@ -343,8 +448,7 @@ test("PlayersPageView sorts players by metrix id and player name", () => {
     />,
   );
 
-  assert.match(markupById, /Metrix ID ↑/);
-  assert.ok(markupById.indexOf("player-100") < markupById.indexOf("player-900"));
+  assert.ok(markupById.indexOf("Zulu") < markupById.indexOf("Alpha"));
   assert.match(markupByName, /Игрок ↑/);
   assert.ok(markupByName.indexOf("Alpha") < markupByName.indexOf("Zulu"));
 });

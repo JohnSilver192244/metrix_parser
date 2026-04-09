@@ -295,7 +295,6 @@ export function SeasonConfigPageView({
       <section className="data-page-shell" aria-labelledby="season-config-page-title">
         <PageHeader
           titleId="season-config-page-title"
-          eyebrow="Админка"
           title="Сезоны и таблица очков"
           description="Загружаем конфигурацию сезонов и правила начисления очков."
         />
@@ -313,7 +312,6 @@ export function SeasonConfigPageView({
       <section className="data-page-shell" aria-labelledby="season-config-page-title">
         <PageHeader
           titleId="season-config-page-title"
-          eyebrow="Админка"
           title="Сезоны и таблица очков"
         />
         <section className="state-panel state-panel--error" role="alert">
@@ -329,7 +327,6 @@ export function SeasonConfigPageView({
     <section className="data-page-shell" aria-labelledby="season-config-page-title">
       <PageHeader
         titleId="season-config-page-title"
-        eyebrow="Админка"
         title="Сезоны и таблица очков"
         description="Настройка временного окна сезона и правил начисления очков по месту."
       />

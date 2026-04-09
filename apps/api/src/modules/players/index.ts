@@ -1,11 +1,16 @@
 import type {
   CompetitionClass,
+  CompetitionHierarchyNode,
   Player,
+  PlayerSeasonCreditCompetition,
   PlayerCompetitionResult,
   PlayerDbRecord,
   UpdatePlayerRequest,
 } from "@metrix-parser/shared-types";
-import { resolveSeasonPointsCompetitionOwnerId } from "@metrix-parser/shared-types";
+import {
+  buildCompetitionChildrenByParentId,
+  resolveCompetitionIdentityById,
+} from "@metrix-parser/shared-types";
 
 import { readJsonBody, sendSuccess } from "../../lib/http";
 import { HttpError } from "../../lib/http-errors";
@@ -42,6 +47,7 @@ const SEASON_STANDINGS_SELECT_COLUMNS = [
   "player_id",
   "competition_id",
   "category_id",
+  "placement",
   "season_points",
 ].join(", ");
 
@@ -98,7 +104,20 @@ interface SeasonStandingRow {
   player_id: string | null;
   competition_id: string | null;
   category_id: string | null;
+  placement: number | null;
   season_points: number | string | null;
+}
+
+interface CompetitionNameRow {
+  competition_id: string;
+  competition_name: string;
+}
+
+interface SeasonStandingScoredRow {
+  competitionId: string | null;
+  placement: number | null;
+  seasonPoints: number;
+  competitionClass: CompetitionClass;
 }
 
 interface SeasonConfigRow {
@@ -202,34 +221,40 @@ function resolveSeasonPointsCompetitionIdForPlayerResult(
   competitionId: string,
   competitionsById: ReadonlyMap<string, CompetitionHierarchyRow>,
 ): string {
-  const hierarchyCompetitionsById = new Map(
-    [...competitionsById.entries()].map(([id, competition]) => [
-      id,
-      {
+  const hierarchyNodes = [...competitionsById.values()].map(
+    (competition) =>
+      ({
         competitionId: competition.competition_id,
         parentId: competition.parent_id,
         recordType: competition.record_type,
-      },
-    ]),
+      }) satisfies CompetitionHierarchyNode,
   );
+  const hierarchyCompetitionsById = new Map(
+    hierarchyNodes.map((competition) => [competition.competitionId, competition]),
+  );
+  const childrenByParentId = buildCompetitionChildrenByParentId(hierarchyNodes);
 
-  return resolveSeasonPointsCompetitionOwnerId(competitionId, hierarchyCompetitionsById);
+  return resolveCompetitionIdentityById(
+    competitionId,
+    hierarchyCompetitionsById,
+    childrenByParentId,
+  ).ownerCompetitionId;
 }
 
 function comparePlayerCompetitionOwnerProjectionRows(
   left: PlayerCompetitionOwnerProjectionRow,
   right: PlayerCompetitionOwnerProjectionRow,
 ): number {
-  const leftIsOwnerRow = left.sourceCompetitionId === left.ownerCompetitionId;
-  const rightIsOwnerRow = right.sourceCompetitionId === right.ownerCompetitionId;
-  if (leftIsOwnerRow !== rightIsOwnerRow) {
-    return leftIsOwnerRow ? -1 : 1;
-  }
-
   const leftIsRanked = !left.dnf && left.sum !== null;
   const rightIsRanked = !right.dnf && right.sum !== null;
   if (leftIsRanked !== rightIsRanked) {
     return leftIsRanked ? -1 : 1;
+  }
+
+  const leftIsOwnerRow = left.sourceCompetitionId === left.ownerCompetitionId;
+  const rightIsOwnerRow = right.sourceCompetitionId === right.ownerCompetitionId;
+  if (leftIsOwnerRow !== rightIsOwnerRow) {
+    return leftIsOwnerRow ? -1 : 1;
   }
 
   const leftSum = left.sum ?? Number.POSITIVE_INFINITY;
@@ -276,6 +301,7 @@ function toPlayer(record: PlayerDbRecord): Player {
     seasonPoints: record.season_points ?? null,
     seasonCreditPoints: record.season_credit_points ?? null,
     competitionsCount: record.competitions_count ?? 0,
+    seasonCreditCompetitions: record.season_credit_competitions,
   };
 }
 
@@ -341,6 +367,7 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
       let seasonPointsByPlayerId = new Map<string, number>();
       let seasonCompetitionCountByPlayerId = new Map<string, number>();
       let seasonCreditPointsByPlayerId = new Map<string, number>();
+      let seasonCreditCompetitionsByPlayerId = new Map<string, PlayerSeasonCreditCompetition[]>();
 
       if (filters.seasonCode) {
         const { data: seasonStandings, error: seasonStandingsError } = await supabase
@@ -362,12 +389,18 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
             filters.seasonCode,
             (seasonStandings ?? []) as unknown as SeasonStandingRow[],
           ),
+          await loadCompetitionNameByCompetitionId(
+            supabase,
+            (seasonStandings ?? []) as unknown as SeasonStandingRow[],
+          ),
         );
         seasonPointsByPlayerId = aggregatedSeasonStandings.seasonPointsByPlayerId;
         seasonCompetitionCountByPlayerId =
           aggregatedSeasonStandings.seasonCompetitionCountByPlayerId;
         seasonCreditPointsByPlayerId =
           aggregatedSeasonStandings.seasonCreditPointsByPlayerId;
+        seasonCreditCompetitionsByPlayerId =
+          aggregatedSeasonStandings.seasonCreditCompetitionsByPlayerId;
       }
 
       return players.map((player) => ({
@@ -375,6 +408,10 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
         season_points: seasonPointsByPlayerId.get(player.player_id) ?? null,
         season_credit_points:
           seasonCreditPointsByPlayerId.get(player.player_id) ?? null,
+        season_credit_competitions:
+          filters.seasonCode
+            ? seasonCreditCompetitionsByPlayerId.get(player.player_id) ?? []
+            : undefined,
         competitions_count: filters.seasonCode
           ? seasonCompetitionCountByPlayerId.get(player.player_id) ?? 0
           : competitionIdsByPlayerId.get(player.player_id)?.size ?? 0,
@@ -555,12 +592,15 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
         }
       }
 
-      let seasonPointsByCompetitionId = new Map<string, number>();
+      let seasonStandingByCompetitionId = new Map<
+        string,
+        { seasonPoints: number; placement: number | null }
+      >();
       if (filters.seasonCode) {
         const { data: seasonRows, error: seasonError } = await supabase
           .schema(APP_PUBLIC_SCHEMA)
           .from("season_standings")
-          .select("competition_id, season_points")
+          .select("competition_id, season_points, placement")
           .eq("player_id", filters.playerId)
           .eq("season_code", filters.seasonCode)
           .in("competition_id", [...visibleCompetitionIds]);
@@ -571,10 +611,33 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
           );
         }
 
-        seasonPointsByCompetitionId = new Map(
-          ((seasonRows ?? []) as Array<{ competition_id: string; season_points: number }>)
-            .filter((row) => row.competition_id?.trim().length > 0)
-            .map((row) => [row.competition_id.trim(), Number(row.season_points)]),
+        seasonStandingByCompetitionId = new Map(
+          (
+            (seasonRows ?? []) as Array<{
+              competition_id: string;
+              season_points: number | string | null;
+              placement: number | null;
+            }>
+          )
+            .map((row) => {
+              const competitionId = row.competition_id?.trim() ?? "";
+              const seasonPoints = Number(row.season_points);
+              if (competitionId.length === 0 || !Number.isFinite(seasonPoints)) {
+                return null;
+              }
+
+              return [
+                competitionId,
+                {
+                  seasonPoints,
+                  placement: row.placement ?? null,
+                },
+              ] as const;
+            })
+            .filter(
+              (entry): entry is readonly [string, { seasonPoints: number; placement: number | null }] =>
+                entry !== null,
+            ),
         );
       }
 
@@ -619,20 +682,24 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
           const categoryId = competition.category_id?.trim() ?? "";
           const categoryName =
             categoryId.length > 0 ? (categoriesById.get(categoryId) ?? categoryId) : null;
+          const seasonStanding = seasonStandingByCompetitionId.get(ownerCompetitionId) ?? null;
+          const seasonPlacement = seasonStanding?.placement ?? null;
+          const hasSeasonPlacement = typeof seasonPlacement === "number";
+          const placementFromResults = selectedRow.dnf
+            ? null
+            : (placementByCompetitionPlayerKey.get(
+                `${selectedRow.sourceCompetitionId}:${filters.playerId}`,
+              ) ?? null);
 
           return {
             competitionId: competition.competition_id,
             competitionName: competition.competition_name,
             competitionDate: competition.competition_date,
             category: categoryName,
-            placement: selectedRow.dnf
-              ? null
-              : (placementByCompetitionPlayerKey.get(
-                  `${selectedRow.sourceCompetitionId}:${filters.playerId}`,
-                ) ?? null),
+            placement: seasonPlacement ?? placementFromResults,
             sum: selectedRow.sum,
-            dnf: selectedRow.dnf,
-            seasonPoints: seasonPointsByCompetitionId.get(ownerCompetitionId) ?? null,
+            dnf: hasSeasonPlacement ? false : selectedRow.dnf,
+            seasonPoints: seasonStanding?.seasonPoints ?? null,
           } satisfies PlayerCompetitionResult;
         })
         .filter((row): row is PlayerCompetitionResult => row !== null)
@@ -652,29 +719,31 @@ export function aggregateSeasonStandingsByPlayer(rows: SeasonStandingRow[]): {
   seasonPointsByPlayerId: Map<string, number>;
   seasonCompetitionCountByPlayerId: Map<string, number>;
   seasonCreditPointsByPlayerId: Map<string, number>;
+  seasonCreditCompetitionsByPlayerId: Map<string, PlayerSeasonCreditCompetition[]>;
 };
 export function aggregateSeasonStandingsByPlayer(
   rows: SeasonStandingRow[],
   seasonCreditConfig: SeasonCreditAggregationConfig,
+  competitionNameByCompetitionId: ReadonlyMap<string, string>,
 ): {
   seasonPointsByPlayerId: Map<string, number>;
   seasonCompetitionCountByPlayerId: Map<string, number>;
   seasonCreditPointsByPlayerId: Map<string, number>;
+  seasonCreditCompetitionsByPlayerId: Map<string, PlayerSeasonCreditCompetition[]>;
 };
 export function aggregateSeasonStandingsByPlayer(
   rows: SeasonStandingRow[],
   seasonCreditConfig?: SeasonCreditAggregationConfig,
+  competitionNameByCompetitionId: ReadonlyMap<string, string> = new Map(),
 ): {
   seasonPointsByPlayerId: Map<string, number>;
   seasonCompetitionCountByPlayerId: Map<string, number>;
   seasonCreditPointsByPlayerId: Map<string, number>;
+  seasonCreditCompetitionsByPlayerId: Map<string, PlayerSeasonCreditCompetition[]>;
 } {
   const seasonPointsByPlayerId = new Map<string, number>();
   const competitionIdsByPlayerId = new Map<string, Set<string>>();
-  const scoredRowsByPlayerId = new Map<
-    string,
-    Array<{ seasonPoints: number; competitionClass: CompetitionClass }>
-  >();
+  const scoredRowsByPlayerId = new Map<string, SeasonStandingScoredRow[]>();
 
   for (const row of rows) {
     const playerId = row.player_id?.trim();
@@ -700,6 +769,8 @@ export function aggregateSeasonStandingsByPlayer(
         if (competitionClass) {
           const scoredRows = scoredRowsByPlayerId.get(playerId) ?? [];
           scoredRows.push({
+            competitionId: competitionId ?? null,
+            placement: row.placement ?? null,
             seasonPoints,
             competitionClass,
           });
@@ -725,17 +796,37 @@ export function aggregateSeasonStandingsByPlayer(
   }
 
   const seasonCreditPointsByPlayerId = new Map<string, number>();
+  const seasonCreditCompetitionsByPlayerId = new Map<
+    string,
+    PlayerSeasonCreditCompetition[]
+  >();
   if (seasonCreditConfig) {
     for (const [playerId, scoredRows] of scoredRowsByPlayerId.entries()) {
+      const selectedRows = pickSeasonCreditRows(
+        scoredRows,
+        seasonCreditConfig.bestLeaguesCount,
+        seasonCreditConfig.bestTournamentsCount,
+      );
       seasonCreditPointsByPlayerId.set(
         playerId,
         roundToTwo(
-          calculateSeasonCreditPoints(
-            scoredRows,
-            seasonCreditConfig.bestLeaguesCount,
-            seasonCreditConfig.bestTournamentsCount,
-          ),
+          selectedRows.reduce((total, row) => total + row.seasonPoints, 0),
         ),
+      );
+      seasonCreditCompetitionsByPlayerId.set(
+        playerId,
+        selectedRows
+          .filter((row) => typeof row.competitionId === "string" && row.competitionId.length > 0)
+          .map((row) => {
+            const competitionId = row.competitionId as string;
+            return {
+              competitionId,
+              competitionName:
+                competitionNameByCompetitionId.get(competitionId) ?? competitionId,
+              placement: row.placement,
+              seasonPoints: roundToTwo(row.seasonPoints),
+            };
+          }),
       );
     }
   }
@@ -744,6 +835,7 @@ export function aggregateSeasonStandingsByPlayer(
     seasonPointsByPlayerId,
     seasonCompetitionCountByPlayerId,
     seasonCreditPointsByPlayerId,
+    seasonCreditCompetitionsByPlayerId,
   };
 }
 
@@ -770,38 +862,58 @@ function normalizeTopCount(value: number | null | undefined): number {
   return Math.max(0, Math.floor(value ?? 0));
 }
 
-function pickTopPoints(values: number[], limit: number): number {
-  if (limit <= 0 || values.length === 0) {
-    return 0;
-  }
-
-  return values
-    .sort((left, right) => right - left)
-    .slice(0, limit)
-    .reduce((total, value) => total + value, 0);
-}
-
-function calculateSeasonCreditPoints(
-  rows: Array<{ seasonPoints: number; competitionClass: CompetitionClass }>,
+function pickSeasonCreditRows(
+  rows: SeasonStandingScoredRow[],
   bestLeaguesCount: number,
   bestTournamentsCount: number,
-): number {
-  const leaguePoints: number[] = [];
-  const tournamentPoints: number[] = [];
+): SeasonStandingScoredRow[] {
+  const leagueRows: SeasonStandingScoredRow[] = [];
+  const tournamentRows: SeasonStandingScoredRow[] = [];
 
   for (const row of rows) {
     if (row.competitionClass === "league") {
-      leaguePoints.push(row.seasonPoints);
+      leagueRows.push(row);
       continue;
     }
 
-    tournamentPoints.push(row.seasonPoints);
+    tournamentRows.push(row);
   }
 
-  return (
-    pickTopPoints(leaguePoints, bestLeaguesCount) +
-    pickTopPoints(tournamentPoints, bestTournamentsCount)
-  );
+  const selectedRows = [
+    ...pickTopScoredRows(leagueRows, bestLeaguesCount),
+    ...pickTopScoredRows(tournamentRows, bestTournamentsCount),
+  ];
+
+  return selectedRows.sort((left, right) => {
+    if (left.seasonPoints !== right.seasonPoints) {
+      return right.seasonPoints - left.seasonPoints;
+    }
+
+    const leftCompetitionId = left.competitionId ?? "";
+    const rightCompetitionId = right.competitionId ?? "";
+    return leftCompetitionId.localeCompare(rightCompetitionId, "ru");
+  });
+}
+
+function pickTopScoredRows(
+  rows: SeasonStandingScoredRow[],
+  limit: number,
+): SeasonStandingScoredRow[] {
+  if (limit <= 0 || rows.length === 0) {
+    return [];
+  }
+
+  return [...rows]
+    .sort((left, right) => {
+      if (left.seasonPoints !== right.seasonPoints) {
+        return right.seasonPoints - left.seasonPoints;
+      }
+
+      const leftCompetitionId = left.competitionId ?? "";
+      const rightCompetitionId = right.competitionId ?? "";
+      return leftCompetitionId.localeCompare(rightCompetitionId, "ru");
+    })
+    .slice(0, limit);
 }
 
 function resolveCompetitionClassByCategoryId(
@@ -889,6 +1001,47 @@ async function loadSeasonCreditAggregationConfig(
     bestTournamentsCount: normalizeTopCount(seasonRow?.best_tournaments_count),
     competitionClassByCategoryId: categoriesById,
   };
+}
+
+async function loadCompetitionNameByCompetitionId(
+  supabase: ReturnType<typeof createApiSupabaseAdminClient>,
+  seasonStandings: SeasonStandingRow[],
+): Promise<Map<string, string>> {
+  const competitionIds = [
+    ...new Set(
+      seasonStandings
+        .map((row) => row.competition_id?.trim() ?? "")
+        .filter((competitionId) => competitionId.length > 0),
+    ),
+  ];
+
+  if (competitionIds.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .schema(APP_PUBLIC_SCHEMA)
+    .from("competitions")
+    .select("competition_id, competition_name")
+    .in("competition_id", competitionIds);
+
+  if (error) {
+    throw new Error(
+      `Failed to load competition names for players list: ${error.message}`,
+    );
+  }
+
+  const namesByCompetitionId = new Map<string, string>();
+  for (const row of (data ?? []) as unknown as CompetitionNameRow[]) {
+    const competitionId = row.competition_id?.trim() ?? "";
+    if (competitionId.length === 0) {
+      continue;
+    }
+
+    namesByCompetitionId.set(competitionId, row.competition_name ?? competitionId);
+  }
+
+  return namesByCompetitionId;
 }
 
 function rankCompetitionResultsForPlayerView(

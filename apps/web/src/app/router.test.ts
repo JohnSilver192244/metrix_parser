@@ -7,9 +7,17 @@ import { appRoutes, getAppRoutesByGroup, resolveAppRoute } from "./router";
 test("app route map registers admin and all data view pages", () => {
   assert.deepEqual(
     appRoutes.map((route) => route.path),
-    ["/", "/courses", "/players", "/tournament-categories", "/admin", "/season-config"],
+    [
+      "/",
+      "/courses",
+      "/players",
+      "/tournament-categories",
+      "/divisions",
+      "/admin",
+      "/season-config",
+    ],
   );
-  assert.equal(getAppRoutesByGroup("admin").length, 2);
+  assert.equal(getAppRoutesByGroup("admin").length, 3);
   assert.equal(getAppRoutesByGroup("browse").length, 4);
 });
 
@@ -50,6 +58,15 @@ test("resolveAppRoute exposes the season config admin page", () => {
   assert.equal(route?.group, "admin");
   assert.equal(route?.requiresAuth, true);
   assert.match(route?.description ?? "", /начисления очков/);
+});
+
+test("resolveAppRoute exposes divisions admin page", () => {
+  const route = resolveAppRoute("/divisions");
+
+  assert.equal(route?.label, "Дивизионы");
+  assert.equal(route?.group, "admin");
+  assert.equal(route?.requiresAuth, true);
+  assert.match(route?.description ?? "", /каскадным обновлением/);
 });
 
 test("resolveAppRoute maps competition detail paths to the results detail page", () => {

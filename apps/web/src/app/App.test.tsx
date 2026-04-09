@@ -6,7 +6,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   AppShellView,
+  getInitialTheme,
+  isScrollRestorationPath,
   navigateToAppPath,
+  parseScrollPositions,
+  parseStoredTheme,
+  persistTheme,
+  restorePathScrollPosition,
+  savePathScrollPosition,
   shouldHandleInAppNavigation,
 } from "./App";
 import { AuthContext, type AuthContextValue } from "../features/auth/auth-context";
@@ -90,6 +97,7 @@ test("AppShellView renders project title and linear SPA navigation", () => {
   assert.match(markup, /Тёмная тема/);
   assert.match(markup, /Обновления/);
   assert.match(markup, /Сезоны и очки/);
+  assert.match(markup, /Дивизионы/);
   assert.match(markup, /Соревнования/);
   assert.match(markup, /Парки/);
   assert.match(markup, /Игроки/);
@@ -127,6 +135,7 @@ test("AppShellView hides admin navigation for guests and blocks direct access", 
   assert.doesNotMatch(markup, /href="\/users"/);
   assert.doesNotMatch(markup, /href="\/admin">/);
   assert.doesNotMatch(markup, /href="\/season-config">/);
+  assert.doesNotMatch(markup, /href="\/divisions">/);
   assert.match(markup, />Войти</);
   assert.doesNotMatch(markup, /topbar-login/);
   assert.doesNotMatch(markup, /Редактирование и раздел обновлений доступны после входа/);
@@ -170,6 +179,129 @@ test("shouldHandleInAppNavigation ignores modified or non-primary clicks", () =>
 test("getNextTheme alternates between light and dark without persistence", () => {
   assert.equal(getNextTheme("light"), "dark");
   assert.equal(getNextTheme("dark"), "light");
+});
+
+test("parseStoredTheme accepts only known themes", () => {
+  assert.equal(parseStoredTheme("light"), "light");
+  assert.equal(parseStoredTheme("dark"), "dark");
+  assert.equal(parseStoredTheme("other"), null);
+  assert.equal(parseStoredTheme(null), null);
+});
+
+test("persistTheme writes selected theme to storage", () => {
+  const storage = new Map<string, string>();
+  const fakeStorage = {
+    getItem(key: string) {
+      return storage.get(key) ?? null;
+    },
+    setItem(key: string, value: string) {
+      storage.set(key, value);
+    },
+  };
+
+  persistTheme("dark", fakeStorage);
+  assert.equal(storage.get("app-shell:theme"), "dark");
+});
+
+test("getInitialTheme reads localStorage and falls back to light", () => {
+  const originalWindow = globalThis.window;
+  try {
+    const fakeWindow = {
+      localStorage: {
+        getItem(key: string) {
+          return key === "app-shell:theme" ? "dark" : null;
+        },
+        setItem() {},
+      },
+    } as unknown as Window & typeof globalThis;
+
+    Object.defineProperty(globalThis, "window", {
+      value: fakeWindow,
+      configurable: true,
+      writable: true,
+    });
+    assert.equal(getInitialTheme(), "dark");
+
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        localStorage: {
+          getItem() {
+            return "invalid";
+          },
+          setItem() {},
+        },
+      } as unknown as Window & typeof globalThis,
+      configurable: true,
+      writable: true,
+    });
+    assert.equal(getInitialTheme(), "light");
+  } finally {
+    Object.defineProperty(globalThis, "window", {
+      value: originalWindow,
+      configurable: true,
+      writable: true,
+    });
+  }
+});
+
+test("parseScrollPositions ignores invalid payloads", () => {
+  assert.deepEqual(parseScrollPositions(null), {});
+  assert.deepEqual(parseScrollPositions("not-json"), {});
+  assert.deepEqual(parseScrollPositions(JSON.stringify(["x"])), {});
+  assert.deepEqual(
+    parseScrollPositions(JSON.stringify({ "/": 120, "/players": -1, bad: "x" })),
+    { "/": 120 },
+  );
+});
+
+test("savePathScrollPosition and restorePathScrollPosition persist list scroll", () => {
+  const storage = new Map<string, string>();
+  const fakeStorage = {
+    getItem(key: string) {
+      return storage.get(key) ?? null;
+    },
+    setItem(key: string, value: string) {
+      storage.set(key, value);
+    },
+  };
+
+  savePathScrollPosition("/players", 420, fakeStorage);
+
+  let restoredX = -1;
+  let restoredY = -1;
+  const restored = restorePathScrollPosition("/players", fakeStorage, (x, y) => {
+    restoredX = x;
+    restoredY = y;
+  });
+
+  assert.equal(restored, true);
+  assert.equal(restoredX, 0);
+  assert.equal(restoredY, 420);
+});
+
+test("restorePathScrollPosition returns false when path was never saved", () => {
+  const fakeStorage = {
+    getItem() {
+      return JSON.stringify({ "/players": 240 });
+    },
+    setItem() {},
+  };
+
+  const restored = restorePathScrollPosition("/courses", fakeStorage, () => {
+    throw new Error("should not restore");
+  });
+
+  assert.equal(restored, false);
+});
+
+test("isScrollRestorationPath returns true only for list routes", () => {
+  assert.equal(isScrollRestorationPath("/"), true);
+  assert.equal(isScrollRestorationPath("/players"), true);
+  assert.equal(isScrollRestorationPath("/season-config"), true);
+  assert.equal(isScrollRestorationPath("/divisions"), true);
+  assert.equal(isScrollRestorationPath("/competitions"), true);
+  assert.equal(isScrollRestorationPath("/players/player-100"), false);
+  assert.equal(isScrollRestorationPath("/competitions/competition-100"), false);
 });
 
 test("AppShellView renders the dark theme toggle state when requested", () => {

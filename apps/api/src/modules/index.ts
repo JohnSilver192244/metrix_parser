@@ -74,7 +74,7 @@ export function getRegisteredRoutes(
     ...getUpdatesRoutes(dependencies.updates, dependencies.auth),
     ...getCompetitionsRoutes(dependencies.competitions, dependencies.auth),
     ...getCoursesRoutes(dependencies.courses),
-    ...getDivisionsRoutes(dependencies.divisions),
+    ...getDivisionsRoutes(dependencies.divisions, dependencies.auth),
     ...getPlayersRoutes(dependencies.players, dependencies.auth),
     ...getResultsRoutes(dependencies.results),
     ...getSeasonsRoutes(dependencies.seasons),

@@ -1,4 +1,5 @@
 import type {
+  CompetitionHierarchyNode,
   CompetitionCommentReasonCode,
   RunSeasonPointsAccrualRequest,
   RunSeasonPointsAccrualResult,
@@ -8,7 +9,6 @@ import {
   buildCompetitionComment,
   buildCompetitionChildrenByParentId,
   clearCompetitionCommentIfMatches,
-  isCompetitionScoringUnitCandidate,
   normalizeCompetitionComment,
   resolveCompetitionResultSourceIds,
   shouldOverwriteCompetitionComment,
@@ -26,6 +26,7 @@ import {
 
 const APP_PUBLIC_SCHEMA = "app_public";
 const COMPETITION_RESULTS_PAGE_SIZE = 1000;
+const SEASON_POINTS_MATRIX_PAGE_SIZE = 1000;
 
 interface SeasonRecord {
   season_code: string;
@@ -84,6 +85,10 @@ type CompetitionResultsPageLoader = (
   from: number,
   to: number,
 ) => Promise<CompetitionResultRecord[]>;
+type SeasonPointsMatrixPageLoader = (
+  from: number,
+  to: number,
+) => Promise<SeasonPointsRecord[]>;
 
 export interface SeasonStandingsRouteDependencies {
   runSeasonPointsAccrual?: (
@@ -155,6 +160,27 @@ export async function loadPaginatedCompetitionResults(
   }
 
   return results;
+}
+
+export async function loadPaginatedSeasonPointsMatrix(
+  loadPage: SeasonPointsMatrixPageLoader,
+): Promise<SeasonPointsRecord[]> {
+  const pointsMatrix: SeasonPointsRecord[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + SEASON_POINTS_MATRIX_PAGE_SIZE - 1;
+    const page = await loadPage(from, to);
+    pointsMatrix.push(...page);
+
+    if (page.length < SEASON_POINTS_MATRIX_PAGE_SIZE) {
+      break;
+    }
+
+    from += SEASON_POINTS_MATRIX_PAGE_SIZE;
+  }
+
+  return pointsMatrix;
 }
 
 interface RankedCompetitionResult {
@@ -317,6 +343,78 @@ function resolveInheritedCategoryId(
   return null;
 }
 
+function hasDirectRoundChildren(
+  competitionId: string,
+  childrenByParentId: ReadonlyMap<string, readonly CompetitionHierarchyNode[]>,
+): boolean {
+  return (childrenByParentId.get(competitionId) ?? []).some(
+    (child) => child.recordType === "1",
+  );
+}
+
+function resolveDirectPoolChildrenWithRounds(
+  competitionId: string,
+  childrenByParentId: ReadonlyMap<string, readonly CompetitionHierarchyNode[]>,
+): CompetitionHierarchyNode[] {
+  return (childrenByParentId.get(competitionId) ?? []).filter(
+    (child) =>
+      child.recordType === "3" &&
+      hasDirectRoundChildren(child.competitionId, childrenByParentId),
+  );
+}
+
+function isSeasonScoringCompetitionUnitCandidate(
+  competition: CompetitionHierarchyNode,
+  competitionsById: ReadonlyMap<string, CompetitionHierarchyNode>,
+  childrenByParentId: ReadonlyMap<string, readonly CompetitionHierarchyNode[]>,
+): boolean {
+  if (competition.recordType === "2") {
+    return true;
+  }
+
+  if (competition.recordType === "1" && !competition.parentId) {
+    return true;
+  }
+
+  if (competition.recordType === "3") {
+    if (!hasDirectRoundChildren(competition.competitionId, childrenByParentId)) {
+      return false;
+    }
+
+    const parentCompetition = competition.parentId
+      ? competitionsById.get(competition.parentId) ?? null
+      : null;
+    if (parentCompetition?.recordType !== "4") {
+      return true;
+    }
+
+    const siblingPoolsWithRounds = resolveDirectPoolChildrenWithRounds(
+      parentCompetition.competitionId,
+      childrenByParentId,
+    );
+
+    return siblingPoolsWithRounds.length > 1;
+  }
+
+  if (competition.recordType !== "4") {
+    return false;
+  }
+
+  const directRoundChildren = (childrenByParentId.get(competition.competitionId) ?? []).filter(
+    (child) => child.recordType === "1",
+  );
+  if (directRoundChildren.length > 0) {
+    return true;
+  }
+
+  const directPoolChildrenWithRounds = resolveDirectPoolChildrenWithRounds(
+    competition.competitionId,
+    childrenByParentId,
+  );
+
+  return directPoolChildrenWithRounds.length <= 1;
+}
+
 export function buildSeasonScoringCompetitionUnits(
   competitions: readonly CompetitionRecord[],
 ): SeasonScoringCompetitionUnit[] {
@@ -341,7 +439,14 @@ export function buildSeasonScoringCompetitionUnits(
     const hierarchyCompetition =
       hierarchyCompetitionById.get(competition.competition_id) ?? null;
 
-    if (!hierarchyCompetition || !isCompetitionScoringUnitCandidate(hierarchyCompetition)) {
+    if (
+      !hierarchyCompetition ||
+      !isSeasonScoringCompetitionUnitCandidate(
+        hierarchyCompetition,
+        hierarchyCompetitionById,
+        childrenByParentId,
+      )
+    ) {
       continue;
     }
 
@@ -458,17 +563,22 @@ function createSupabaseSeasonStandingsWriteAdapter(): SeasonStandingsWriteAdapte
       return (data ?? []) as CategoryRecord[];
     },
     async listSeasonPointsMatrix(seasonCode) {
-      const { data, error } = await supabase
-        .schema(APP_PUBLIC_SCHEMA)
-        .from("season_points_table")
-        .select("players_count, placement, points")
-        .eq("season_code", seasonCode);
+      return loadPaginatedSeasonPointsMatrix(async (from, to) => {
+        const { data, error } = await supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("season_points_table")
+          .select("players_count, placement, points")
+          .eq("season_code", seasonCode)
+          .order("players_count", { ascending: true })
+          .order("placement", { ascending: true })
+          .range(from, to);
 
-      if (error) {
-        throw new Error(`Failed to load season points matrix: ${error.message}`);
-      }
+        if (error) {
+          throw new Error(`Failed to load season points matrix: ${error.message}`);
+        }
 
-      return (data ?? []) as SeasonPointsRecord[];
+        return (data ?? []) as SeasonPointsRecord[];
+      });
     },
     async listExistingCompetitionIds(seasonCode, competitionIds) {
       if (competitionIds.length === 0) {
@@ -563,9 +673,17 @@ export async function runSeasonPointsAccrual(
   const hierarchyCompetitionById = new Map(
     hierarchyCompetitions.map((competition) => [competition.competitionId, competition] as const),
   );
+  const childrenByParentId = buildCompetitionChildrenByParentId(hierarchyCompetitions);
   const missingCategoryCompetitions = competitionsInSeason.filter((competition) => {
     const hierarchyCompetition = hierarchyCompetitionById.get(competition.competition_id) ?? null;
-    if (!hierarchyCompetition || !isCompetitionScoringUnitCandidate(hierarchyCompetition)) {
+    if (
+      !hierarchyCompetition ||
+      !isSeasonScoringCompetitionUnitCandidate(
+        hierarchyCompetition,
+        hierarchyCompetitionById,
+        childrenByParentId,
+      )
+    ) {
       return false;
     }
 

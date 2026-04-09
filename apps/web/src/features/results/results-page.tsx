@@ -164,7 +164,6 @@ export function ResultsPageView({
       <section className="data-page-shell" aria-labelledby="results-page-title">
         <PageHeader
           titleId="results-page-title"
-          eyebrow="Данные"
           title="Результаты соревнований"
           description="Загружаем сохранённые результаты через backend API."
         />
@@ -183,7 +182,6 @@ export function ResultsPageView({
       <section className="data-page-shell" aria-labelledby="results-page-title">
         <PageHeader
           titleId="results-page-title"
-          eyebrow="Данные"
           title="Результаты соревнований"
           description="Страница использует backend API и сохраняет семантику DNF."
         />
@@ -205,7 +203,6 @@ export function ResultsPageView({
     <section className="data-page-shell" aria-labelledby="results-page-title">
       <PageHeader
         titleId="results-page-title"
-        eyebrow="Данные"
         title="Результаты соревнований"
         description={
           total > 0

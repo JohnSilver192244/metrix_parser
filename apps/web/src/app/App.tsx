@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import {
   appRoutes,
@@ -20,6 +20,11 @@ interface HistoryLike {
   ): void;
 }
 
+interface StorageLike {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+}
+
 interface NavigationClickLike {
   button: number;
   metaKey: boolean;
@@ -30,6 +35,95 @@ interface NavigationClickLike {
 
 export function getInitialPathname(): string {
   return typeof window === "undefined" ? "/" : window.location.pathname;
+}
+
+const scrollRestoreStorageKey = "app-shell:scroll-positions";
+const themeStorageKey = "app-shell:theme";
+const legacyCompetitionsListPath = "/competitions";
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+export function parseStoredTheme(value: string | null): ThemeMode | null {
+  if (value === "light" || value === "dark") {
+    return value;
+  }
+
+  return null;
+}
+
+export function getInitialTheme(): ThemeMode {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  return parseStoredTheme(window.localStorage.getItem(themeStorageKey)) ?? "light";
+}
+
+export function persistTheme(theme: ThemeMode, storage: StorageLike): void {
+  storage.setItem(themeStorageKey, theme);
+}
+
+export function isScrollRestorationPath(pathname: string): boolean {
+  return (
+    appRoutes.some((route) => route.path === pathname) ||
+    pathname === legacyCompetitionsListPath
+  );
+}
+
+export function parseScrollPositions(serialized: string | null): Record<string, number> {
+  if (!serialized) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(serialized);
+    if (!isObjectRecord(parsed)) {
+      return {};
+    }
+
+    const result: Record<string, number> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+        result[key] = value;
+      }
+    }
+
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+export function savePathScrollPosition(
+  pathname: string,
+  scrollY: number,
+  storage: StorageLike,
+): void {
+  if (!pathname || !Number.isFinite(scrollY) || scrollY < 0) {
+    return;
+  }
+
+  const scrollPositions = parseScrollPositions(storage.getItem(scrollRestoreStorageKey));
+  scrollPositions[pathname] = scrollY;
+  storage.setItem(scrollRestoreStorageKey, JSON.stringify(scrollPositions));
+}
+
+export function restorePathScrollPosition(
+  pathname: string,
+  storage: StorageLike,
+  scrollTo: (x: number, y: number) => void,
+): boolean {
+  const scrollPositions = parseScrollPositions(storage.getItem(scrollRestoreStorageKey));
+  const position = scrollPositions[pathname];
+
+  if (typeof position !== "number" || !Number.isFinite(position)) {
+    return false;
+  }
+
+  scrollTo(0, position);
+  return true;
 }
 
 export function navigateToAppPath(
@@ -99,21 +193,16 @@ export function AppShellView({
             const isActive = appRoute.path === activePathname;
 
             return (
-              <a
+              <button
                 key={appRoute.path}
+                type="button"
                 className={isActive ? "app-topbar__link app-topbar__link--active" : "app-topbar__link"}
-                href={appRoute.path}
-                onClick={(event) => {
-                  if (!shouldHandleInAppNavigation(event)) {
-                    return;
-                  }
-
-                  event.preventDefault();
+                onClick={() => {
                   onNavigate(appRoute.path);
                 }}
               >
                 {appRoute.label}
-              </a>
+              </button>
             );
           })}
         </nav>
@@ -140,20 +229,15 @@ export function AppShellView({
               списку соревнований.
             </p>
             <p>
-              <a
+              <button
+                type="button"
                 className="app-topbar__link app-topbar__link--active"
-                href="/"
-                onClick={(event) => {
-                  if (!shouldHandleInAppNavigation(event)) {
-                    return;
-                  }
-
-                  event.preventDefault();
+                onClick={() => {
                   onNavigate("/");
                 }}
               >
                 Открыть соревнования
-              </a>
+              </button>
             </p>
           </section>
         ) : (
@@ -161,20 +245,15 @@ export function AppShellView({
             <p className="not-found-panel__eyebrow">route not found</p>
             <h2>Эта страница пока не собрана.</h2>
             <p>Вернитесь на главную страницу, чтобы продолжить работу.</p>
-            <a
+            <button
+              type="button"
               className="app-topbar__link app-topbar__link--active"
-              href="/"
-              onClick={(event) => {
-                if (!shouldHandleInAppNavigation(event)) {
-                  return;
-                }
-
-                event.preventDefault();
+              onClick={() => {
                 onNavigate("/");
               }}
             >
               На главную
-            </a>
+            </button>
           </section>
         )}
       </section>
@@ -184,10 +263,12 @@ export function AppShellView({
 
 function AppShellController() {
   const [pathname, setPathname] = useState(getInitialPathname());
-  const [theme, setTheme] = useState<ThemeMode>("light");
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const pendingScrollRestorePathRef = useRef<string | null>(null);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
+    persistTheme(theme, window.localStorage);
 
     return () => {
       document.documentElement.removeAttribute("data-theme");
@@ -196,7 +277,11 @@ function AppShellController() {
 
   useEffect(() => {
     const handlePopState = () => {
-      setPathname(window.location.pathname);
+      const nextPathname = window.location.pathname;
+      pendingScrollRestorePathRef.current = isScrollRestorationPath(nextPathname)
+        ? nextPathname
+        : null;
+      setPathname(nextPathname);
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -206,12 +291,43 @@ function AppShellController() {
     };
   }, []);
 
+  useEffect(() => {
+    if (
+      pendingScrollRestorePathRef.current !== pathname ||
+      !isScrollRestorationPath(pathname)
+    ) {
+      return;
+    }
+
+    pendingScrollRestorePathRef.current = null;
+    const frameId = window.requestAnimationFrame(() => {
+      restorePathScrollPosition(pathname, window.sessionStorage, window.scrollTo);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [pathname]);
+
   return (
     <AppShellView
       pathname={pathname}
       theme={theme}
       onNavigate={(nextPathname) => {
-        navigateToAppPath(nextPathname, pathname, window.history, setPathname);
+        savePathScrollPosition(pathname, window.scrollY, window.sessionStorage);
+        const changed = navigateToAppPath(
+          nextPathname,
+          pathname,
+          window.history,
+          setPathname,
+        );
+        if (!changed) {
+          return;
+        }
+
+        pendingScrollRestorePathRef.current = isScrollRestorationPath(nextPathname)
+          ? nextPathname
+          : null;
       }}
       onToggleTheme={() => {
         setTheme(getNextTheme);

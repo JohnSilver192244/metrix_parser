@@ -192,9 +192,11 @@ body {
   padding: 10px 16px;
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   color: var(--link);
+  background: transparent;
   text-decoration: none;
   font-weight: 600;
   font-size: 0.9rem;
+  font-family: inherit;
   white-space: nowrap;
   transition:
     color 150ms,
@@ -202,6 +204,7 @@ body {
   outline: none;
   box-shadow: none;
   border: 0;
+  cursor: pointer;
 }
 
 .app-topbar__link:hover {
@@ -1093,7 +1096,6 @@ body {
 .period-picker__primary:focus,
 .period-picker__day:focus,
 .update-card__submit:focus,
-.app-topbar__link:focus,
 .data-table__external-link:focus,
 .data-table__link-button:focus,
 .data-table__sort-button:focus,
@@ -1207,6 +1209,9 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 28px;
+  min-width: 28px;
+  min-height: 28px;
   width: 28px;
   height: 28px;
   border: 1px solid var(--panel-border);
@@ -1452,10 +1457,26 @@ body {
 
 /* ─── Players Page ─── */
 
+.players-page__table-panel {
+  overflow: visible;
+}
+
+.players-page__table-panel .data-table-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.players-page__table-panel .data-table th,
+.players-page__table-panel .data-table td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  vertical-align: middle;
+}
+
 .players-table__division-select {
   width: 100%;
   min-width: 160px;
-  min-height: 38px;
+  min-height: 34px;
   padding: 0 12px;
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-sm);
@@ -1473,7 +1494,7 @@ body {
 .players-table__date-input {
   width: 100%;
   min-width: 160px;
-  min-height: 38px;
+  min-height: 34px;
   padding: 0 12px;
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-sm);
@@ -1502,7 +1523,7 @@ body {
 .players-table__readonly-value {
   display: inline-flex;
   align-items: center;
-  min-height: 38px;
+  min-height: 28px;
   color: inherit;
   font: inherit;
   font-weight: 600;
@@ -1539,6 +1560,25 @@ body {
 
 .players-table__status--error {
   color: var(--error);
+}
+
+.players-page__credit-tooltip-anchor {
+  min-height: 38px;
+}
+
+.players-page__credit-tooltip {
+  width: min(560px, calc(100vw - 32px));
+  z-index: 120;
+}
+
+.divisions-page__code-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.divisions-page__code-row .tournament-categories-page__input {
+  width: 160px;
 }
 
 /* ─── Action Toast ─── */
@@ -1707,11 +1747,12 @@ body {
   display: grid;
   grid-template-columns:
     minmax(80px, 90px)
-    minmax(0, 2fr)
+    minmax(220px, 1.4fr)
+    minmax(110px, 130px)
     minmax(120px, 140px)
     minmax(100px, 120px)
     minmax(100px, 120px)
-    minmax(130px, 150px);
+    minmax(100px, 120px);
   gap: 12px;
   align-items: end;
 }
@@ -1726,6 +1767,7 @@ body {
 
 .tournament-categories-page__field--description {
   min-width: 0;
+  max-width: 480px;
 }
 
 .tournament-categories-page__input {
@@ -1743,6 +1785,7 @@ body {
 
 .tournament-categories-page__input--description {
   width: 100%;
+  max-width: 480px;
 }
 
 .tournament-categories-page__input:focus,
@@ -1993,11 +2036,12 @@ body {
   .tournament-categories-page__create-grid {
     grid-template-columns:
       minmax(80px, 80px)
-      minmax(0, 2fr)
+      minmax(180px, 1.4fr)
+      minmax(96px, 110px)
       minmax(60px, 60px)
       minmax(110px, 110px)
       minmax(110px, 110px)
-      minmax(120px, 120px);
+      minmax(100px, 100px);
   }
 
   .season-config-page__create-grid {

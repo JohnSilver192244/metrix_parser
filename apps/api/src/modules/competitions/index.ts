@@ -26,6 +26,7 @@ import {
 
 const APP_PUBLIC_SCHEMA = "app_public";
 const COMPETITION_RESULTS_PAGE_SIZE = 1000;
+const SEASON_STANDINGS_COMPETITION_IDS_CHUNK_SIZE = 200;
 const COMPETITIONS_SELECT_COLUMNS = [
   "competition_id",
   "competition_name",
@@ -263,6 +264,41 @@ export function aggregateSeasonStandingsByCompetition(
   return totalsByCompetitionId;
 }
 
+function chunkCompetitionIds(
+  competitionIds: readonly string[],
+  chunkSize: number,
+): string[][] {
+  const chunks: string[][] = [];
+
+  for (let index = 0; index < competitionIds.length; index += chunkSize) {
+    chunks.push(competitionIds.slice(index, index + chunkSize));
+  }
+
+  return chunks;
+}
+
+export async function loadPaginatedSeasonStandingsRows(
+  loadPage: (from: number, to: number) => Promise<SeasonStandingCompetitionRow[]>,
+  pageSize: number = COMPETITION_RESULTS_PAGE_SIZE,
+): Promise<SeasonStandingCompetitionRow[]> {
+  const rows: SeasonStandingCompetitionRow[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + pageSize - 1;
+    const pageRows = await loadPage(from, to);
+    rows.push(...pageRows);
+
+    if (pageRows.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return rows;
+}
+
 function buildCompetitionIdentityMaps(records: readonly CompetitionDbRecord[]): {
   competitionsById: Map<string, CompetitionHierarchyNode>;
   childrenByParentId: Map<string, CompetitionHierarchyNode[]>;
@@ -316,24 +352,43 @@ async function listSeasonPointsByCompetition(
     return new Map();
   }
 
-  const supabase = createApiSupabaseAdminClient();
-  const { data, error } = await supabase
-    .schema(APP_PUBLIC_SCHEMA)
-    .from("season_standings")
-    .select("competition_id, season_code, player_id, season_points")
-    .in("competition_id", [...competitionIds]);
-
-  if (error) {
-    if (isMissingSeasonStandingsTableError(error)) {
-      return new Map();
-    }
-
-    throw new Error(`Failed to load season points for competitions list: ${error.message}`);
+  const normalizedCompetitionIds = [...new Set(
+    competitionIds.map((competitionId) => competitionId.trim()).filter(Boolean),
+  )];
+  if (normalizedCompetitionIds.length === 0) {
+    return new Map();
   }
 
-  return aggregateSeasonStandingsByCompetition(
-    (data ?? []) as SeasonStandingCompetitionRow[],
+  const supabase = createApiSupabaseAdminClient();
+  const seasonStandingRows: SeasonStandingCompetitionRow[] = [];
+  const idChunks = chunkCompetitionIds(
+    normalizedCompetitionIds,
+    SEASON_STANDINGS_COMPETITION_IDS_CHUNK_SIZE,
   );
+
+  for (const idChunk of idChunks) {
+    const chunkRows = await loadPaginatedSeasonStandingsRows(async (from, to) => {
+      const { data, error } = await supabase
+        .schema(APP_PUBLIC_SCHEMA)
+        .from("season_standings")
+        .select("competition_id, season_code, player_id, season_points")
+        .in("competition_id", idChunk)
+        .range(from, to);
+
+      if (error) {
+        if (isMissingSeasonStandingsTableError(error)) {
+          return [];
+        }
+
+        throw new Error(`Failed to load season points for competitions list: ${error.message}`);
+      }
+
+      return (data ?? []) as SeasonStandingCompetitionRow[];
+    });
+    seasonStandingRows.push(...chunkRows);
+  }
+
+  return aggregateSeasonStandingsByCompetition(seasonStandingRows);
 }
 
 function createSupabaseCompetitionReadAdapter(): CompetitionReadAdapter {
