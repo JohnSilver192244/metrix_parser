@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type {
+  CompetitionClass,
   CreateTournamentCategoryRequest,
   DeleteTournamentCategoryRequest,
   TournamentCategory,
@@ -23,6 +24,7 @@ const TOURNAMENT_CATEGORIES_SELECT_COLUMNS = [
   "category_id",
   "name",
   "description",
+  "competition_class",
   "segments_count",
   "rating_gte",
   "rating_lt",
@@ -65,6 +67,7 @@ function toTournamentCategory(
     categoryId: record.category_id,
     name: record.name,
     description: record.description,
+    competitionClass: record.competition_class,
     segmentsCount: record.segments_count,
     ratingGte: record.rating_gte,
     ratingLt: record.rating_lt,
@@ -106,6 +109,7 @@ function createSupabaseTournamentCategoryWriteAdapter(): TournamentCategoryWrite
           category_id: randomUUID(),
           name: payload.name,
           description: payload.description,
+          competition_class: payload.competitionClass,
           segments_count: payload.segmentsCount,
           rating_gte: payload.ratingGte,
           rating_lt: payload.ratingLt,
@@ -127,6 +131,7 @@ function createSupabaseTournamentCategoryWriteAdapter(): TournamentCategoryWrite
         .update({
           name: payload.name,
           description: payload.description,
+          competition_class: payload.competitionClass,
           segments_count: payload.segmentsCount,
           rating_gte: payload.ratingGte,
           rating_lt: payload.ratingLt,
@@ -209,6 +214,18 @@ function normalizeTwoDecimalNumber(value: unknown, fieldName: string): number {
   return normalizedValue;
 }
 
+function normalizeCompetitionClass(value: unknown): CompetitionClass {
+  if (value === "league" || value === "tournament") {
+    return value;
+  }
+
+  throw new HttpError(
+    400,
+    "invalid_competitionClass",
+    "competitionClass must be either 'league' or 'tournament'",
+  );
+}
+
 function parseCreateTournamentCategoryRequestBody(
   body: unknown,
 ): CreateTournamentCategoryRequest {
@@ -238,6 +255,9 @@ function parseCreateTournamentCategoryRequestBody(
     description: normalizeRequiredString(
       "description" in body ? body.description : undefined,
       "description",
+    ),
+    competitionClass: normalizeCompetitionClass(
+      "competitionClass" in body ? body.competitionClass : undefined,
     ),
     segmentsCount: normalizePositiveInteger(
       "segmentsCount" in body ? body.segmentsCount : undefined,

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { TournamentCategory } from "@metrix-parser/shared-types";
+
 import {
   calculateCompetitionCourseRating,
   filterCompetitions,
@@ -385,11 +387,12 @@ test("resolveCompetitionDisplayName uses the parent plus pool name for event row
 });
 
 test("resolveCompetitionCategoryIdByMetrics picks the best matching category", () => {
-  const categories = [
+  const categories: TournamentCategory[] = [
     {
       categoryId: "league",
       name: "Лига",
       description: "18+",
+      competitionClass: "league",
       segmentsCount: 18,
       ratingGte: 0,
       ratingLt: 1000,
@@ -399,6 +402,7 @@ test("resolveCompetitionCategoryIdByMetrics picks the best matching category", (
       categoryId: "tournament",
       name: "Турнир",
       description: "54+",
+      competitionClass: "tournament",
       segmentsCount: 54,
       ratingGte: 0,
       ratingLt: 1000,

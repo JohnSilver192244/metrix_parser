@@ -1,4 +1,5 @@
 import type {
+  CompetitionClass,
   Player,
   PlayerCompetitionResult,
   PlayerDbRecord,
@@ -40,6 +41,7 @@ const PLAYER_RESULT_COUNTS_SELECT_COLUMNS = [
 const SEASON_STANDINGS_SELECT_COLUMNS = [
   "player_id",
   "competition_id",
+  "category_id",
   "season_points",
 ].join(", ");
 
@@ -58,9 +60,20 @@ const PLAYER_COMPETITIONS_SELECT_COLUMNS = [
   "record_type",
 ].join(", ");
 
-const TOURNAMENT_CATEGORIES_SELECT_COLUMNS = [
+const TOURNAMENT_CATEGORIES_NAME_SELECT_COLUMNS = [
   "category_id",
   "name",
+].join(", ");
+
+const TOURNAMENT_CATEGORIES_CLASS_SELECT_COLUMNS = [
+  "category_id",
+  "competition_class",
+].join(", ");
+
+const SEASONS_SELECT_COLUMNS = [
+  "season_code",
+  "best_leagues_count",
+  "best_tournaments_count",
 ].join(", ");
 
 export interface PlayersListFilters {
@@ -84,7 +97,14 @@ interface SupabaseQueryError {
 interface SeasonStandingRow {
   player_id: string | null;
   competition_id: string | null;
+  category_id: string | null;
   season_points: number | string | null;
+}
+
+interface SeasonConfigRow {
+  season_code: string;
+  best_leagues_count: number | null;
+  best_tournaments_count: number | null;
 }
 
 interface PlayerCompetitionResultRow {
@@ -254,6 +274,7 @@ function toPlayer(record: PlayerDbRecord): Player {
     rdgaSince: record.rdga_since,
     seasonDivision: record.season_division,
     seasonPoints: record.season_points ?? null,
+    seasonCreditPoints: record.season_credit_points ?? null,
     competitionsCount: record.competitions_count ?? 0,
   };
 }
@@ -319,6 +340,7 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
 
       let seasonPointsByPlayerId = new Map<string, number>();
       let seasonCompetitionCountByPlayerId = new Map<string, number>();
+      let seasonCreditPointsByPlayerId = new Map<string, number>();
 
       if (filters.seasonCode) {
         const { data: seasonStandings, error: seasonStandingsError } = await supabase
@@ -335,15 +357,24 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
 
         const aggregatedSeasonStandings = aggregateSeasonStandingsByPlayer(
           (seasonStandings ?? []) as unknown as SeasonStandingRow[],
+          await loadSeasonCreditAggregationConfig(
+            supabase,
+            filters.seasonCode,
+            (seasonStandings ?? []) as unknown as SeasonStandingRow[],
+          ),
         );
         seasonPointsByPlayerId = aggregatedSeasonStandings.seasonPointsByPlayerId;
         seasonCompetitionCountByPlayerId =
           aggregatedSeasonStandings.seasonCompetitionCountByPlayerId;
+        seasonCreditPointsByPlayerId =
+          aggregatedSeasonStandings.seasonCreditPointsByPlayerId;
       }
 
       return players.map((player) => ({
         ...player,
         season_points: seasonPointsByPlayerId.get(player.player_id) ?? null,
+        season_credit_points:
+          seasonCreditPointsByPlayerId.get(player.player_id) ?? null,
         competitions_count: filters.seasonCode
           ? seasonCompetitionCountByPlayerId.get(player.player_id) ?? 0
           : competitionIdsByPlayerId.get(player.player_id)?.size ?? 0,
@@ -443,7 +474,7 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
         const { data: categoryRows, error: categoriesError } = await supabase
           .schema(APP_PUBLIC_SCHEMA)
           .from("tournament_categories")
-          .select(TOURNAMENT_CATEGORIES_SELECT_COLUMNS)
+          .select(TOURNAMENT_CATEGORIES_NAME_SELECT_COLUMNS)
           .in("category_id", categoryIds);
 
         if (categoriesError) {
@@ -620,13 +651,35 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
 export function aggregateSeasonStandingsByPlayer(rows: SeasonStandingRow[]): {
   seasonPointsByPlayerId: Map<string, number>;
   seasonCompetitionCountByPlayerId: Map<string, number>;
+  seasonCreditPointsByPlayerId: Map<string, number>;
+};
+export function aggregateSeasonStandingsByPlayer(
+  rows: SeasonStandingRow[],
+  seasonCreditConfig: SeasonCreditAggregationConfig,
+): {
+  seasonPointsByPlayerId: Map<string, number>;
+  seasonCompetitionCountByPlayerId: Map<string, number>;
+  seasonCreditPointsByPlayerId: Map<string, number>;
+};
+export function aggregateSeasonStandingsByPlayer(
+  rows: SeasonStandingRow[],
+  seasonCreditConfig?: SeasonCreditAggregationConfig,
+): {
+  seasonPointsByPlayerId: Map<string, number>;
+  seasonCompetitionCountByPlayerId: Map<string, number>;
+  seasonCreditPointsByPlayerId: Map<string, number>;
 } {
   const seasonPointsByPlayerId = new Map<string, number>();
   const competitionIdsByPlayerId = new Map<string, Set<string>>();
+  const scoredRowsByPlayerId = new Map<
+    string,
+    Array<{ seasonPoints: number; competitionClass: CompetitionClass }>
+  >();
 
   for (const row of rows) {
     const playerId = row.player_id?.trim();
     const competitionId = row.competition_id?.trim();
+    const categoryId = row.category_id?.trim();
     const seasonPoints = Number(row.season_points);
 
     if (!playerId) {
@@ -638,6 +691,21 @@ export function aggregateSeasonStandingsByPlayer(rows: SeasonStandingRow[]): {
         playerId,
         (seasonPointsByPlayerId.get(playerId) ?? 0) + seasonPoints,
       );
+
+      if (seasonCreditConfig) {
+        const competitionClass = resolveCompetitionClassByCategoryId(
+          categoryId,
+          seasonCreditConfig.competitionClassByCategoryId,
+        );
+        if (competitionClass) {
+          const scoredRows = scoredRowsByPlayerId.get(playerId) ?? [];
+          scoredRows.push({
+            seasonPoints,
+            competitionClass,
+          });
+          scoredRowsByPlayerId.set(playerId, scoredRows);
+        }
+      }
     }
 
     if (!competitionId) {
@@ -656,9 +724,170 @@ export function aggregateSeasonStandingsByPlayer(rows: SeasonStandingRow[]): {
     seasonCompetitionCountByPlayerId.set(playerId, competitionIds.size);
   }
 
+  const seasonCreditPointsByPlayerId = new Map<string, number>();
+  if (seasonCreditConfig) {
+    for (const [playerId, scoredRows] of scoredRowsByPlayerId.entries()) {
+      seasonCreditPointsByPlayerId.set(
+        playerId,
+        roundToTwo(
+          calculateSeasonCreditPoints(
+            scoredRows,
+            seasonCreditConfig.bestLeaguesCount,
+            seasonCreditConfig.bestTournamentsCount,
+          ),
+        ),
+      );
+    }
+  }
+
   return {
     seasonPointsByPlayerId,
     seasonCompetitionCountByPlayerId,
+    seasonCreditPointsByPlayerId,
+  };
+}
+
+interface SeasonCreditAggregationConfig {
+  bestLeaguesCount: number;
+  bestTournamentsCount: number;
+  competitionClassByCategoryId: Map<string, CompetitionClass>;
+}
+
+interface CategoryClassificationRow {
+  category_id: string;
+  competition_class: CompetitionClass | null;
+}
+
+function roundToTwo(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function normalizeTopCount(value: number | null | undefined): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(value ?? 0));
+}
+
+function pickTopPoints(values: number[], limit: number): number {
+  if (limit <= 0 || values.length === 0) {
+    return 0;
+  }
+
+  return values
+    .sort((left, right) => right - left)
+    .slice(0, limit)
+    .reduce((total, value) => total + value, 0);
+}
+
+function calculateSeasonCreditPoints(
+  rows: Array<{ seasonPoints: number; competitionClass: CompetitionClass }>,
+  bestLeaguesCount: number,
+  bestTournamentsCount: number,
+): number {
+  const leaguePoints: number[] = [];
+  const tournamentPoints: number[] = [];
+
+  for (const row of rows) {
+    if (row.competitionClass === "league") {
+      leaguePoints.push(row.seasonPoints);
+      continue;
+    }
+
+    tournamentPoints.push(row.seasonPoints);
+  }
+
+  return (
+    pickTopPoints(leaguePoints, bestLeaguesCount) +
+    pickTopPoints(tournamentPoints, bestTournamentsCount)
+  );
+}
+
+function resolveCompetitionClassByCategoryId(
+  categoryId: string | undefined,
+  competitionClassByCategoryId: ReadonlyMap<string, CompetitionClass>,
+): CompetitionClass | null {
+  if (!categoryId) {
+    return null;
+  }
+
+  return competitionClassByCategoryId.get(categoryId) ?? null;
+}
+
+function buildCompetitionClassByCategoryId(
+  categories: readonly CategoryClassificationRow[],
+): Map<string, CompetitionClass> {
+  const competitionClassByCategoryId = new Map<string, CompetitionClass>();
+
+  for (const category of categories) {
+    const categoryId = category.category_id?.trim();
+    if (
+      !categoryId ||
+      (category.competition_class !== "league" &&
+        category.competition_class !== "tournament")
+    ) {
+      continue;
+    }
+
+    competitionClassByCategoryId.set(categoryId, category.competition_class);
+  }
+
+  return competitionClassByCategoryId;
+}
+
+async function loadSeasonCreditAggregationConfig(
+  supabase: ReturnType<typeof createApiSupabaseAdminClient>,
+  seasonCode: string,
+  seasonStandings: SeasonStandingRow[],
+): Promise<SeasonCreditAggregationConfig> {
+  const { data: seasonConfig, error: seasonConfigError } = await supabase
+    .schema(APP_PUBLIC_SCHEMA)
+    .from("seasons")
+    .select(SEASONS_SELECT_COLUMNS)
+    .eq("season_code", seasonCode)
+    .maybeSingle();
+
+  if (seasonConfigError) {
+    throw new Error(
+      `Failed to load season configuration for players list: ${seasonConfigError.message}`,
+    );
+  }
+
+  const categoryIds = [
+    ...new Set(
+      seasonStandings
+        .map((row) => row.category_id?.trim() ?? "")
+        .filter((categoryId) => categoryId.length > 0),
+    ),
+  ];
+
+  const categoriesById = new Map<string, CompetitionClass>();
+  if (categoryIds.length > 0) {
+    const { data: categoryRows, error: categoryError } = await supabase
+      .schema(APP_PUBLIC_SCHEMA)
+      .from("tournament_categories")
+      .select(TOURNAMENT_CATEGORIES_CLASS_SELECT_COLUMNS)
+      .in("category_id", categoryIds);
+
+    if (categoryError) {
+      throw new Error(
+        `Failed to load tournament categories for players list: ${categoryError.message}`,
+      );
+    }
+
+    const categoryClassificationRows = (categoryRows ?? []) as unknown as CategoryClassificationRow[];
+    const resolved = buildCompetitionClassByCategoryId(categoryClassificationRows);
+    for (const [categoryId, competitionClass] of resolved.entries()) {
+      categoriesById.set(categoryId, competitionClass);
+    }
+  }
+
+  const seasonRow = seasonConfig as SeasonConfigRow | null;
+  return {
+    bestLeaguesCount: normalizeTopCount(seasonRow?.best_leagues_count),
+    bestTournamentsCount: normalizeTopCount(seasonRow?.best_tournaments_count),
+    competitionClassByCategoryId: categoriesById,
   };
 }
 

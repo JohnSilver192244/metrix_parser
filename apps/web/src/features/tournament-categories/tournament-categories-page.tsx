@@ -25,6 +25,7 @@ type TournamentCategoriesPageState =
 type CategoryDraft = {
   name: string;
   description: string;
+  competitionClass: string;
   segmentsCount: string;
   ratingGte: string;
   ratingLt: string;
@@ -41,6 +42,7 @@ function toDraft(category: TournamentCategory): CategoryDraft {
   return {
     name: category.name,
     description: category.description,
+    competitionClass: category.competitionClass,
     segmentsCount: String(category.segmentsCount),
     ratingGte: String(category.ratingGte),
     ratingLt: String(category.ratingLt),
@@ -51,6 +53,7 @@ function toDraft(category: TournamentCategory): CategoryDraft {
 function normalizeDraft(draft: CategoryDraft): CreateTournamentCategoryRequest {
   const name = draft.name.trim();
   const description = draft.description.trim();
+  const competitionClass = draft.competitionClass.trim();
   const segmentsCount = Number(draft.segmentsCount);
   const ratingGte = Number(draft.ratingGte);
   const ratingLt = Number(draft.ratingLt);
@@ -62,6 +65,10 @@ function normalizeDraft(draft: CategoryDraft): CreateTournamentCategoryRequest {
 
   if (description.length === 0) {
     throw new Error("Укажите описание категории.");
+  }
+
+  if (competitionClass !== "league" && competitionClass !== "tournament") {
+    throw new Error("Выберите тип категории: лига или турнир.");
   }
 
   if (!Number.isInteger(segmentsCount) || segmentsCount <= 0) {
@@ -91,6 +98,7 @@ function normalizeDraft(draft: CategoryDraft): CreateTournamentCategoryRequest {
   return {
     name,
     description,
+    competitionClass,
     segmentsCount,
     ratingGte,
     ratingLt,
@@ -116,6 +124,7 @@ function confirmCategoryDeletion(): boolean {
 
 const TOURNAMENT_CATEGORY_COLUMN_WIDTHS = {
   name: "90px",
+  competitionClass: "125px",
   segmentsCount: "145px",
   ratingGte: "120px",
   ratingLt: "120px",
@@ -147,6 +156,7 @@ export function TournamentCategoriesPageView({
   createDraft = {
     name: "",
     description: "",
+    competitionClass: "tournament",
     segmentsCount: "",
     ratingGte: "",
     ratingLt: "",
@@ -245,6 +255,19 @@ export function TournamentCategoriesPageView({
                 }
               />
             </label>
+            <label className="tournament-categories-page__field">
+              <span>Тип</span>
+              <select
+                className="tournament-categories-page__input"
+                value={createDraft.competitionClass}
+                onChange={(event) =>
+                  onCreateFieldChange?.("competitionClass", event.target.value)
+                }
+              >
+                <option value="tournament">Турнир</option>
+                <option value="league">Лига</option>
+              </select>
+            </label>
             <label className="tournament-categories-page__field tournament-categories-page__field--segments">
               <span>Кол-во отрезков</span>
               <input
@@ -336,6 +359,7 @@ export function TournamentCategoriesPageView({
               <colgroup>
                 <col style={{ width: TOURNAMENT_CATEGORY_COLUMN_WIDTHS.name }} />
                 <col />
+                <col style={{ width: TOURNAMENT_CATEGORY_COLUMN_WIDTHS.competitionClass }} />
                 <col style={{ width: TOURNAMENT_CATEGORY_COLUMN_WIDTHS.segmentsCount }} />
                 <col style={{ width: TOURNAMENT_CATEGORY_COLUMN_WIDTHS.ratingGte }} />
                 <col style={{ width: TOURNAMENT_CATEGORY_COLUMN_WIDTHS.ratingLt }} />
@@ -348,6 +372,7 @@ export function TournamentCategoriesPageView({
                 <tr>
                   <th scope="col">Название</th>
                   <th scope="col">Описание</th>
+                  <th scope="col">Тип</th>
                   <th scope="col">Кол-во отрезков</th>
                   <th scope="col">Рейтинг &gt;=</th>
                   <th scope="col">Рейтинг &lt;</th>
@@ -398,6 +423,28 @@ export function TournamentCategoriesPageView({
                           />
                         ) : (
                           category.description
+                        )}
+                      </td>
+                      <td>
+                        {canEdit ? (
+                          <select
+                            className="tournament-categories-page__input"
+                            value={draft.competitionClass}
+                            onChange={(event) =>
+                              onRowFieldChange?.(
+                                category.categoryId,
+                                "competitionClass",
+                                event.target.value,
+                              )
+                            }
+                          >
+                            <option value="tournament">Турнир</option>
+                            <option value="league">Лига</option>
+                          </select>
+                        ) : category.competitionClass === "league" ? (
+                          "Лига"
+                        ) : (
+                          "Турнир"
                         )}
                       </td>
                       <td>
@@ -544,6 +591,7 @@ export function TournamentCategoriesPage() {
   const [createForm, setCreateForm] = useState<CategoryDraft>({
     name: "",
     description: "",
+    competitionClass: "tournament",
     segmentsCount: "",
     ratingGte: "",
     ratingLt: "",
@@ -639,6 +687,7 @@ export function TournamentCategoriesPage() {
       setCreateForm({
         name: "",
         description: "",
+        competitionClass: "tournament",
         segmentsCount: "",
         ratingGte: "",
         ratingLt: "",

@@ -1,7 +1,10 @@
+export type CompetitionClass = "league" | "tournament";
+
 export interface TournamentCategory {
   categoryId: string;
   name: string;
   description: string;
+  competitionClass: CompetitionClass;
   segmentsCount: number;
   ratingGte: number;
   ratingLt: number;
@@ -14,6 +17,7 @@ export interface TournamentCategoryDbRecord {
   category_id: string;
   name: string;
   description: string;
+  competition_class: CompetitionClass;
   segments_count: number;
   rating_gte: number;
   rating_lt: number;
@@ -25,6 +29,7 @@ export interface TournamentCategoryDbRecord {
 export interface CreateTournamentCategoryRequest {
   name: string;
   description: string;
+  competitionClass: CompetitionClass;
   segmentsCount: number;
   ratingGte: number;
   ratingLt: number;
@@ -35,6 +40,7 @@ export interface UpdateTournamentCategoryRequest {
   categoryId: string;
   name: string;
   description: string;
+  competitionClass: CompetitionClass;
   segmentsCount: number;
   ratingGte: number;
   ratingLt: number;
@@ -52,6 +58,7 @@ export function toTournamentCategoryDbRecord(
     category_id: category.categoryId,
     name: category.name,
     description: category.description,
+    competition_class: category.competitionClass,
     segments_count: category.segmentsCount,
     rating_gte: category.ratingGte,
     rating_lt: category.ratingLt,

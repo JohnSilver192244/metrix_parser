@@ -32,6 +32,7 @@ test("TournamentCategoriesPageView renders readonly rows for guests", () => {
             categoryId: "category-100",
             name: "Любительские",
             description: "Турниры начального уровня.",
+            competitionClass: "tournament",
             segmentsCount: 18,
             ratingGte: 72.5,
             ratingLt: 84.3,
@@ -46,6 +47,7 @@ test("TournamentCategoriesPageView renders readonly rows for guests", () => {
   assert.match(markup, /Войдите в систему, чтобы добавлять, редактировать и удалять категории/);
   assert.match(markup, /Любительские/);
   assert.match(markup, /Турниры начального уровня/);
+  assert.match(markup, />Турнир</);
   assert.match(markup, />18</);
   assert.match(markup, />72\.5</);
   assert.match(markup, />84\.3</);
@@ -66,6 +68,7 @@ test("TournamentCategoriesPageView renders create form and editable inputs for a
             categoryId: "category-100",
             name: "Профессиональные",
             description: "Категория для сильных составов.",
+            competitionClass: "league",
             segmentsCount: 21,
             ratingGte: 85,
             ratingLt: 999,
@@ -77,6 +80,7 @@ test("TournamentCategoriesPageView renders create form and editable inputs for a
       createDraft={{
         name: "Новая категория",
         description: "Описание",
+        competitionClass: "tournament",
         segmentsCount: "18",
         ratingGte: "70.5",
         ratingLt: "84.3",
@@ -86,6 +90,7 @@ test("TournamentCategoriesPageView renders create form and editable inputs for a
         "category-100": {
           name: "Профессиональные",
           description: "Категория для сильных составов.",
+          competitionClass: "league",
           segmentsCount: "21",
           ratingGte: "85",
           ratingLt: "999",
@@ -100,6 +105,7 @@ test("TournamentCategoriesPageView renders create form and editable inputs for a
   assert.match(markup, /Кол-во отрезков/);
   assert.match(markup, /Рейтинг &gt;=/);
   assert.match(markup, /Рейтинг &lt;/);
+  assert.match(markup, /<option value="league" selected="">Лига<\/option>/);
   assert.match(markup, /Коэффициент/);
   assert.match(markup, /value="Профессиональные"/);
   assert.match(markup, /value="21"/);

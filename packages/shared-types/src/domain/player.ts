@@ -6,6 +6,7 @@ export interface Player {
   rdgaSince?: string | null;
   seasonDivision?: string | null;
   seasonPoints?: number | null;
+  seasonCreditPoints?: number | null;
   competitionsCount?: number;
 }
 
@@ -19,6 +20,7 @@ export interface PlayerDbRecord {
   season_division?: string | null;
   seasonDivision?: string | null;
   season_points?: number | null;
+  season_credit_points?: number | null;
   competitions_count?: number;
 }
 
@@ -50,6 +52,7 @@ export function toPlayerDbRecord(player: Player): PlayerDbRecord {
     rdga_since: player.rdgaSince,
     season_division: player.seasonDivision,
     season_points: player.seasonPoints,
+    season_credit_points: player.seasonCreditPoints,
     competitions_count: player.competitionsCount,
   };
 }

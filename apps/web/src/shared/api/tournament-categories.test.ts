@@ -22,6 +22,7 @@ test("listTournamentCategories reads data and meta from the backend envelope", a
               categoryId: "category-100",
               name: "Парковые турниры",
               description: "Категория для базовых парковых турниров.",
+              competitionClass: "tournament",
               segmentsCount: 18,
               ratingGte: 72.5,
               ratingLt: 84.3,
@@ -40,6 +41,7 @@ test("listTournamentCategories reads data and meta from the backend envelope", a
     assert.equal(envelope.meta?.count, 1);
     assert.equal(envelope.data[0]?.categoryId, "category-100");
     assert.equal(envelope.data[0]?.segmentsCount, 18);
+    assert.equal(envelope.data[0]?.competitionClass, "tournament");
     assert.equal(envelope.data[0]?.ratingGte, 72.5);
     assert.equal(envelope.data[0]?.ratingLt, 84.3);
     assert.equal(envelope.data[0]?.coefficient, 1.15);
@@ -64,6 +66,7 @@ test("createTournamentCategory sends payload to the backend", async () => {
             categoryId: "category-100",
             name: "Любительские",
             description: "Турниры для любителей.",
+            competitionClass: "league",
             segmentsCount: 18,
             ratingGte: 70,
             ratingLt: 84.3,
@@ -77,6 +80,7 @@ test("createTournamentCategory sends payload to the backend", async () => {
     const category = await createTournamentCategory({
       name: "Любительские",
       description: "Турниры для любителей.",
+      competitionClass: "league",
       segmentsCount: 18,
       ratingGte: 70,
       ratingLt: 84.3,
@@ -89,6 +93,7 @@ test("createTournamentCategory sends payload to the backend", async () => {
       JSON.stringify({
         name: "Любительские",
         description: "Турниры для любителей.",
+        competitionClass: "league",
         segmentsCount: 18,
         ratingGte: 70,
         ratingLt: 84.3,
@@ -116,6 +121,7 @@ test("updateTournamentCategory sends payload to the backend", async () => {
             categoryId: "category-100",
             name: "Профессиональные",
             description: "Сложные турниры.",
+            competitionClass: "tournament",
             segmentsCount: 21,
             ratingGte: 84.3,
             ratingLt: 999,
@@ -130,6 +136,7 @@ test("updateTournamentCategory sends payload to the backend", async () => {
       categoryId: "category-100",
       name: "Профессиональные",
       description: "Сложные турниры.",
+      competitionClass: "tournament",
       segmentsCount: 21,
       ratingGte: 84.3,
       ratingLt: 999,
@@ -143,6 +150,7 @@ test("updateTournamentCategory sends payload to the backend", async () => {
         categoryId: "category-100",
         name: "Профессиональные",
         description: "Сложные турниры.",
+        competitionClass: "tournament",
         segmentsCount: 21,
         ratingGte: 84.3,
         ratingLt: 999,

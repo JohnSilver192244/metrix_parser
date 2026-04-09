@@ -75,6 +75,7 @@ test("PlayersPageView renders player identification fields", () => {
   assert.match(markup, /RDGA/);
   assert.match(markup, /RDGA с/);
   assert.match(markup, /Очки сезона/);
+  assert.match(markup, /Очки зачета/);
   assert.match(markup, /Соревнований/);
   assert.match(markup, /Сохранить/);
   assert.match(markup, /MPO/);
@@ -83,6 +84,7 @@ test("PlayersPageView renders player identification fields", () => {
   assert.match(markup, /type="date"/);
   assert.match(markup, /Не выбран/);
   assert.match(markup, />125\.50</);
+  assert.match(markup, />—</);
   assert.match(markup, />7</);
 });
 

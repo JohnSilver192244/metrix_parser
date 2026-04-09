@@ -29,6 +29,7 @@ test("listPlayers reads data and meta from the backend envelope", async () => {
               rdgaSince: "2026-02-10",
               seasonDivision: "FPO",
               seasonPoints: 88.4,
+              seasonCreditPoints: 74.2,
               competitionsCount: 4,
             },
           ],
@@ -50,6 +51,7 @@ test("listPlayers reads data and meta from the backend envelope", async () => {
     assert.equal(envelope.data[0]?.rdgaSince, "2026-02-10");
     assert.equal(envelope.data[0]?.seasonDivision, "FPO");
     assert.equal(envelope.data[0]?.seasonPoints, 88.4);
+    assert.equal(envelope.data[0]?.seasonCreditPoints, 74.2);
     assert.equal(envelope.data[0]?.competitionsCount, 4);
     assert.equal(resolvePlayersTotal(envelope.data, envelope.meta), 1);
   } finally {

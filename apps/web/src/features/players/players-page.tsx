@@ -441,6 +441,7 @@ export function PlayersPageView({
                           Очки сезона{resolveSortIndicator(sort, "seasonPoints")}
                         </button>
                       </th>
+                      <th scope="col">Очки зачета</th>
                       <th scope="col">Соревнований</th>
                       {canEdit ? <th scope="col">Действия</th> : null}
                     </tr>
@@ -585,6 +586,7 @@ export function PlayersPageView({
                             )}
                           </td>
                           <td>{formatSeasonPointsValue(player.seasonPoints)}</td>
+                          <td>{formatSeasonPointsValue(player.seasonCreditPoints)}</td>
                           <td>
                             {formatCompetitionsCount(player.competitionsCount)}
                           </td>
