@@ -1,6 +1,8 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+
 :root {
   color-scheme: light;
-  font-family: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  font-family: "Manrope", system-ui, -apple-system, sans-serif;
   background: #fffbfe;
   color: #1c1b1f;
   --app-bg: #fffbfe;

@@ -9,6 +9,7 @@ import { createRouter, type RouteDefinition } from "./lib/router";
 import type { ApiModuleDependencies } from "./modules";
 import {
   aggregateSeasonStandingsByCompetition,
+  resolveLegacyFallbackCompetitionSelectColumns,
   resolveCompetitionSeasonPointsByCompetitionId,
   resolveCompetitionIdsWithResultsIncludingDescendants,
 } from "./modules/competitions";
@@ -570,6 +571,7 @@ test("GET /players returns persisted players via the API envelope", async () => 
             rdgaSince: "2026-01-15",
             seasonDivision: "MPO",
             seasonPoints: 120.75,
+            seasonCreditPoints: 95.5,
             competitionsCount: 3,
           },
           {
@@ -580,6 +582,7 @@ test("GET /players returns persisted players via the API envelope", async () => 
             rdgaSince: null,
             seasonDivision: null,
             seasonPoints: null,
+            seasonCreditPoints: null,
             competitionsCount: 1,
           },
           ];
@@ -596,6 +599,7 @@ test("GET /players returns persisted players via the API envelope", async () => 
       rdgaSince: string | null;
       seasonDivision: string | null;
       seasonPoints?: number | null;
+      seasonCreditPoints?: number | null;
       competitionsCount?: number;
     }>;
     meta: {
@@ -613,6 +617,7 @@ test("GET /players returns persisted players via the API envelope", async () => 
     rdgaSince: "2026-01-15",
     seasonDivision: "MPO",
     seasonPoints: 120.75,
+    seasonCreditPoints: 95.5,
     competitionsCount: 3,
   });
   assert.deepEqual(payload.data[1], {
@@ -623,6 +628,7 @@ test("GET /players returns persisted players via the API envelope", async () => 
     rdgaSince: null,
     seasonDivision: null,
     seasonPoints: null,
+    seasonCreditPoints: null,
     competitionsCount: 1,
   });
 });
@@ -691,21 +697,25 @@ test("aggregateSeasonStandingsByPlayer counts unique season competitions per pla
     {
       player_id: "player-100",
       competition_id: "competition-1",
+      category_id: "category-4",
       season_points: 120,
     },
     {
       player_id: "player-100",
       competition_id: "competition-2",
+      category_id: "category-2",
       season_points: 77,
     },
     {
       player_id: "player-100",
       competition_id: "competition-2",
+      category_id: "category-2",
       season_points: 0,
     },
     {
       player_id: "player-101",
       competition_id: null,
+      category_id: null,
       season_points: 50,
     },
   ]);
@@ -714,6 +724,57 @@ test("aggregateSeasonStandingsByPlayer counts unique season competitions per pla
   assert.equal(aggregated.seasonCompetitionCountByPlayerId.get("player-100"), 2);
   assert.equal(aggregated.seasonPointsByPlayerId.get("player-101"), 50);
   assert.equal(aggregated.seasonCompetitionCountByPlayerId.get("player-101"), undefined);
+  assert.equal(aggregated.seasonCreditPointsByPlayerId.get("player-100"), undefined);
+});
+
+test("aggregateSeasonStandingsByPlayer calculates season credit points by class and season limits", () => {
+  const aggregated = aggregateSeasonStandingsByPlayer(
+    [
+      {
+        player_id: "player-100",
+        competition_id: "league-1",
+        category_id: "category-4",
+        season_points: 40,
+      },
+      {
+        player_id: "player-100",
+        competition_id: "league-2",
+        category_id: "category-5",
+        season_points: 30,
+      },
+      {
+        player_id: "player-100",
+        competition_id: "league-3",
+        category_id: "category-6",
+        season_points: 20,
+      },
+      {
+        player_id: "player-100",
+        competition_id: "tournament-1",
+        category_id: "category-2",
+        season_points: 50,
+      },
+      {
+        player_id: "player-100",
+        competition_id: "tournament-2",
+        category_id: "category-3",
+        season_points: 45,
+      },
+    ],
+    {
+      bestLeaguesCount: 2,
+      bestTournamentsCount: 1,
+      competitionClassByCategoryId: new Map([
+        ["category-2", "tournament"],
+        ["category-3", "tournament"],
+        ["category-4", "league"],
+        ["category-5", "league"],
+        ["category-6", "league"],
+      ]),
+    },
+  );
+
+  assert.equal(aggregated.seasonCreditPointsByPlayerId.get("player-100"), 120);
 });
 
 test("pickOwnerCompetitionResultRows collapses rows by owner and prefers owner competition row", () => {
@@ -957,6 +1018,26 @@ test("resolveSeasonPointsCompetitionIdForResult uses scoring parent for round ro
   );
 });
 
+test("resolveLegacyFallbackCompetitionSelectColumns keeps category_id when only comment column is missing", () => {
+  const selectColumns = resolveLegacyFallbackCompetitionSelectColumns({
+    code: "42703",
+    message: 'column competitions.comment does not exist',
+  });
+
+  assert.match(selectColumns ?? "", /category_id/);
+  assert.doesNotMatch(selectColumns ?? "", /comment/);
+});
+
+test("resolveLegacyFallbackCompetitionSelectColumns uses full legacy projection when category_id is missing", () => {
+  const selectColumns = resolveLegacyFallbackCompetitionSelectColumns({
+    code: "42703",
+    message: 'column competitions.category_id does not exist',
+  });
+
+  assert.doesNotMatch(selectColumns ?? "", /category_id/);
+  assert.doesNotMatch(selectColumns ?? "", /comment/);
+});
+
 test("resolveCanonicalSeasonCodeByCompetition chooses season with most owner rows", () => {
   const canonical = resolveCanonicalSeasonCodeByCompetition([
     {
@@ -1046,6 +1127,7 @@ test("GET /tournament-categories returns persisted categories via the API envelo
             categoryId: "category-100",
             name: "Любительские",
             description: "Турниры начального уровня.",
+            competitionClass: "tournament",
             segmentsCount: 18,
             ratingGte: 72.5,
             ratingLt: 84.3,
@@ -1055,6 +1137,7 @@ test("GET /tournament-categories returns persisted categories via the API envelo
             categoryId: "category-101",
             name: "Профессиональные",
             description: "Категория для сильных составов.",
+            competitionClass: "league",
             segmentsCount: 21,
             ratingGte: 84.3,
             ratingLt: 999,
@@ -1069,6 +1152,7 @@ test("GET /tournament-categories returns persisted categories via the API envelo
       categoryId: string;
       name: string;
       description: string;
+      competitionClass: "league" | "tournament";
       segmentsCount: number;
       ratingGte: number;
       ratingLt: number;
@@ -1085,6 +1169,7 @@ test("GET /tournament-categories returns persisted categories via the API envelo
     categoryId: "category-100",
     name: "Любительские",
     description: "Турниры начального уровня.",
+    competitionClass: "tournament",
     segmentsCount: 18,
     ratingGte: 72.5,
     ratingLt: 84.3,
@@ -1554,7 +1639,6 @@ test("runSeasonPointsAccrual uses scoring competition players_count for matrix l
           season_code: "2025",
           date_from: "2025-01-01",
           date_to: "2025-12-31",
-          min_players: 8,
         };
       },
       async listCompetitionsInSeason() {
@@ -1684,6 +1768,96 @@ test("runSeasonPointsAccrual uses scoring competition players_count for matrix l
   ]);
 });
 
+test("runSeasonPointsAccrual does not apply season-specific minimum players threshold", async () => {
+  let savedStandings: Array<{
+    competition_id: string;
+    players_count: number;
+    raw_points: number;
+    season_points: number;
+  }> = [];
+
+  const result = await runSeasonPointsAccrual(
+    {
+      seasonCode: "2027",
+      overwriteExisting: true,
+    },
+    {
+      async findSeasonByCode(seasonCode) {
+        assert.equal(seasonCode, "2027");
+        return {
+          season_code: "2027",
+          date_from: "2027-01-01",
+          date_to: "2027-12-31",
+        };
+      },
+      async listCompetitionsInSeason() {
+        return [
+          {
+            competition_id: "event-2027-1",
+            category_id: "category-pro",
+            parent_id: null,
+            record_type: "4",
+            players_count: 8,
+          },
+        ];
+      },
+      async listCompetitionResults() {
+        return [
+          {
+            competition_id: "event-2027-1",
+            player_id: "player-1",
+            sum: 50,
+            dnf: false,
+          },
+        ];
+      },
+      async listCategoryCoefficients() {
+        return [
+          {
+            category_id: "category-pro",
+            coefficient: 1,
+          },
+        ];
+      },
+      async listSeasonPointsMatrix() {
+        return [
+          {
+            players_count: 8,
+            placement: 1,
+            points: 80,
+          },
+        ];
+      },
+      async listExistingCompetitionIds() {
+        return new Set<string>();
+      },
+      async upsertSeasonStandings(standings) {
+        savedStandings = standings.map((row) => ({
+          competition_id: row.competition_id,
+          players_count: row.players_count,
+          raw_points: row.raw_points,
+          season_points: row.season_points,
+        }));
+
+        return standings.length;
+      },
+    },
+  );
+
+  assert.equal(result.competitionsEligible, 1);
+  assert.equal(result.competitionsWithPoints, 1);
+  assert.equal(result.rowsPrepared, 1);
+  assert.equal(result.rowsPersisted, 1);
+  assert.deepEqual(savedStandings, [
+    {
+      competition_id: "event-2027-1",
+      players_count: 8,
+      raw_points: 80,
+      season_points: 80,
+    },
+  ]);
+});
+
 test("runSeasonPointsAccrual writes an automated category resolution comment when category is missing", async () => {
   let updatedComment:
     | {
@@ -1703,7 +1877,6 @@ test("runSeasonPointsAccrual writes an automated category resolution comment whe
           season_code: "2026",
           date_from: "2026-01-01",
           date_to: "2026-12-31",
-          min_players: 8,
         };
       },
       async listCompetitionsInSeason() {
@@ -1765,7 +1938,6 @@ test("runSeasonPointsAccrual clears stale season comments after a successful rec
           season_code: "2026",
           date_from: "2026-01-01",
           date_to: "2026-12-31",
-          min_players: 8,
         };
       },
       async listCompetitionsInSeason() {
@@ -2118,6 +2290,7 @@ test("POST /tournament-categories creates category for authenticated user", asyn
     | {
         name: string;
         description: string;
+        competitionClass: "league" | "tournament";
         segmentsCount: number;
         ratingGte: number;
         ratingLt: number;
@@ -2135,6 +2308,7 @@ test("POST /tournament-categories creates category for authenticated user", asyn
       body: JSON.stringify({
         name: "Любительские",
         description: "Турниры начального уровня.",
+        competitionClass: "tournament",
         segmentsCount: 18,
         ratingGte: 72.5,
         ratingLt: 84.3,
@@ -2164,6 +2338,7 @@ test("POST /tournament-categories creates category for authenticated user", asyn
   assert.deepEqual(receivedPayload, {
     name: "Любительские",
     description: "Турниры начального уровня.",
+    competitionClass: "tournament",
     segmentsCount: 18,
     ratingGte: 72.5,
     ratingLt: 84.3,

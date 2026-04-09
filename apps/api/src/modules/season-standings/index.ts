@@ -31,7 +31,6 @@ interface SeasonRecord {
   season_code: string;
   date_from: string;
   date_to: string;
-  min_players: number;
 }
 
 interface CompetitionRecord {
@@ -393,7 +392,7 @@ function createSupabaseSeasonStandingsWriteAdapter(): SeasonStandingsWriteAdapte
       const { data, error } = await supabase
         .schema(APP_PUBLIC_SCHEMA)
         .from("seasons")
-        .select("season_code, date_from, date_to, min_players")
+        .select("season_code, date_from, date_to")
         .eq("season_code", seasonCode)
         .maybeSingle();
 
@@ -636,15 +635,13 @@ export async function runSeasonPointsAccrual(
     const hasExistingRows =
       !payload.overwriteExisting && existingCompetitionIds.has(competition.competition_id);
     const hasSeasonEvaluationInputs =
-      coefficient == null || participantsCount < season.min_players || hasExistingRows || rankedResults.length > 0;
+      coefficient == null || hasExistingRows || rankedResults.length > 0;
 
     let rowsForCompetition = 0;
     let nextCommentReason: CompetitionCommentReasonCode | null = null;
 
     if (coefficient == null) {
       nextCommentReason = "season_points_missing_coefficient";
-    } else if (participantsCount < season.min_players) {
-      nextCommentReason = "season_points_insufficient_players";
     } else {
       competitionsEligible += 1;
 
@@ -706,34 +703,6 @@ export async function runSeasonPointsAccrual(
     rowsPrepared: standingsToUpsert.length,
     rowsPersisted,
   };
-}
-
-function resolveSeasonCommentReasonForUnit(
-  unit: SeasonScoringCompetitionUnit,
-  season: SeasonRecord,
-  coefficient: number | undefined,
-  rankedResults: readonly RankedCompetitionResult[],
-  participantsCount: number,
-  hasExistingRows: boolean,
-  rowsForCompetition: number,
-): CompetitionCommentReasonCode | null {
-  if (coefficient == null) {
-    return "season_points_missing_coefficient";
-  }
-
-  if (participantsCount < season.min_players) {
-    return "season_points_insufficient_players";
-  }
-
-  if (hasExistingRows) {
-    return "season_points_existing_rows_skipped";
-  }
-
-  if (rankedResults.length > 0 && rowsForCompetition === 0) {
-    return "season_points_missing_matrix";
-  }
-
-  return null;
 }
 
 async function reconcileSeasonCompetitionComment(

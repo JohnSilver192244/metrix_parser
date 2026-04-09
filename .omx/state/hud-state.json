@@ -1,6 +1,6 @@
 {
-  "last_turn_at": "2026-04-09T11:35:21.327Z",
-  "turn_count": 163,
-  "last_agent_output": "{\"title\":\"Добавить fallback для comment\"}",
-  "last_progress_at": "2026-04-09T11:35:21.327Z"
+  "last_turn_at": "2026-04-09T12:48:40.708Z",
+  "turn_count": 178,
+  "last_agent_output": "Сделал. Внёс явное разграничение `Лига/Турнир` через поле категории и перевёл расчет `Очков зачета` ",
+  "last_progress_at": "2026-04-09T12:48:40.708Z"
 }

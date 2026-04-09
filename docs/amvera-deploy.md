@@ -57,6 +57,12 @@ Amvera ищет `amvera.yaml` в корне репозитория, поэтом
 6. `0006_course_rating_results_to_double_precision.sql`
 7. `0007_add_parent_id_to_competitions.sql`
 
+Если у вас уже была развернута старая версия схемы, дополнительно примените новые миграции до актуальной версии, включая:
+
+- `0013_add_tournament_categories.sql`
+- `0014_add_coefficient_to_tournament_categories.sql`
+- `0022_add_competition_class_to_tournament_categories.sql`
+
 Сделать это можно двумя способами:
 
 - через SQL Editor в панели Supabase, выполняя файлы по порядку
@@ -197,7 +203,8 @@ git commit -m "Add Amvera web deployment config"
 
 1. Главная страница открывается без белого экрана.
 2. Во вкладке Network запросы уходят на ваш Amvera API-домен.
-3. Страницы `/competitions`, `/courses`, `/players`, `/results` открываются без CORS-ошибок.
+3. Страницы `/`, `/courses`, `/players`, `/results` открываются без CORS-ошибок.
+4. Legacy-ссылка `/competitions` тоже открывает список соревнований (alias на `/`) и не ломает старые закладки.
 
 В API уже включены permissive CORS-заголовки для `GET`, `POST`, `OPTIONS`, поэтому отдельная настройка CORS в Amvera не требуется.
 

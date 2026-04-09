@@ -74,10 +74,10 @@
   - `resultsCount`
   - `seasonCompetitionsCount`
 
-4. Унифицировать правила eligibility турниров.
+4. (done) Унифицировать правила eligibility турниров.
 - Свести в один источник правила минимального числа игроков.
-- Сейчас threshold живет и в importer, и в season accrual.
-- Либо использовать season config, либо shared constant/validator, но не две независимые проверки.
+- Убрана проверка `min_players` из `season accrual`.
+- Единый источник правила минимального числа игроков оставлен в importer (глобально для импорта, не только для одного сезона).
 
 ## Рекомендуемый порядок
 
@@ -89,8 +89,8 @@
 
 ## Code Review (uncommitted) — action items
 
-1. Добавить fallback в `competitions` API для отсутствующего столбца `comment` (по аналогии с `category_id`) для частично мигрированных окружений.
+1. (done) Добавить fallback в `competitions` API для отсутствующего столбца `comment` (по аналогии с `category_id`) для частично мигрированных окружений.
 2. (done) Исправить агрегацию `seasonPoints` в `GET /competitions`: убрать агрегацию только по `competition_id` без сезонной дисамбигуации.
 3. (done) Исправить загрузку `seasonPoints` в `GET /results`: убрать неоднозначный ключ `competition_id:player_id` без `season_code`.
-4. Добавить совместимость по маршруту `/competitions` (redirect/alias на `/`), чтобы не ломать старые ссылки.
+4. (done) Добавить совместимость по маршруту `/competitions` (redirect/alias на `/`), чтобы не ломать старые ссылки.
 5. Добавить/уточнить `.gitignore` для служебных артефактов (`.omx/*`, `.playwright-mcp/*`), чтобы исключить случайный коммит.

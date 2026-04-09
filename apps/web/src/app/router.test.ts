@@ -21,6 +21,14 @@ test("resolveAppRoute returns configured top-level route metadata", () => {
   assert.match(route?.description ?? "", /backend API/);
 });
 
+test("resolveAppRoute keeps legacy /competitions path as an alias to the root competitions page", () => {
+  const route = resolveAppRoute("/competitions");
+
+  assert.equal(route?.label, "Соревнования");
+  assert.equal(route?.group, "browse");
+  assert.equal(route?.activePath, "/");
+});
+
 test("resolveAppRoute does not expose the hidden users page", () => {
   const route = resolveAppRoute("/users");
 

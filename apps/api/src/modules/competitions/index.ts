@@ -50,6 +50,18 @@ const COMPETITIONS_SELECT_COLUMNS_LEGACY = [
   "players_count",
   "metrix_id",
 ].join(", ");
+const COMPETITIONS_SELECT_COLUMNS_WITHOUT_COMMENT = [
+  "competition_id",
+  "competition_name",
+  "competition_date",
+  "parent_id",
+  "course_id",
+  "course_name",
+  "category_id",
+  "record_type",
+  "players_count",
+  "metrix_id",
+].join(", ");
 
 interface SupabaseQueryError {
   code?: string;
@@ -336,11 +348,13 @@ function createSupabaseCompetitionReadAdapter(): CompetitionReadAdapter {
         .order("competition_date", { ascending: false })
         .order("competition_name", { ascending: true });
 
-      if (isMissingCategoryIdColumnError(error)) {
+      const fallbackSelectColumns =
+        resolveLegacyFallbackCompetitionSelectColumns(error);
+      if (fallbackSelectColumns) {
         const legacyResponse = await supabase
           .schema(APP_PUBLIC_SCHEMA)
           .from("competitions")
-          .select(COMPETITIONS_SELECT_COLUMNS_LEGACY)
+          .select(fallbackSelectColumns)
           .order("competition_date", { ascending: false })
           .order("competition_name", { ascending: true });
 
@@ -357,8 +371,28 @@ function createSupabaseCompetitionReadAdapter(): CompetitionReadAdapter {
   };
 }
 
-function isMissingCategoryIdColumnError(error: SupabaseQueryError | null): boolean {
-  return error?.code === "42703" && error.message.includes("category_id");
+function isMissingLegacyCompatibleCompetitionColumnError(
+  error: SupabaseQueryError | null,
+): boolean {
+  if (error?.code !== "42703") {
+    return false;
+  }
+
+  return error.message.includes("category_id") || error.message.includes("comment");
+}
+
+export function resolveLegacyFallbackCompetitionSelectColumns(
+  error: SupabaseQueryError | null,
+): string | null {
+  if (!isMissingLegacyCompatibleCompetitionColumnError(error)) {
+    return null;
+  }
+
+  if (error?.message.includes("comment")) {
+    return COMPETITIONS_SELECT_COLUMNS_WITHOUT_COMMENT;
+  }
+
+  return COMPETITIONS_SELECT_COLUMNS_LEGACY;
 }
 
 function createSupabaseCompetitionWriteAdapter(): CompetitionWriteAdapter {

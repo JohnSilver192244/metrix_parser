@@ -13,6 +13,8 @@ import { CompetitionResultsPage } from "../features/results/competition-results-
 import { SeasonConfigPage } from "../features/season-config/season-config-page";
 import { TournamentCategoriesPage } from "../features/tournament-categories/tournament-categories-page";
 
+const LEGACY_COMPETITIONS_LIST_PATH = "/competitions";
+
 export interface AppRouteRenderContext {
   onNavigate: (pathname: string) => void;
 }
@@ -104,6 +106,22 @@ function resolveCompetitionResultsRoute(pathname: string): AppRouteDefinition | 
   };
 }
 
+function resolveLegacyCompetitionsListRoute(pathname: string): AppRouteDefinition | null {
+  if (pathname !== LEGACY_COMPETITIONS_LIST_PATH) {
+    return null;
+  }
+
+  return {
+    path: pathname,
+    label: "Соревнования",
+    group: "browse",
+    title: "Список соревнований",
+    description: "Legacy alias маршрута списка соревнований.",
+    activePath: "/",
+    render: ({ onNavigate }) => <CompetitionsPage onNavigate={onNavigate} />,
+  };
+}
+
 function resolvePlayerRoute(pathname: string): AppRouteDefinition | null {
   const playerId = resolvePlayerId(pathname);
   if (!playerId) {
@@ -124,6 +142,7 @@ function resolvePlayerRoute(pathname: string): AppRouteDefinition | null {
 export function resolveAppRoute(pathname: string): AppRouteDefinition | null {
   return (
     appRoutes.find((route) => route.path === pathname) ??
+    resolveLegacyCompetitionsListRoute(pathname) ??
     resolveCompetitionResultsRoute(pathname) ??
     resolvePlayerRoute(pathname)
   );

@@ -111,6 +111,13 @@ test("AppShellView renders only the active route so page data loads on demand", 
   assert.doesNotMatch(markup, /Список игроков/);
 });
 
+test("AppShellView resolves legacy /competitions path to competitions list", () => {
+  const markup = renderWithAuth("/competitions");
+
+  assert.match(markup, /Подтягиваем соревнования/);
+  assert.doesNotMatch(markup, /route not found/);
+});
+
 test("AppShellView hides admin navigation for guests and blocks direct access", () => {
   const markup = renderWithAuth("/admin", {
     status: "anonymous",
