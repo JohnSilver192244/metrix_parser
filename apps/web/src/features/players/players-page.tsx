@@ -6,6 +6,7 @@ import { useAuth } from "../auth/auth-context";
 import { buildPlayerPath } from "../../app/route-paths";
 import { PageHeader } from "../../shared/page-header";
 import { ActionToast } from "../../shared/action-toast";
+import { FloatingInfoTooltip } from "../../shared/floating-info-tooltip";
 import { listDivisions } from "../../shared/api/divisions";
 import {
   listPlayers,
@@ -201,6 +202,39 @@ function comparePlayersByField(
     decodeHtmlEntities(right.playerName),
     "ru",
   );
+}
+
+function resolvePatchedPlayerField<T>(
+  nextValue: T | undefined,
+  currentValue: T,
+): T {
+  return nextValue === undefined ? currentValue : nextValue;
+}
+
+export function mergeUpdatedPlayer(
+  currentPlayer: Player,
+  updatedPlayerResponse: Player,
+): Player {
+  return {
+    ...currentPlayer,
+    ...updatedPlayerResponse,
+    seasonPoints: resolvePatchedPlayerField(
+      updatedPlayerResponse.seasonPoints,
+      currentPlayer.seasonPoints ?? null,
+    ),
+    seasonCreditPoints: resolvePatchedPlayerField(
+      updatedPlayerResponse.seasonCreditPoints,
+      currentPlayer.seasonCreditPoints ?? null,
+    ),
+    competitionsCount: resolvePatchedPlayerField(
+      updatedPlayerResponse.competitionsCount,
+      currentPlayer.competitionsCount ?? 0,
+    ),
+    seasonCreditCompetitions: resolvePatchedPlayerField(
+      updatedPlayerResponse.seasonCreditCompetitions,
+      currentPlayer.seasonCreditCompetitions,
+    ),
+  };
 }
 
 function resolveSortIndicator(
@@ -639,29 +673,20 @@ export function PlayersPageView({
                           <td>{formatSeasonPointsValue(player.seasonPoints)}</td>
                           <td>
                             {(player.seasonCreditCompetitions?.length ?? 0) > 0 ? (
-                              <span
-                                className="update-card__tooltip-anchor update-card__tooltip-anchor--info players-page__credit-tooltip-anchor"
-                                tabIndex={0}
-                              >
-                                <span>{formatSeasonPointsValue(player.seasonCreditPoints)}</span>
-                                <span
-                                  role="tooltip"
-                                  className="update-card__tooltip update-card__tooltip--info players-page__credit-tooltip"
-                                >
-                                  <strong>Соревнования в зачете</strong>
-                                  <ul className="update-card__tooltip-list">
-                                    {[...(player.seasonCreditCompetitions ?? [])]
-                                      .sort((left, right) => right.seasonPoints - left.seasonPoints)
-                                      .map((competition) => (
-                                        <li key={competition.competitionId}>
-                                          {decodeHtmlEntities(competition.competitionName)},{" "}
-                                          {formatPlacementValue(competition.placement)},{" "}
-                                          {formatSeasonPointsValue(competition.seasonPoints)}
-                                        </li>
-                                      ))}
-                                  </ul>
-                                </span>
-                              </span>
+                              <FloatingInfoTooltip
+                                value={formatSeasonPointsValue(player.seasonCreditPoints)}
+                                ariaLabel={`Показать список зачетных соревнований игрока ${decodeHtmlEntities(player.playerName)}`}
+                                title="Соревнования в зачете"
+                                items={[...(player.seasonCreditCompetitions ?? [])]
+                                  .sort((left, right) => right.seasonPoints - left.seasonPoints)
+                                  .map(
+                                    (competition) =>
+                                      `${decodeHtmlEntities(competition.competitionName)}, ${formatPlacementValue(competition.placement)}, ${formatSeasonPointsValue(competition.seasonPoints)}`,
+                                  )}
+                                anchorClassName="players-page__credit-tooltip-anchor"
+                                tooltipClassName="players-page__credit-tooltip"
+                                showTriggerButton={false}
+                              />
                             ) : (
                               formatSeasonPointsValue(player.seasonCreditPoints)
                             )}
@@ -882,10 +907,7 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
         rdgaSince,
         seasonDivision,
       });
-      const updatedPlayer = {
-        ...updatedPlayerResponse,
-        seasonPoints: player.seasonPoints ?? updatedPlayerResponse.seasonPoints ?? null,
-      };
+      const updatedPlayer = mergeUpdatedPlayer(player, updatedPlayerResponse);
 
       setState((currentState) => {
         if (currentState.status !== "ready") {

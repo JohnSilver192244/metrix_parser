@@ -4,7 +4,7 @@ import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { PlayersPageView } from "./players-page";
+import { mergeUpdatedPlayer, PlayersPageView } from "./players-page";
 
 const defaultSeasons = [
   {
@@ -543,4 +543,45 @@ test("PlayersPageView shows guest read-only values for missing division and RDGA
 
   assert.match(markup, /Не выбран/);
   assert.match(markup, /<span class="players-table__readonly-value">—<\/span>/);
+});
+
+test("mergeUpdatedPlayer keeps read-side season metrics when update response is partial", () => {
+  const merged = mergeUpdatedPlayer(
+    {
+      playerId: "player-777",
+      playerName: "Olga Smirnova",
+      division: "MPO",
+      rdga: false,
+      rdgaSince: null,
+      seasonDivision: "MPO",
+      seasonPoints: 111.25,
+      seasonCreditPoints: 95.5,
+      competitionsCount: 4,
+      seasonCreditCompetitions: [
+        {
+          competitionId: "competition-1",
+          competitionName: "Alpha Cup",
+          placement: 1,
+          seasonPoints: 60,
+        },
+      ],
+    },
+    {
+      playerId: "player-777",
+      playerName: "Olga Smirnova",
+      division: "FA1",
+      rdga: true,
+      rdgaSince: "2026-03-01",
+      seasonDivision: "FA1",
+    },
+  );
+
+  assert.equal(merged.division, "FA1");
+  assert.equal(merged.rdga, true);
+  assert.equal(merged.rdgaSince, "2026-03-01");
+  assert.equal(merged.seasonDivision, "FA1");
+  assert.equal(merged.seasonPoints, 111.25);
+  assert.equal(merged.seasonCreditPoints, 95.5);
+  assert.equal(merged.competitionsCount, 4);
+  assert.equal(merged.seasonCreditCompetitions?.length, 1);
 });

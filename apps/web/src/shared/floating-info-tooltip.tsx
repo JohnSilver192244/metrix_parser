@@ -10,14 +10,15 @@ interface FloatingInfoTooltipProps {
   items: readonly string[];
   anchorClassName?: string;
   tooltipClassName?: string;
+  showTriggerButton?: boolean;
 }
 
-function resolveTooltipPosition(button: HTMLButtonElement): {
+function resolveTooltipPosition(anchor: HTMLElement): {
   left: number;
   top: number;
   placement: TooltipPlacement;
 } {
-  const rect = button.getBoundingClientRect();
+  const rect = anchor.getBoundingClientRect();
   const preferredPlacement: TooltipPlacement = rect.top > 200 ? "above" : "below";
   const left = Math.max(16, Math.min(rect.left + rect.width / 2, window.innerWidth - 16));
   const top =
@@ -39,8 +40,9 @@ export function FloatingInfoTooltip({
   items,
   anchorClassName,
   tooltipClassName,
+  showTriggerButton = true,
 }: FloatingInfoTooltipProps) {
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const anchorRef = useRef<HTMLSpanElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [position, setPosition] = useState<{
@@ -59,12 +61,12 @@ export function FloatingInfoTooltip({
     }
 
     const updatePosition = () => {
-      const button = buttonRef.current;
-      if (!button) {
+      const anchor = anchorRef.current;
+      if (!anchor) {
         return;
       }
 
-      setPosition(resolveTooltipPosition(button));
+      setPosition(resolveTooltipPosition(anchor));
     };
 
     updatePosition();
@@ -119,6 +121,7 @@ export function FloatingInfoTooltip({
 
   return (
     <span
+      ref={anchorRef}
       className={[
         "update-card__tooltip-anchor",
         "update-card__tooltip-anchor--info",
@@ -126,6 +129,7 @@ export function FloatingInfoTooltip({
       ]
         .filter(Boolean)
         .join(" ")}
+      tabIndex={showTriggerButton ? undefined : 0}
       onMouseEnter={() => setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
       onFocus={() => setIsOpen(true)}
@@ -136,14 +140,15 @@ export function FloatingInfoTooltip({
       }}
     >
       <span>{value}</span>
-      <button
-        ref={buttonRef}
-        type="button"
-        className="update-launcher__info-button"
-        aria-label={ariaLabel}
-      >
-        ?
-      </button>
+      {showTriggerButton ? (
+        <button
+          type="button"
+          className="update-launcher__info-button"
+          aria-label={ariaLabel}
+        >
+          ?
+        </button>
+      ) : null}
       {shouldRenderTooltip
         ? (typeof document !== "undefined" && isClient
             ? createPortal(tooltip, document.body)
