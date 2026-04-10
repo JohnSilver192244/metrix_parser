@@ -46,6 +46,14 @@ function readOptionalBooleanField(
 
   const normalized = value.trim().toLowerCase();
 
+  if (normalized === "1") {
+    return true;
+  }
+
+  if (normalized === "0") {
+    return false;
+  }
+
   if (normalized === "true" || normalized === "yes" || normalized === "y") {
     return true;
   }

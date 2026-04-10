@@ -54,6 +54,41 @@ test("mapDiscGolfMetrixCompetitionResults keeps DNF as a separate logical state"
   });
 });
 
+test("mapDiscGolfMetrixCompetitionResults treats string DNF flag '1' as DNF", () => {
+  const result = mapDiscGolfMetrixCompetitionResults([
+    {
+      ...regularCompetitionResultsFixture,
+      competitionId: "competition-106",
+      rawPayload: {
+        Competition: {
+          Results: [
+            {
+              UserID: "32953",
+              Name: "Aleksey Trunilin",
+              ClassName: "",
+              Sum: 30,
+              Diff: 7,
+              DNF: "1",
+            },
+          ],
+        },
+      },
+    },
+  ]);
+
+  assert.equal(result.skippedCount, 0);
+  assert.equal(result.issues.length, 0);
+  assert.equal(result.results.length, 1);
+  assert.deepEqual(result.results[0], {
+    competitionId: "competition-106",
+    playerId: "32953",
+    className: null,
+    sum: 30,
+    diff: 7,
+    dnf: true,
+  });
+});
+
 test("mapDiscGolfMetrixCompetitionResults accepts result records without class name", () => {
   const result = mapDiscGolfMetrixCompetitionResults([
     {

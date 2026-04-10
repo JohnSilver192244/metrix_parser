@@ -71,6 +71,10 @@ interface SeasonStandingsWriteAdapter {
     seasonCode: string,
     competitionIds: string[],
   ): Promise<Set<string>>;
+  clearSeasonStandingsForCompetitions?(
+    seasonCode: string,
+    competitionIds: string[],
+  ): Promise<void>;
   updateCompetitionComment?(
     competitionId: string,
     comment: string | null,
@@ -602,6 +606,22 @@ function createSupabaseSeasonStandingsWriteAdapter(): SeasonStandingsWriteAdapte
           .filter((competitionId) => competitionId.length > 0),
       );
     },
+    async clearSeasonStandingsForCompetitions(seasonCode, competitionIds) {
+      if (competitionIds.length === 0) {
+        return;
+      }
+
+      const { error } = await supabase
+        .schema(APP_PUBLIC_SCHEMA)
+        .from("season_standings")
+        .delete()
+        .eq("season_code", seasonCode)
+        .in("competition_id", competitionIds);
+
+      if (error) {
+        throw new Error(`Failed to clear season standings for recompute: ${error.message}`);
+      }
+    },
     async updateCompetitionComment(competitionId, comment) {
       const { error } = await supabase
         .schema(APP_PUBLIC_SCHEMA)
@@ -690,6 +710,17 @@ export async function runSeasonPointsAccrual(
     return !resolveInheritedCategoryId(competition.competition_id, competitionsById);
   });
   const scoringUnits = buildSeasonScoringCompetitionUnits(competitionsInSeason);
+  const scoringCompetitionIds = [...new Set(
+    scoringUnits.map((unit) => unit.competition_id),
+  )];
+
+  if (payload.overwriteExisting && adapter.clearSeasonStandingsForCompetitions) {
+    await adapter.clearSeasonStandingsForCompetitions(
+      payload.seasonCode,
+      scoringCompetitionIds,
+    );
+  }
+
   const competitionIds = [...new Set(
     scoringUnits.flatMap((unit) => unit.source_competition_ids),
   )];
@@ -704,7 +735,7 @@ export async function runSeasonPointsAccrual(
       ? Promise.resolve(new Set<string>())
       : adapter.listExistingCompetitionIds(
           payload.seasonCode,
-          scoringUnits.map((unit) => unit.competition_id),
+          scoringCompetitionIds,
         ),
   ]);
 

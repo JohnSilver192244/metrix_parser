@@ -2313,6 +2313,89 @@ test("runSeasonPointsAccrual does not apply season-specific minimum players thre
   ]);
 });
 
+test("runSeasonPointsAccrual clears stale season standings rows before overwrite recompute", async () => {
+  let clearedSeasonCode: string | null = null;
+  let clearedCompetitionIds: string[] = [];
+  let savedStandingsCount = 0;
+
+  const result = await runSeasonPointsAccrual(
+    {
+      seasonCode: "2026",
+      overwriteExisting: true,
+    },
+    {
+      async findSeasonByCode() {
+        return {
+          season_code: "2026",
+          date_from: "2026-01-01",
+          date_to: "2026-12-31",
+        };
+      },
+      async listCompetitionsInSeason() {
+        return [
+          {
+            competition_id: "event-3535332",
+            category_id: "category-pro",
+            parent_id: null,
+            record_type: "4",
+            players_count: 24,
+          },
+        ];
+      },
+      async listCompetitionResults() {
+        return [
+          {
+            competition_id: "event-3535332",
+            player_id: "player-valid",
+            sum: 50,
+            dnf: false,
+          },
+          {
+            competition_id: "event-3535332",
+            player_id: "32953",
+            sum: 30,
+            dnf: true,
+          },
+        ];
+      },
+      async listCategoryCoefficients() {
+        return [
+          {
+            category_id: "category-pro",
+            coefficient: 1,
+          },
+        ];
+      },
+      async listSeasonPointsMatrix() {
+        return [
+          {
+            players_count: 24,
+            placement: 1,
+            points: 80,
+          },
+        ];
+      },
+      async listExistingCompetitionIds() {
+        return new Set<string>(["event-3535332"]);
+      },
+      async clearSeasonStandingsForCompetitions(seasonCode, competitionIds) {
+        clearedSeasonCode = seasonCode;
+        clearedCompetitionIds = [...competitionIds];
+      },
+      async upsertSeasonStandings(standings) {
+        savedStandingsCount = standings.length;
+        return standings.length;
+      },
+    },
+  );
+
+  assert.equal(clearedSeasonCode, "2026");
+  assert.deepEqual(clearedCompetitionIds, ["event-3535332"]);
+  assert.equal(savedStandingsCount, 1);
+  assert.equal(result.rowsPrepared, 1);
+  assert.equal(result.rowsPersisted, 1);
+});
+
 test("runSeasonPointsAccrual writes an automated category resolution comment when category is missing", async () => {
   let updatedComment:
     | {
