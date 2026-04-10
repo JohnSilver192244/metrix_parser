@@ -167,13 +167,19 @@ export function resolveCompetitionCategoryIdByMetrics(
   competitionSegmentsCount: number | null,
   competitionCourseRating: number | null,
 ): string | null {
-  if (competitionSegmentsCount === null || competitionCourseRating === null) {
+  if (competitionSegmentsCount === null) {
     return null;
   }
 
+  const normalizedCompetitionCourseRating = competitionCourseRating ?? 0;
+
   const matchingCategories = categories
     .filter((category) =>
-      isCategoryMatch(category, competitionSegmentsCount, competitionCourseRating),
+      isCategoryMatch(
+        category,
+        competitionSegmentsCount,
+        normalizedCompetitionCourseRating,
+      ),
     )
     .sort((left, right) => {
       if (right.segmentsCount !== left.segmentsCount) {

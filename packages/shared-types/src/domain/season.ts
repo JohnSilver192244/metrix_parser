@@ -5,7 +5,6 @@ export interface Season {
   dateTo: string;
   bestLeaguesCount: number;
   bestTournamentsCount: number;
-  minPlayers: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -17,7 +16,6 @@ export interface SeasonDbRecord {
   date_to: string;
   best_leagues_count: number;
   best_tournaments_count: number;
-  min_players: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -29,7 +27,6 @@ export interface CreateSeasonRequest {
   dateTo: string;
   bestLeaguesCount: number;
   bestTournamentsCount: number;
-  minPlayers: number;
 }
 
 export interface UpdateSeasonRequest {
@@ -39,7 +36,6 @@ export interface UpdateSeasonRequest {
   dateTo: string;
   bestLeaguesCount: number;
   bestTournamentsCount: number;
-  minPlayers: number;
 }
 
 export interface DeleteSeasonRequest {
@@ -54,7 +50,6 @@ export function toSeasonDbRecord(season: Season): SeasonDbRecord {
     date_to: season.dateTo,
     best_leagues_count: season.bestLeaguesCount,
     best_tournaments_count: season.bestTournamentsCount,
-    min_players: season.minPlayers,
     created_at: season.createdAt,
     updated_at: season.updatedAt,
   };

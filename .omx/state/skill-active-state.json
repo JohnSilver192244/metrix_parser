@@ -1,17 +1,17 @@
 {
   "version": 1,
   "active": true,
-  "skill": "deep-interview",
-  "keyword": "$deep-interview",
+  "skill": "ralph",
+  "keyword": "$ralph",
   "phase": "planning",
-  "activated_at": "2026-04-09T16:13:40.261Z",
-  "updated_at": "2026-04-09T16:14:12.252Z",
+  "activated_at": "2026-04-10T07:25:52.016Z",
+  "updated_at": "2026-04-10T07:25:52.016Z",
   "source": "keyword-detector",
   "session_id": "",
-  "thread_id": "019d7303-f61a-7292-9128-30df7db86993",
-  "turn_id": "019d7305-2b64-7e20-a2ff-5677845a4712",
+  "thread_id": "019d7632-add3-7ac2-b448-4e5ac21b50d2",
+  "turn_id": "019d7633-1972-7252-b299-c8fded085e77",
   "input_lock": {
-    "active": true,
+    "active": false,
     "scope": "deep-interview-auto-approval",
     "acquired_at": "2026-04-09T16:13:40.261Z",
     "blocked_inputs": [
@@ -24,8 +24,10 @@
       "go ahead",
       "next i should"
     ],
-    "message": "Deep interview is active; auto-approval shortcuts are blocked until the interview finishes."
+    "message": "Deep interview is active; auto-approval shortcuts are blocked until the interview finishes.",
+    "released_at": "2026-04-10T07:25:52.016Z",
+    "exit_reason": "handoff"
   },
-  "iteration": 1,
-  "last_turn_at": "2026-04-09T16:14:32.448Z"
+  "iteration": 18,
+  "last_turn_at": "2026-04-10T09:51:04.666Z"
 }

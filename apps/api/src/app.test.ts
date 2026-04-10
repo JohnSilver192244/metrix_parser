@@ -1529,7 +1529,6 @@ test("GET /seasons returns persisted seasons via the API envelope", async () => 
             dateTo: "2027-11-01",
             bestLeaguesCount: 5,
             bestTournamentsCount: 4,
-            minPlayers: 8,
           },
           {
             seasonCode: "2026",
@@ -1538,7 +1537,6 @@ test("GET /seasons returns persisted seasons via the API envelope", async () => 
             dateTo: "2026-11-01",
             bestLeaguesCount: 4,
             bestTournamentsCount: 4,
-            minPlayers: 8,
           },
         ],
       },
@@ -1552,7 +1550,6 @@ test("GET /seasons returns persisted seasons via the API envelope", async () => 
       dateTo: string;
       bestLeaguesCount: number;
       bestTournamentsCount: number;
-      minPlayers: number;
     }>;
     meta: {
       count: number;
@@ -1568,7 +1565,6 @@ test("GET /seasons returns persisted seasons via the API envelope", async () => 
     dateTo: "2027-11-01",
     bestLeaguesCount: 5,
     bestTournamentsCount: 4,
-    minPlayers: 8,
   });
 });
 

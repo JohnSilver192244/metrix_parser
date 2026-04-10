@@ -25,6 +25,7 @@ import {
   listResults,
   resolveResultsErrorMessage,
 } from "../../shared/api/results";
+import { listTournamentCategories } from "../../shared/api/tournament-categories";
 import { decodeHtmlEntities } from "../../shared/text";
 import {
   consumeCompetitionResultsSourcePlayerContext,
@@ -48,6 +49,7 @@ type CompetitionResultsPageState =
       status: "ready";
       competition: Competition;
       courseName: string;
+      categoryName: string;
       results: CompetitionResultsRow[];
       comment?: string | null;
     };
@@ -94,6 +96,24 @@ function formatSum(value: number | null): string {
 
 function formatSeasonPoints(value: number | null | undefined): string {
   return value == null ? "—" : value.toFixed(2);
+}
+
+function formatPlayersCount(value: number | null): string {
+  return value === null ? "—" : String(value);
+}
+
+function resolveCompetitionCategoryName(
+  competition: Competition,
+  categoryNamesById: Readonly<Record<string, string>>,
+): string {
+  if (!competition.categoryId) {
+    return "Не указана";
+  }
+
+  const categoryName = categoryNamesById[competition.categoryId];
+  const normalizedCategoryName = decodeHtmlEntities(categoryName?.trim() ?? "");
+
+  return normalizedCategoryName.length > 0 ? normalizedCategoryName : "Не указана";
 }
 
 function resolveCompetitionComment(competition: Competition): string | null {
@@ -656,7 +676,8 @@ export function CompetitionResultsPageView({
         </h1>
         <p className="competition-results-page__meta">
           {formatCompetitionDate(competition.competitionDate)} · {courseLabel} ·{" "}
-          {formatCompetitionRecordType(competition.recordType)}
+          {formatCompetitionRecordType(competition.recordType)} · Игроков:{" "}
+          {formatPlayersCount(competition.playersCount)} · Категория: {state.categoryName}
         </p>
         {competitionComment ? (
           <p className="competition-results-page__comment">{competitionComment}</p>
@@ -777,9 +798,10 @@ export function CompetitionResultsPage({
 
     void (async () => {
       try {
-        const [competitionsResult, coursesResult] = await Promise.allSettled([
+        const [competitionsResult, coursesResult, categoriesResult] = await Promise.allSettled([
           listCompetitions(),
           listCourses(),
+          listTournamentCategories(),
         ]);
 
         if (!isActive) {
@@ -816,6 +838,15 @@ export function CompetitionResultsPage({
           coursesResult.status === "fulfilled"
             ? createCourseNamesById(coursesResult.value.data)
             : {};
+        const categoryNamesById =
+          categoriesResult.status === "fulfilled"
+            ? Object.fromEntries(
+                categoriesResult.value.data.map((category) => [
+                  category.categoryId,
+                  category.name,
+                ]),
+              )
+            : {};
         const displayContext = resolveCompetitionDisplayContext(
           selectedCompetition,
           allCompetitions,
@@ -841,6 +872,10 @@ export function CompetitionResultsPage({
           courseName: resolveCompetitionCourseName(
             displayContext.competition,
             courseNamesById,
+          ),
+          categoryName: resolveCompetitionCategoryName(
+            displayContext.competition,
+            categoryNamesById,
           ),
           results: resolveCompetitionResults(
             displayContext.competition,

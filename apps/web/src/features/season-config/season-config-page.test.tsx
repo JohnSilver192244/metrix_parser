@@ -38,7 +38,6 @@ test("SeasonConfigPageView renders readonly data for guests", () => {
             dateTo: "2026-11-01",
             bestLeaguesCount: 4,
             bestTournamentsCount: 4,
-            minPlayers: 8,
           },
         ],
         seasonsTotal: 1,
@@ -82,7 +81,6 @@ test("SeasonConfigPageView renders create controls and editable rows for admins"
             dateTo: "2026-11-01",
             bestLeaguesCount: 4,
             bestTournamentsCount: 4,
-            minPlayers: 8,
           },
         ],
         seasonsTotal: 1,
@@ -108,7 +106,6 @@ test("SeasonConfigPageView renders create controls and editable rows for admins"
         dateTo: "2027-11-01",
         bestLeaguesCount: "4",
         bestTournamentsCount: "4",
-        minPlayers: "8",
       }}
       seasonRowDrafts={{
         "2026": {
@@ -118,7 +115,6 @@ test("SeasonConfigPageView renders create controls and editable rows for admins"
           dateTo: "2026-11-01",
           bestLeaguesCount: "4",
           bestTournamentsCount: "4",
-          minPlayers: "8",
         },
       }}
       pointsCreateDraft={{

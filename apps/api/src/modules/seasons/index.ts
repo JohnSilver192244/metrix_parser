@@ -15,7 +15,6 @@ const SEASONS_SELECT_COLUMNS = [
   "date_to",
   "best_leagues_count",
   "best_tournaments_count",
-  "min_players",
   "created_at",
   "updated_at",
 ].join(", ");
@@ -36,7 +35,6 @@ function toSeason(record: SeasonDbRecord): Season {
     dateTo: record.date_to,
     bestLeaguesCount: record.best_leagues_count,
     bestTournamentsCount: record.best_tournaments_count,
-    minPlayers: record.min_players,
     createdAt: record.created_at,
     updatedAt: record.updated_at,
   };

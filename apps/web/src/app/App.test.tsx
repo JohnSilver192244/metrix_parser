@@ -93,14 +93,16 @@ test("navigateToAppPath is a no-op when user selects the current route", () => {
 test("AppShellView renders project title and linear SPA navigation", () => {
   const markup = renderWithAuth("/competitions/competition-100");
 
-  assert.match(markup, /MetrixParser/);
+  assert.match(markup, /Сезонная таблица игроков РДГА/);
   assert.match(markup, /Тёмная тема/);
-  assert.match(markup, /Обновления/);
-  assert.match(markup, /Сезоны и очки/);
-  assert.match(markup, /Дивизионы/);
+  assert.match(markup, /Настройки/);
+  assert.match(markup, /Игроки/);
   assert.match(markup, /Соревнования/);
   assert.match(markup, /Парки/);
-  assert.match(markup, /Игроки/);
+  assert.ok(markup.indexOf(">Игроки<") < markup.indexOf(">Соревнования<"));
+  assert.doesNotMatch(markup, /Категории турниров/);
+  assert.doesNotMatch(markup, /Дивизионы/);
+  assert.doesNotMatch(markup, /Сезоны и очки/);
   assert.match(markup, /Подтягиваем результаты соревнования/);
   assert.match(markup, />Выйти</);
   assert.doesNotMatch(markup, /Вы вошли как/);
@@ -127,7 +129,7 @@ test("AppShellView resolves legacy /competitions path to competitions list", () 
 });
 
 test("AppShellView hides admin navigation for guests and blocks direct access", () => {
-  const markup = renderWithAuth("/admin", {
+  const markup = renderWithAuth("/settings", {
     status: "anonymous",
     user: null,
   });
@@ -140,7 +142,7 @@ test("AppShellView hides admin navigation for guests and blocks direct access", 
   assert.doesNotMatch(markup, /topbar-login/);
   assert.doesNotMatch(markup, /Редактирование и раздел обновлений доступны после входа/);
   assert.match(markup, /Доступ к странице ограничен/);
-  assert.match(markup, /Открыть соревнования/);
+  assert.match(markup, /Открыть игроков/);
 });
 
 test("shouldHandleInAppNavigation ignores modified or non-primary clicks", () => {
@@ -296,6 +298,7 @@ test("restorePathScrollPosition returns false when path was never saved", () => 
 
 test("isScrollRestorationPath returns true only for list routes", () => {
   assert.equal(isScrollRestorationPath("/"), true);
+  assert.equal(isScrollRestorationPath("/competitions"), true);
   assert.equal(isScrollRestorationPath("/players"), true);
   assert.equal(isScrollRestorationPath("/season-config"), true);
   assert.equal(isScrollRestorationPath("/divisions"), true);

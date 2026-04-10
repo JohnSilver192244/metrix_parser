@@ -45,7 +45,6 @@ type SeasonDraft = {
   dateTo: string;
   bestLeaguesCount: string;
   bestTournamentsCount: string;
-  minPlayers: string;
 };
 
 type PointsDraft = {
@@ -73,7 +72,6 @@ function toSeasonDraft(season: Season): SeasonDraft {
     dateTo: season.dateTo,
     bestLeaguesCount: String(season.bestLeaguesCount),
     bestTournamentsCount: String(season.bestTournamentsCount),
-    minPlayers: String(season.minPlayers),
   };
 }
 
@@ -213,7 +211,6 @@ export function SeasonConfigPageView({
     dateTo: "",
     bestLeaguesCount: "4",
     bestTournamentsCount: "4",
-    minPlayers: "8",
   },
   seasonRowDrafts = {},
   pointsCreateDraft = {
@@ -338,6 +335,9 @@ export function SeasonConfigPageView({
             <p className="season-config-page__section-description">
               Начисляет очки по всем подходящим соревнованиям выбранного сезона и сохраняет их
               по каждому игроку.
+            </p>
+            <p className="season-config-page__section-description">
+              Не забудьте проставить членство и дивизионы игрокам перед начислением.
             </p>
             <div className="season-config-page__accrual-controls">
               <label className="season-config-page__field">
@@ -479,19 +479,6 @@ export function SeasonConfigPageView({
                 }
               />
             </label>
-            <label className="season-config-page__field">
-              <span>Мин. игроков</span>
-              <input
-                className="season-config-page__input"
-                type="number"
-                min="1"
-                step="1"
-                value={seasonCreateDraft.minPlayers}
-                onChange={(event) =>
-                  onSeasonCreateFieldChange?.("minPlayers", event.target.value)
-                }
-              />
-            </label>
             <div className="players-table__actions">
               <button
                 type="button"
@@ -537,7 +524,6 @@ export function SeasonConfigPageView({
                   <th scope="col">По дату</th>
                   <th scope="col">Лучшие лиги</th>
                   <th scope="col">Лучшие турниры</th>
-                  <th scope="col">Мин. игроков</th>
                   {canEditSeasons ? <th scope="col">Действия</th> : null}
                 </tr>
               </thead>
@@ -656,26 +642,6 @@ export function SeasonConfigPageView({
                           />
                         ) : (
                           season.bestTournamentsCount
-                        )}
-                      </td>
-                      <td>
-                        {canEditSeasons ? (
-                          <input
-                            className="season-config-page__input"
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={draft.minPlayers}
-                            onChange={(event) =>
-                              onSeasonRowFieldChange?.(
-                                season.seasonCode,
-                                "minPlayers",
-                                event.target.value,
-                              )
-                            }
-                          />
-                        ) : (
-                          season.minPlayers
                         )}
                       </td>
                       {canEditSeasons ? (
@@ -985,7 +951,6 @@ export function SeasonConfigPage() {
     dateTo: "",
     bestLeaguesCount: "4",
     bestTournamentsCount: "4",
-    minPlayers: "8",
   });
   const [seasonRowDrafts, setSeasonRowDrafts] = useState<Record<string, SeasonDraft>>({});
   const [pointsCreateDraft, setPointsCreateDraft] = useState<PointsDraft>({

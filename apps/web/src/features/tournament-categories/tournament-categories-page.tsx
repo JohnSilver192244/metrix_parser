@@ -135,6 +135,7 @@ const TOURNAMENT_CATEGORY_COLUMN_WIDTHS = {
 export interface TournamentCategoriesPageViewProps {
   state: TournamentCategoriesPageState;
   canEdit?: boolean;
+  pageTitleAction?: React.ReactNode;
   createDraft?: CategoryDraft;
   rowDrafts?: Record<string, CategoryDraft>;
   submitState?: SubmitState;
@@ -153,6 +154,7 @@ export interface TournamentCategoriesPageViewProps {
 export function TournamentCategoriesPageView({
   state,
   canEdit = false,
+  pageTitleAction,
   createDraft = {
     name: "",
     description: "",
@@ -225,6 +227,7 @@ export function TournamentCategoriesPageView({
       <PageHeader
         titleId="tournament-categories-page-title"
         title="Категории турниров"
+        titleAction={pageTitleAction}
       />
 
       {canEdit ? (
@@ -574,7 +577,15 @@ export function TournamentCategoriesPageView({
   );
 }
 
-export function TournamentCategoriesPage() {
+export interface TournamentCategoriesPageProps {
+  forceCanEdit?: boolean;
+  pageTitleAction?: React.ReactNode;
+}
+
+export function TournamentCategoriesPage({
+  forceCanEdit,
+  pageTitleAction,
+}: TournamentCategoriesPageProps = {}) {
   const auth = useAuth();
   const [state, setState] = useState<TournamentCategoriesPageState>({
     status: "loading",
@@ -792,7 +803,8 @@ export function TournamentCategoriesPage() {
   return (
     <TournamentCategoriesPageView
       state={state}
-      canEdit={auth.status === "authenticated"}
+      canEdit={forceCanEdit ?? auth.status === "authenticated"}
+      pageTitleAction={pageTitleAction}
       createDraft={createForm}
       rowDrafts={rowDrafts}
       submitState={submitState}

@@ -46,6 +46,8 @@ const DIVISIONS_COLUMN_WIDTHS = {
 export interface DivisionsPageViewProps {
   state: DivisionsPageState;
   canEdit?: boolean;
+  showReadonlyNotice?: boolean;
+  pageTitleAction?: React.ReactNode;
   createDraft?: string;
   rowDrafts?: Record<string, string>;
   submitState?: SubmitState;
@@ -60,6 +62,8 @@ export interface DivisionsPageViewProps {
 export function DivisionsPageView({
   state,
   canEdit = false,
+  showReadonlyNotice = true,
+  pageTitleAction,
   createDraft = "",
   rowDrafts = {},
   submitState = {
@@ -120,6 +124,7 @@ export function DivisionsPageView({
       <PageHeader
         titleId="divisions-page-title"
         title="Дивизионы"
+        titleAction={pageTitleAction}
         description={
           total > 0
             ? `В справочнике ${total} дивизионов.`
@@ -154,7 +159,7 @@ export function DivisionsPageView({
         </section>
       ) : null}
 
-      {!canEdit ? (
+      {!canEdit && showReadonlyNotice ? (
         <div className="players-table__notice" role="note">
           Войдите в систему, чтобы добавлять, редактировать и удалять дивизионы.
         </div>
@@ -254,7 +259,17 @@ export function DivisionsPageView({
   );
 }
 
-export function DivisionsPage() {
+export interface DivisionsPageProps {
+  forceCanEdit?: boolean;
+  showReadonlyNotice?: boolean;
+  pageTitleAction?: React.ReactNode;
+}
+
+export function DivisionsPage({
+  forceCanEdit,
+  showReadonlyNotice,
+  pageTitleAction,
+}: DivisionsPageProps = {}) {
   const auth = useAuth();
   const [state, setState] = useState<DivisionsPageState>({
     status: "loading",
@@ -462,7 +477,9 @@ export function DivisionsPage() {
   return (
     <DivisionsPageView
       state={state}
-      canEdit={auth.status === "authenticated"}
+      canEdit={forceCanEdit ?? auth.status === "authenticated"}
+      showReadonlyNotice={showReadonlyNotice ?? forceCanEdit === undefined}
+      pageTitleAction={pageTitleAction}
       createDraft={createDraft}
       rowDrafts={rowDrafts}
       submitState={submitState}

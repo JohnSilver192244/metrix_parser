@@ -39,7 +39,7 @@ export function getInitialPathname(): string {
 
 const scrollRestoreStorageKey = "app-shell:scroll-positions";
 const themeStorageKey = "app-shell:theme";
-const legacyCompetitionsListPath = "/competitions";
+const legacyPlayersListPath = "/players";
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -68,7 +68,7 @@ export function persistTheme(theme: ThemeMode, storage: StorageLike): void {
 export function isScrollRestorationPath(pathname: string): boolean {
   return (
     appRoutes.some((route) => route.path === pathname) ||
-    pathname === legacyCompetitionsListPath
+    pathname === legacyPlayersListPath
   );
 }
 
@@ -170,7 +170,9 @@ export function AppShellView({
   const auth = useAuth();
   const route = resolveAppRoute(pathname);
   const visibleRoutes = appRoutes.filter(
-    (appRoute) => !appRoute.requiresAuth || auth.status === "authenticated",
+    (appRoute) =>
+      (appRoute.showInNav ?? true) &&
+      (!appRoute.requiresAuth || auth.status === "authenticated"),
   );
   const activePathname = route?.activePath ?? route?.path ?? pathname;
   const canAccessRoute =
@@ -181,7 +183,7 @@ export function AppShellView({
       <header className="app-topbar">
         <div className="app-topbar__row">
           <div className="app-topbar__brand">
-            <h1 className="app-topbar__title">MetrixParser</h1>
+            <h1 className="app-topbar__title">Сезонная таблица игроков РДГА</h1>
           </div>
           <div className="app-topbar__actions">
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
@@ -226,7 +228,7 @@ export function AppShellView({
             <p>
               Раздел «{route.label}» доступен только авторизованным пользователям.
               Войдите через форму в правом верхнем углу или перейдите к
-              списку соревнований.
+              списку игроков.
             </p>
             <p>
               <button
@@ -236,7 +238,7 @@ export function AppShellView({
                   onNavigate("/");
                 }}
               >
-                Открыть соревнования
+                Открыть игроков
               </button>
             </p>
           </section>

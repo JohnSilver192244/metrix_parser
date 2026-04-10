@@ -5,16 +5,17 @@ import {
   resolvePlayerId,
 } from "./route-paths";
 import { AdminUpdatesPage } from "../features/admin-updates/admin-updates-page";
+import { PlayersPage } from "../features/players/players-page";
+import { PlayerPage } from "../features/players/player-page";
 import { CompetitionsPage } from "../features/competitions/competitions-page";
 import { CoursesPage } from "../features/courses/courses-page";
 import { DivisionsPage } from "../features/divisions/divisions-page";
-import { PlayersPage } from "../features/players/players-page";
-import { PlayerPage } from "../features/players/player-page";
 import { CompetitionResultsPage } from "../features/results/competition-results-page";
 import { SeasonConfigPage } from "../features/season-config/season-config-page";
+import { SettingsPage } from "../features/settings/settings-page";
 import { TournamentCategoriesPage } from "../features/tournament-categories/tournament-categories-page";
 
-const LEGACY_COMPETITIONS_LIST_PATH = "/competitions";
+const LEGACY_PLAYERS_LIST_PATH = "/players";
 
 export interface AppRouteRenderContext {
   onNavigate: (pathname: string) => void;
@@ -29,11 +30,20 @@ export interface AppRouteDefinition {
   render: (context: AppRouteRenderContext) => ReactNode;
   activePath?: string;
   requiresAuth?: boolean;
+  showInNav?: boolean;
 }
 
 export const appRoutes: AppRouteDefinition[] = [
   {
     path: "/",
+    label: "Игроки",
+    group: "browse",
+    title: "Список игроков",
+    description: "Просмотр идентификационных данных игроков без привязки к отдельным результатам.",
+    render: ({ onNavigate }) => <PlayersPage onNavigate={onNavigate} />,
+  },
+  {
+    path: "/competitions",
     label: "Соревнования",
     group: "browse",
     title: "Список соревнований",
@@ -55,6 +65,8 @@ export const appRoutes: AppRouteDefinition[] = [
     title: "Список игроков",
     description: "Просмотр идентификационных данных игроков без привязки к отдельным результатам.",
     render: ({ onNavigate }) => <PlayersPage onNavigate={onNavigate} />,
+    activePath: "/",
+    showInNav: false,
   },
   {
     path: "/tournament-categories",
@@ -63,6 +75,8 @@ export const appRoutes: AppRouteDefinition[] = [
     title: "Категории турниров",
     description: "Просмотр и редактирование справочника категорий турниров с ограничением на запись по авторизации.",
     render: () => <TournamentCategoriesPage />,
+    activePath: "/settings",
+    showInNav: false,
   },
   {
     path: "/divisions",
@@ -73,6 +87,8 @@ export const appRoutes: AppRouteDefinition[] = [
       "Редактирование справочника дивизионов с каскадным обновлением значений у игроков.",
     render: () => <DivisionsPage />,
     requiresAuth: true,
+    activePath: "/settings",
+    showInNav: false,
   },
   {
     path: "/admin",
@@ -82,6 +98,8 @@ export const appRoutes: AppRouteDefinition[] = [
     description: "Ручной запуск обновлений и контроль операций синхронизации.",
     render: () => <AdminUpdatesPage />,
     requiresAuth: true,
+    activePath: "/settings",
+    showInNav: false,
   },
   {
     path: "/season-config",
@@ -91,6 +109,18 @@ export const appRoutes: AppRouteDefinition[] = [
     description:
       "Редактирование диапазонов дат сезона и правил начисления очков по местам.",
     render: () => <SeasonConfigPage />,
+    requiresAuth: true,
+    activePath: "/settings",
+    showInNav: false,
+  },
+  {
+    path: "/settings",
+    label: "Настройки",
+    group: "admin",
+    title: "Настройки",
+    description:
+      "Единая страница административных настроек: категории, дивизионы, обновления, сезоны и очки.",
+    render: () => <SettingsPage />,
     requiresAuth: true,
   },
 ];
@@ -107,7 +137,7 @@ function resolveCompetitionResultsRoute(pathname: string): AppRouteDefinition | 
     group: "browse",
     title: "Результаты соревнования",
     description: "Просмотр итогов конкретного соревнования с отдельной сортировкой для DNF.",
-    activePath: "/",
+    activePath: "/competitions",
     render: ({ onNavigate }) => (
       <CompetitionResultsPage
         competitionId={competitionId}
@@ -117,19 +147,19 @@ function resolveCompetitionResultsRoute(pathname: string): AppRouteDefinition | 
   };
 }
 
-function resolveLegacyCompetitionsListRoute(pathname: string): AppRouteDefinition | null {
-  if (pathname !== LEGACY_COMPETITIONS_LIST_PATH) {
+function resolveLegacyPlayersListRoute(pathname: string): AppRouteDefinition | null {
+  if (pathname !== LEGACY_PLAYERS_LIST_PATH) {
     return null;
   }
 
   return {
     path: pathname,
-    label: "Соревнования",
+    label: "Игроки",
     group: "browse",
-    title: "Список соревнований",
-    description: "Legacy alias маршрута списка соревнований.",
+    title: "Список игроков",
+    description: "Legacy alias маршрута списка игроков.",
     activePath: "/",
-    render: ({ onNavigate }) => <CompetitionsPage onNavigate={onNavigate} />,
+    render: ({ onNavigate }) => <PlayersPage onNavigate={onNavigate} />,
   };
 }
 
@@ -145,7 +175,7 @@ function resolvePlayerRoute(pathname: string): AppRouteDefinition | null {
     group: "browse",
     title: "Карточка игрока",
     description: "Просмотр результатов игрока по соревнованиям, сезону и выбранному периоду.",
-    activePath: "/players",
+    activePath: "/",
     render: ({ onNavigate }) => <PlayerPage playerId={playerId} onNavigate={onNavigate} />,
   };
 }
@@ -153,7 +183,7 @@ function resolvePlayerRoute(pathname: string): AppRouteDefinition | null {
 export function resolveAppRoute(pathname: string): AppRouteDefinition | null {
   return (
     appRoutes.find((route) => route.path === pathname) ??
-    resolveLegacyCompetitionsListRoute(pathname) ??
+    resolveLegacyPlayersListRoute(pathname) ??
     resolveCompetitionResultsRoute(pathname) ??
     resolvePlayerRoute(pathname)
   );

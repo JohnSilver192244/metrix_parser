@@ -29,7 +29,6 @@ test("PlayerPageView renders player header, filters, and results table", () => {
             dateTo: "2026-12-31",
             bestLeaguesCount: 3,
             bestTournamentsCount: 3,
-            minPlayers: 8,
           },
         ],
       }}

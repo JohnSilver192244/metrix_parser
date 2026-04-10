@@ -117,11 +117,13 @@ test("CompetitionResultsPageView renders competition header and result table", (
           competitionDate: "2026-05-10",
           courseId: "course-10",
           courseName: null,
+          categoryId: "A-tier",
           recordType: "2",
           playersCount: 2,
           metrixId: "metrix-100",
         },
         courseName: "Yaroslavl &rarr; Park",
+        categoryName: "Категория A",
         results: [
           {
             competitionId: "competition-100",
@@ -163,7 +165,10 @@ test("CompetitionResultsPageView renders competition header and result table", (
   assert.match(markup, /Spring → Open/);
   assert.match(markup, /data-table__external-link/);
   assert.match(markup, new RegExp(resolveCompetitionExternalUrl("competition-100")));
-  assert.match(markup, /10\.05\.2026 · Yaroslavl → Park · Single round event/);
+  assert.match(
+    markup,
+    /10\.05\.2026 · Yaroslavl → Park · Single round event · Игроков: 2 · Категория: Категория A/,
+  );
   assert.match(markup, /data-table__sort-button/);
   assert.match(markup, /Место ▲/);
   assert.match(markup, /Очки/);
@@ -194,6 +199,7 @@ test("CompetitionResultsPageView renders the parent competition comment in detai
         },
         comment: "Не удалось получить результаты.",
         courseName: "Yaroslavl &rarr; Park",
+        categoryName: "Не указана",
         results: [],
       }}
       onNavigate={() => {}}
@@ -459,6 +465,7 @@ test("CompetitionResultsPageView keeps the parent comment when event detail is d
         },
         comment: "Нельзя сохранить результаты: в пулах меньше 8 игроков.",
         courseName: "Pioneer experiment",
+        categoryName: "Не указана",
         results: [],
       }}
       onNavigate={() => {}}
@@ -657,11 +664,13 @@ test("CompetitionResultsPageView renders round breakdown rows for event results"
           parentId: null,
           courseId: null,
           courseName: "Dunes 921",
+          categoryId: "B-tier",
           recordType: "4",
           playersCount: 2,
           metrixId: null,
         },
         courseName: "Dunes 921",
+        categoryName: "B-tier",
         results: [
           {
             competitionId: "event-100",

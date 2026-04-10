@@ -5,6 +5,7 @@ import type { UpdatePeriod } from "@metrix-parser/shared-types";
 interface UpdatePeriodPickerProps {
   value: UpdatePeriod;
   onChange: (period: UpdatePeriod) => void;
+  maxRangeDays?: number | null;
   presets?: PeriodPreset[];
   inputNames?: {
     dateFrom: string;
@@ -24,12 +25,15 @@ const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
   month: "long",
   year: "numeric",
+  timeZone: "UTC",
 });
 const DATE_LABEL_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
+  timeZone: "UTC",
 });
+const UTC_DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 function createUtcDate(year: number, monthIndex: number, day: number): Date {
   return new Date(Date.UTC(year, monthIndex, day));
@@ -57,8 +61,35 @@ function formatDateLabel(value: string): string {
   return DATE_LABEL_FORMATTER.format(new Date(`${value}T00:00:00Z`));
 }
 
+export function formatMonthLabel(value: Date): string {
+  return MONTH_LABEL_FORMATTER.format(value);
+}
+
 function parseApiDate(value: string): Date {
   return new Date(`${value}T00:00:00Z`);
+}
+
+function isPeriodValueEmpty(period: UpdatePeriod): boolean {
+  return period.dateFrom.trim() === "" || period.dateTo.trim() === "";
+}
+
+function toNullableDate(value: string): string | null {
+  return value.trim() === "" ? null : value;
+}
+
+function getRangeDays(dateFrom: Date, dateTo: Date): number {
+  const min = Math.min(dateFrom.getTime(), dateTo.getTime());
+  const max = Math.max(dateFrom.getTime(), dateTo.getTime());
+
+  return Math.floor((max - min) / UTC_DAY_IN_MS) + 1;
+}
+
+function resolveInitialViewDate(period: UpdatePeriod): Date {
+  if (isPeriodValueEmpty(period)) {
+    return getStartOfMonth(startOfUtcDay(new Date()));
+  }
+
+  return getStartOfMonth(parseApiDate(period.dateFrom));
 }
 
 function getStartOfWeek(date: Date): Date {
@@ -159,6 +190,10 @@ const DEFAULT_PERIOD_PRESETS: PeriodPreset[] = [
 ];
 
 function formatPeriodLabel(period: UpdatePeriod): string {
+  if (isPeriodValueEmpty(period)) {
+    return "Не выбран";
+  }
+
   return `${formatDateLabel(period.dateFrom)} - ${formatDateLabel(period.dateTo)}`;
 }
 
@@ -166,9 +201,53 @@ export function createDefaultUpdatePeriod(today: Date = new Date()): UpdatePerio
   return resolveCurrentWeek(today);
 }
 
+export function clampUpdatePeriodToMaxRange(
+  period: UpdatePeriod,
+  maxRangeDays?: number | null,
+): UpdatePeriod {
+  if (
+    maxRangeDays === undefined ||
+    maxRangeDays === null ||
+    maxRangeDays <= 0 ||
+    isPeriodValueEmpty(period)
+  ) {
+    return period;
+  }
+
+  const start = parseApiDate(period.dateFrom);
+  const end = parseApiDate(period.dateTo);
+  const sortedStart = start.getTime() <= end.getTime() ? start : end;
+  const sortedEnd = start.getTime() <= end.getTime() ? end : start;
+
+  if (getRangeDays(sortedStart, sortedEnd) <= maxRangeDays) {
+    return {
+      dateFrom: formatDateForApi(sortedStart),
+      dateTo: formatDateForApi(sortedEnd),
+    };
+  }
+
+  return {
+    dateFrom: formatDateForApi(addUtcDays(sortedEnd, -(maxRangeDays - 1))),
+    dateTo: formatDateForApi(sortedEnd),
+  };
+}
+
+export function isDateSelectionWithinMaxRange(
+  startDate: string,
+  endDate: string,
+  maxRangeDays?: number | null,
+): boolean {
+  if (maxRangeDays === undefined || maxRangeDays === null || maxRangeDays <= 0) {
+    return true;
+  }
+
+  return getRangeDays(parseApiDate(startDate), parseApiDate(endDate)) <= maxRangeDays;
+}
+
 export function UpdatePeriodPicker({
   value,
   onChange,
+  maxRangeDays = null,
   presets = DEFAULT_PERIOD_PRESETS,
   inputNames = {
     dateFrom: "shared-date-from",
@@ -179,22 +258,28 @@ export function UpdatePeriodPicker({
 }: UpdatePeriodPickerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [draftStart, setDraftStart] = useState<string | null>(value.dateFrom);
-  const [draftEnd, setDraftEnd] = useState<string | null>(value.dateTo);
+  const [draftStart, setDraftStart] = useState<string | null>(toNullableDate(value.dateFrom));
+  const [draftEnd, setDraftEnd] = useState<string | null>(toNullableDate(value.dateTo));
   const [selectionStep, setSelectionStep] = useState<"start" | "end">("start");
-  const [viewDate, setViewDate] = useState<Date>(() => getStartOfMonth(parseApiDate(value.dateFrom)));
+  const [viewDate, setViewDate] = useState<Date>(() => resolveInitialViewDate(value));
 
   const monthDays = useMemo(() => getMonthDays(viewDate), [viewDate]);
   const draftIsComplete = draftStart !== null && draftEnd !== null;
+  const draftRangeDays =
+    draftIsComplete && draftStart && draftEnd
+      ? getRangeDays(parseApiDate(draftStart), parseApiDate(draftEnd))
+      : null;
+  const isDraftRangeAllowed =
+    draftRangeDays === null || maxRangeDays === null || draftRangeDays <= maxRangeDays;
 
   useEffect(() => {
     if (!isOpen) {
-      setDraftStart(value.dateFrom);
-      setDraftEnd(value.dateTo);
+      setDraftStart(toNullableDate(value.dateFrom));
+      setDraftEnd(toNullableDate(value.dateTo));
       setSelectionStep("start");
-      setViewDate(getStartOfMonth(parseApiDate(value.dateFrom)));
+      setViewDate(resolveInitialViewDate(value));
     }
-  }, [isOpen, value]);
+  }, [isOpen, value.dateFrom, value.dateTo]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -212,16 +297,32 @@ export function UpdatePeriodPicker({
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener("keydown", handleEscape);
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
+
   function openPicker() {
-    setDraftStart(value.dateFrom);
-    setDraftEnd(value.dateTo);
+    setDraftStart(toNullableDate(value.dateFrom));
+    setDraftEnd(toNullableDate(value.dateTo));
     setSelectionStep("start");
-    setViewDate(getStartOfMonth(parseApiDate(value.dateFrom)));
+    setViewDate(resolveInitialViewDate(value));
     setIsOpen(true);
   }
 
   function applyPreset(preset: PeriodPreset) {
-    const nextPeriod = preset.resolve(new Date());
+    const nextPeriod = clampUpdatePeriodToMaxRange(preset.resolve(new Date()), maxRangeDays);
 
     onChange(nextPeriod);
     setDraftStart(nextPeriod.dateFrom);
@@ -232,7 +333,7 @@ export function UpdatePeriodPicker({
   }
 
   function applyDraft() {
-    if (!draftStart || !draftEnd) {
+    if (!draftStart || !draftEnd || !isDraftRangeAllowed) {
       return;
     }
 
@@ -279,6 +380,18 @@ export function UpdatePeriodPicker({
     return candidate === draftStart || candidate === draftEnd;
   }
 
+  function isDayDisabled(date: Date): boolean {
+    if (selectionStep !== "end" || !draftStart || maxRangeDays === null) {
+      return false;
+    }
+
+    return !isDateSelectionWithinMaxRange(
+      draftStart,
+      formatDateForApi(date),
+      maxRangeDays,
+    );
+  }
+
   return (
     <div className="period-picker" ref={rootRef}>
       <input type="hidden" name={inputNames.dateFrom} value={value.dateFrom} />
@@ -304,7 +417,12 @@ export function UpdatePeriodPicker({
       </button>
 
       {isOpen ? (
-        <div className="period-picker__popover" role="dialog" aria-label={`Выбор периода: ${label}`}>
+        <div
+          className="period-picker__popover"
+          role="dialog"
+          aria-modal="false"
+          aria-label={`Выбор периода: ${label}`}
+        >
           <div className="period-picker__presets">
             {presets.map((preset) => (
               <button
@@ -332,7 +450,7 @@ export function UpdatePeriodPicker({
               >
                 ←
               </button>
-              <strong>{MONTH_LABEL_FORMATTER.format(viewDate)}</strong>
+              <strong>{formatMonthLabel(viewDate)}</strong>
               <button
                 type="button"
                 className="period-picker__nav"
@@ -359,12 +477,16 @@ export function UpdatePeriodPicker({
 
                 const inRange = isDateSelected(day);
                 const isBoundary = isRangeBoundary(day);
+                const isDisabled = isDayDisabled(day);
 
                 return (
                   <button
                     key={formatDateForApi(day)}
                     type="button"
-                    className={`period-picker__day${inRange ? " period-picker__day--selected" : ""}${isBoundary ? " period-picker__day--boundary" : ""}`}
+                    className={`period-picker__day${inRange ? " period-picker__day--selected" : ""}${isBoundary ? " period-picker__day--boundary" : ""}${isDisabled ? " period-picker__day--disabled" : ""}`}
+                    disabled={isDisabled}
+                    aria-pressed={inRange}
+                    aria-label={`${formatDateLabel(formatDateForApi(day))}${isDisabled ? " (недоступно)" : ""}`}
                     onClick={() => {
                       handleDaySelect(day);
                     }}
@@ -384,6 +506,9 @@ export function UpdatePeriodPicker({
                     dateTo: draftEnd,
                   })}`
                 : "Выберите дату начала и дату окончания."}
+              {maxRangeDays !== null
+                ? ` Максимальная длина диапазона: ${maxRangeDays} дней.`
+                : ""}
             </p>
             <div className="period-picker__footer-actions">
               <button
@@ -398,7 +523,7 @@ export function UpdatePeriodPicker({
               <button
                 type="button"
                 className="period-picker__primary"
-                disabled={!draftIsComplete}
+                disabled={!draftIsComplete || !isDraftRangeAllowed}
                 onClick={applyDraft}
               >
                 Применить

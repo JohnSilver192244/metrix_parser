@@ -58,6 +58,7 @@ const discGolfMetrixBaseUrl =
 export interface PlayersPageViewProps {
   state: PlayersPageState;
   onNavigate?: (pathname: string) => void;
+  pageTitleAction?: React.ReactNode;
   nameQuery?: string;
   divisionFilter?: string;
   rdgaFilter?: PlayersRdgaFilter;
@@ -227,6 +228,7 @@ function resolveAriaSort(
 export function PlayersPageView({
   state,
   onNavigate,
+  pageTitleAction,
   nameQuery = "",
   divisionFilter = "",
   rdgaFilter = "all",
@@ -338,6 +340,7 @@ export function PlayersPageView({
       <PageHeader
         titleId="players-page-title"
         title="Список игроков"
+        titleAction={pageTitleAction}
         description={
           total > 0
             ? `В системе доступно ${total} игроков для дальнейшей статистической работы.`
@@ -702,10 +705,13 @@ export function PlayersPageView({
 
 export interface PlayersPageProps {
   onNavigate: (pathname: string) => void;
+  forceCanEdit?: boolean;
 }
 
-export function PlayersPage({ onNavigate }: PlayersPageProps) {
+export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
   const { status: authStatus, user } = useAuth();
+  const isAuthenticated = authStatus === "authenticated" && Boolean(user);
+  const [isEditModeEnabled, setIsEditModeEnabled] = useState(false);
   const [state, setState] = useState<PlayersPageState>({
     status: "loading",
   });
@@ -932,7 +938,20 @@ export function PlayersPage({ onNavigate }: PlayersPageProps) {
       rdgaFilter={rdgaFilter}
       seasonFilter={seasonFilter}
       sort={sort}
-      canEdit={authStatus === "authenticated" && Boolean(user)}
+      canEdit={forceCanEdit ?? (isAuthenticated && isEditModeEnabled)}
+      pageTitleAction={
+        isAuthenticated && forceCanEdit === undefined ? (
+          <button
+            type="button"
+            className="update-card__submit settings-page__edit-toggle"
+            onClick={() => {
+              setIsEditModeEnabled((current) => !current);
+            }}
+          >
+            {isEditModeEnabled ? "Просмотр" : "Редактировать"}
+          </button>
+        ) : null
+      }
       divisionDrafts={divisionDrafts}
       rdgaDrafts={rdgaDrafts}
       rdgaSinceDrafts={rdgaSinceDrafts}

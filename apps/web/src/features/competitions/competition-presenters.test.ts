@@ -497,5 +497,32 @@ test("resolveCompetitionCategoryIdByMetrics picks the best matching category", (
 
   assert.equal(resolveCompetitionCategoryIdByMetrics(categories, 60, 850), "tournament");
   assert.equal(resolveCompetitionCategoryIdByMetrics(categories, 12, 850), null);
-  assert.equal(resolveCompetitionCategoryIdByMetrics(categories, 60, null), null);
+  assert.equal(resolveCompetitionCategoryIdByMetrics(categories, 60, null), "tournament");
+});
+
+test("resolveCompetitionCategoryIdByMetrics treats missing rating as zero", () => {
+  const categories: TournamentCategory[] = [
+    {
+      categoryId: "no-rating",
+      name: "Без рейтинга",
+      description: null,
+      competitionClass: "league",
+      segmentsCount: 18,
+      ratingGte: 0,
+      ratingLt: 100,
+      coefficient: 1,
+    },
+    {
+      categoryId: "rated-only",
+      name: "Только с рейтингом",
+      description: null,
+      competitionClass: "league",
+      segmentsCount: 18,
+      ratingGte: 1,
+      ratingLt: 100,
+      coefficient: 1,
+    },
+  ];
+
+  assert.equal(resolveCompetitionCategoryIdByMetrics(categories, 18, null), "no-rating");
 });

@@ -19,7 +19,6 @@ test("listSeasons reads data and meta from the backend envelope", async () => {
               dateTo: "2026-11-01",
               bestLeaguesCount: 4,
               bestTournamentsCount: 4,
-              minPlayers: 8,
             },
           ],
           meta: {

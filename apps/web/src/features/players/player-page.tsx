@@ -643,7 +643,7 @@ export function PlayerPageView({
               </tbody>
             </table>
           </div>
-          <p>Всего строк: {resultsState.total}</p>
+          <p>всего строк: {resultsState.total}</p>
         </section>
       )}
     </section>
