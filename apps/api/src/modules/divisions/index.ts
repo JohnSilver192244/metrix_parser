@@ -8,6 +8,7 @@ import type {
 
 import { readJsonBody, sendSuccess } from "../../lib/http";
 import { HttpError } from "../../lib/http-errors";
+import { resolveListPagination } from "../../lib/pagination";
 import type { RouteDefinition } from "../../lib/router";
 import { createApiSupabaseAdminClient } from "../../lib/supabase-admin";
 import {
@@ -210,11 +211,20 @@ export function getDivisionsRoutes(
     {
       method: "GET",
       path: "/divisions",
-      handler: async ({ res }) => {
-        const divisions = await (dependencies.listDivisions ?? listDivisionsFromRuntime)();
+      handler: async ({ res, url }) => {
+        const pagination = resolveListPagination(url);
+        const allDivisions = await (
+          dependencies.listDivisions ?? listDivisionsFromRuntime
+        )();
+        const divisions = allDivisions.slice(
+          pagination.offset,
+          pagination.offset + pagination.limit,
+        );
 
         sendSuccess(res, divisions, {
           count: divisions.length,
+          limit: pagination.limit,
+          offset: pagination.offset,
         });
       },
     },

@@ -16,7 +16,9 @@
     "monitor:omx": "node scripts/omx-dashboard.mjs",
     "dev:web": "npm run dev --workspace @metrix-parser/web",
     "dev:api": "npm run dev --workspace @metrix-parser/api",
-    "dev:worker": "npm run dev --workspace @metrix-parser/worker"
+    "dev:worker": "npm run dev --workspace @metrix-parser/worker",
+    "perf:capture": "node scripts/perf-capture.mjs",
+    "perf:compare": "node scripts/perf-compare.mjs"
   },
   "dependencies": {
     "undici": "^5.29.0"

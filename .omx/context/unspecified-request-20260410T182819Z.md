@@ -1,0 +1,21 @@
+# Deep Interview Context Snapshot
+
+- Task statement: User invoked `$deep-interview` without additional task text.
+- Desired outcome: Clarify intended task sufficiently to produce an execution-ready spec.
+- Stated solution: Start Socratic clarification interview.
+- Probable intent hypothesis: User wants structured requirement elicitation before planning/execution.
+- Known facts/evidence:
+  - Repository is brownfield (existing monorepo with apps/web, apps/api, apps/worker).
+  - Previous deep-interview mode state exists and is completed.
+- Constraints:
+  - One question per round.
+  - Intent-first before implementation detail.
+  - No direct implementation in this mode.
+- Unknowns/open questions:
+  - Actual business/technical goal.
+  - Scope boundaries and non-goals.
+  - Acceptance criteria.
+- Decision-boundary unknowns:
+  - What decisions OMX may take autonomously vs requiring confirmation.
+- Likely codebase touchpoints:
+  - Unknown until task intent is provided.

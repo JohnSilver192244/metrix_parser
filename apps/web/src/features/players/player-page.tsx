@@ -15,12 +15,13 @@ import {
 } from "../competitions/competition-presenters";
 import { PageHeader } from "../../shared/page-header";
 import {
+  getPlayer,
   listPlayerResults,
-  listPlayers,
   resolvePlayerResultsTotal,
   resolvePlayersErrorMessage,
 } from "../../shared/api/players";
 import { listSeasons, resolveSeasonsErrorMessage } from "../../shared/api/seasons";
+import { ApiClientError } from "../../shared/api/http";
 import { useSessionStorageState } from "../../shared/session-storage";
 import { decodeHtmlEntities } from "../../shared/text";
 import { setCompetitionResultsSourcePlayerContext } from "../../shared/navigation-context";
@@ -677,21 +678,12 @@ export function PlayerPage({ playerId, onNavigate }: PlayerPageProps) {
 
     void (async () => {
       try {
-        const [playersEnvelope, seasonsEnvelope] = await Promise.all([
-          listPlayers(),
+        const [player, seasonsEnvelope] = await Promise.all([
+          getPlayer(playerId),
           listSeasons(),
         ]);
 
         if (!isActive) {
-          return;
-        }
-
-        const player = playersEnvelope.data.find((item) => item.playerId === playerId);
-        if (!player) {
-          setHeaderState({
-            status: "not-found",
-            playerId,
-          });
           return;
         }
 
@@ -719,6 +711,14 @@ export function PlayerPage({ playerId, onNavigate }: PlayerPageProps) {
         });
       } catch (error) {
         if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiClientError && error.code === "not_found") {
+          setHeaderState({
+            status: "not-found",
+            playerId,
+          });
           return;
         }
 

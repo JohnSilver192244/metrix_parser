@@ -5,6 +5,7 @@ import type {
 } from "@metrix-parser/shared-types";
 
 import { sendSuccess, readJsonBody } from "../../lib/http";
+import { invalidateApiReadCacheAfterBackgroundRecompute } from "../../lib/api-read-cache";
 import { HttpError } from "../../lib/http-errors";
 import type { RouteDefinition } from "../../lib/router";
 import {
@@ -91,6 +92,8 @@ function createUpdateRoute(
         resolveOverwriteExisting(body),
         dependencies,
       );
+
+      invalidateApiReadCacheAfterBackgroundRecompute({});
 
       sendSuccess(res, result, undefined, 202);
     },

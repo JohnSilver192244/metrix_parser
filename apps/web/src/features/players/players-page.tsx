@@ -51,6 +51,7 @@ const playersNameQueryStorageKey = "players-page:name-query";
 const playersDivisionFilterStorageKey = "players-page:division-filter";
 const playersRdgaFilterStorageKey = "players-page:rdga-filter";
 const playersSeasonFilterStorageKey = "players-page:season-filter";
+const PLAYERS_PAGE_SIZE = 25;
 const discGolfMetrixBaseUrl =
   import.meta.env?.VITE_DISCGOLFMETRIX_BASE_URL ??
   import.meta.env?.DISCGOLFMETRIX_BASE_URL ??
@@ -65,6 +66,7 @@ export interface PlayersPageViewProps {
   rdgaFilter?: PlayersRdgaFilter;
   seasonFilter?: string;
   sort?: PlayersSort;
+  currentPage?: number;
   canEdit?: boolean;
   divisionDrafts?: Record<string, string>;
   rdgaDrafts?: Record<string, boolean | null>;
@@ -80,6 +82,7 @@ export interface PlayersPageViewProps {
   onRdgaFilterChange?: (value: PlayersRdgaFilter) => void;
   onSeasonFilterChange?: (value: string) => void;
   onSortChange?: (field: PlayersSortField) => void;
+  onPageChange?: (nextPage: number) => void;
   onDivisionChange?: (playerId: string, value: string) => void;
   onRdgaChange?: (playerId: string, value: boolean) => void;
   onRdgaSinceChange?: (playerId: string, value: string) => void;
@@ -268,6 +271,7 @@ export function PlayersPageView({
   rdgaFilter = "all",
   seasonFilter = "",
   sort = DEFAULT_PLAYERS_SORT,
+  currentPage = 1,
   canEdit = false,
   divisionDrafts = {},
   rdgaDrafts = {},
@@ -283,6 +287,7 @@ export function PlayersPageView({
   onRdgaFilterChange,
   onSeasonFilterChange,
   onSortChange,
+  onPageChange,
   onDivisionChange,
   onRdgaChange,
   onRdgaSinceChange,
@@ -332,6 +337,13 @@ export function PlayersPageView({
 
     return sortedPlayers;
   }, [divisionFilter, normalizedNameQuery, players, rdgaFilter, sort]);
+  const totalPages = Math.max(1, Math.ceil(visiblePlayers.length / PLAYERS_PAGE_SIZE));
+  const normalizedCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
+  const pageStartIndex = (normalizedCurrentPage - 1) * PLAYERS_PAGE_SIZE;
+  const paginatedVisiblePlayers = visiblePlayers.slice(
+    pageStartIndex,
+    pageStartIndex + PLAYERS_PAGE_SIZE,
+  );
 
   if (state.status === "loading") {
     return (
@@ -508,7 +520,7 @@ export function PlayersPageView({
                     </tr>
                   </thead>
                   <tbody>
-                    {visiblePlayers.map((player) => {
+                    {paginatedVisiblePlayers.map((player) => {
                       const draftDivision =
                         divisionDrafts[player.playerId] ?? player.division ?? "";
                       const draftRdga =
@@ -714,6 +726,49 @@ export function PlayersPageView({
                   </tbody>
                 </table>
               </div>
+              <div className="players-page__pagination-summary" aria-live="polite">
+                Показано {paginatedVisiblePlayers.length} из {visiblePlayers.length} игроков.
+                Страница {normalizedCurrentPage} из {totalPages}.
+              </div>
+              {totalPages > 1 ? (
+                <nav className="players-page__pagination" aria-label="Пагинация игроков">
+                  <button
+                    className="players-page__pagination-button"
+                    type="button"
+                    disabled={normalizedCurrentPage === 1}
+                    onClick={() => {
+                      onPageChange?.(normalizedCurrentPage - 1);
+                    }}
+                  >
+                    Назад
+                  </button>
+                  <div className="players-page__pagination-pages">
+                    {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                      <button
+                        key={page}
+                        className={`players-page__pagination-button${page === normalizedCurrentPage ? " players-page__pagination-button--active" : ""}`}
+                        type="button"
+                        aria-current={page === normalizedCurrentPage ? "page" : undefined}
+                        onClick={() => {
+                          onPageChange?.(page);
+                        }}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    className="players-page__pagination-button"
+                    type="button"
+                    disabled={normalizedCurrentPage === totalPages}
+                    onClick={() => {
+                      onPageChange?.(normalizedCurrentPage + 1);
+                    }}
+                  >
+                    Вперед
+                  </button>
+                </nav>
+              ) : null}
             </section>
           )}
         </>
@@ -763,6 +818,7 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
     "",
   );
   const [sort, setSort] = useState<PlayersSort>(DEFAULT_PLAYERS_SORT);
+  const [currentPage, setCurrentPage] = useState(1);
   const [saveState, setSaveState] = useState<{
     status: "idle" | "saving" | "success" | "error";
     playerId: string | null;
@@ -979,10 +1035,18 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
       rdgaSinceDrafts={rdgaSinceDrafts}
       seasonDivisionDrafts={seasonDivisionDrafts}
       saveState={saveState}
-      onNameQueryChange={setNameQuery}
-      onDivisionFilterChange={setDivisionFilter}
-      onRdgaFilterChange={setRdgaFilter}
-      onSeasonFilterChange={setSeasonFilter}
+      onDivisionFilterChange={(value) => {
+        setDivisionFilter(value);
+        setCurrentPage(1);
+      }}
+      onRdgaFilterChange={(value) => {
+        setRdgaFilter(value);
+        setCurrentPage(1);
+      }}
+      onSeasonFilterChange={(value) => {
+        setSeasonFilter(value);
+        setCurrentPage(1);
+      }}
       onSortChange={(field) => {
         setSort((currentSort) => {
           if (currentSort.field === field) {
@@ -1000,6 +1064,14 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
                 : "asc",
           };
         });
+      }}
+      currentPage={currentPage}
+      onPageChange={(nextPage) => {
+        setCurrentPage(nextPage);
+      }}
+      onNameQueryChange={(value) => {
+        setNameQuery(value);
+        setCurrentPage(1);
       }}
       onDivisionChange={(playerId, value) => {
         setDivisionDrafts((currentDrafts) => ({

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
+import { gunzipSync } from "node:zlib";
 
 import { createApiRequestHandler } from "./app";
 import { HttpError } from "./lib/http-errors";
@@ -16,6 +17,7 @@ import {
 } from "./modules/competitions";
 import {
   aggregateSeasonStandingsByPlayer,
+  buildPlacementByOwnerCompetitionAndPlayerId,
   pickOwnerCompetitionResultRows,
 } from "./modules/players";
 import {
@@ -76,6 +78,44 @@ async function invokeRequest(
   };
 }
 
+async function invokeRequestWithHandler(
+  handler: ReturnType<typeof createApiRequestHandler>,
+  path: string,
+  options: RequestOptions = {},
+) {
+  const headers = new Map<string, string>();
+  let body = "";
+  const requestBody = options.body ?? "";
+
+  const req = Readable.from(requestBody ? [requestBody] : []) as IncomingMessage;
+  Object.assign(req, {
+    method: options.method ?? "GET",
+    url: path,
+    headers: {
+      host: "localhost",
+      ...(options.headers ?? {}),
+    },
+  });
+
+  const res = {
+    statusCode: 200,
+    setHeader(name: string, value: string) {
+      headers.set(name, value);
+    },
+    end(chunk?: string) {
+      body = chunk ?? "";
+    },
+  } as unknown as ServerResponse;
+
+  await handler(req, res);
+
+  return {
+    statusCode: res.statusCode,
+    headers,
+    body,
+  };
+}
+
 test("GET /health returns the success envelope", async () => {
   const response = await invokeRequest("/health");
   const payload = JSON.parse(response.body) as {
@@ -87,6 +127,84 @@ test("GET /health returns the success envelope", async () => {
   assert.equal(payload.data.service, "api");
   assert.equal(payload.data.status, "ok");
   assert.ok(Date.parse(payload.data.timestamp));
+});
+
+test("GET /competitions compresses JSON payload when client accepts gzip", async () => {
+  const response = await invokeRequest(
+    "/competitions",
+    {
+      headers: {
+        "accept-encoding": "gzip",
+      },
+    },
+    {
+      competitions: {
+        listCompetitions: async () =>
+          Array.from({ length: 120 }, (_, index) => ({
+            competitionId: `competition-${index + 1}`,
+            competitionName: `Competition ${index + 1}`,
+            competitionDate: "2026-04-10",
+            parentId: null,
+            courseId: null,
+            courseName: null,
+            categoryId: null,
+            comment: null,
+            recordType: null,
+            playersCount: null,
+            metrixId: null,
+            hasResults: false,
+            seasonPoints: null,
+          })),
+      },
+    },
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers.get("Content-Encoding"), "gzip");
+
+  const decompressed = gunzipSync(Buffer.from(response.body, "binary")).toString("utf8");
+  const payload = JSON.parse(decompressed) as { data: unknown[] };
+  assert.equal(payload.data.length, 120);
+});
+
+test("GET /health/performance returns performance snapshot envelope", async () => {
+  const response = await invokeRequest("/health/performance");
+  const payload = JSON.parse(response.body) as {
+    data: {
+      capturedAt: string;
+      requests: { endpointTop10ByP95: unknown[] };
+      sql: { top10ByP95: unknown[]; totalCalls: number };
+      cache: {
+        hitCount: number;
+        missCount: number;
+        evictionCount: number;
+        getLatencyMs: { avg: number; p95: number };
+      };
+    };
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.ok(Date.parse(payload.data.capturedAt));
+  assert.ok(Array.isArray(payload.data.requests.endpointTop10ByP95));
+  assert.ok(Array.isArray(payload.data.sql.top10ByP95));
+  assert.equal(typeof payload.data.sql.totalCalls, "number");
+  assert.equal(typeof payload.data.cache.hitCount, "number");
+  assert.equal(typeof payload.data.cache.missCount, "number");
+  assert.equal(typeof payload.data.cache.evictionCount, "number");
+  assert.equal(typeof payload.data.cache.getLatencyMs.avg, "number");
+  assert.equal(typeof payload.data.cache.getLatencyMs.p95, "number");
+});
+
+test("POST /health/performance/reset clears in-memory metrics", async () => {
+  const response = await invokeRequest("/health/performance/reset", {
+    method: "POST",
+  });
+  const payload = JSON.parse(response.body) as {
+    data: { status: string };
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.data.status, "reset");
 });
 
 test("OPTIONS requests expose CORS headers for authorization", async () => {
@@ -197,6 +315,66 @@ test("GET /competitions returns persisted competitions via the API envelope", as
     hasResults: false,
     seasonPoints: null,
   });
+});
+
+test("GET /competitions/:id/context returns competition context envelope", async () => {
+  const response = await invokeRequest(
+    "/competitions/competition-102/context",
+    {},
+    {
+      competitions: {
+        getCompetitionContext: async (competitionId) => {
+          assert.equal(competitionId, "competition-102");
+          return {
+            competition: {
+              competitionId: "competition-102",
+              competitionName: "Moscow Spring Open",
+              competitionDate: "2026-04-21",
+              courseId: "course-200",
+              courseName: null,
+              categoryId: "category-pro",
+              recordType: "2",
+              playersCount: 48,
+              metrixId: "metrix-102",
+            },
+            hierarchy: [
+              {
+                competitionId: "competition-102",
+                competitionName: "Moscow Spring Open",
+                competitionDate: "2026-04-21",
+                courseId: "course-200",
+                courseName: null,
+                categoryId: "category-pro",
+                recordType: "2",
+                playersCount: 48,
+                metrixId: "metrix-102",
+              },
+            ],
+            courseNamesById: {
+              "course-200": "Troparevo",
+            },
+            categoryNamesById: {
+              "category-pro": "Pro",
+            },
+            resultCompetitionIds: ["competition-102"],
+          };
+        },
+      },
+    },
+  );
+
+  const payload = JSON.parse(response.body) as {
+    data: {
+      competition: { competitionId: string };
+      resultCompetitionIds: string[];
+      courseNamesById: Record<string, string>;
+    };
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.data.competition.competitionId, "competition-102");
+  assert.deepEqual(payload.data.resultCompetitionIds, ["competition-102"]);
+  assert.equal(payload.data.courseNamesById["course-200"], "Troparevo");
 });
 
 test("PUT /competitions/category updates competition category for authenticated user", async () => {
@@ -522,6 +700,57 @@ test("GET /courses returns persisted parks via the API envelope", async () => {
   });
 });
 
+test("GET /courses applies limit/offset pagination defaults from query", async () => {
+  const response = await invokeRequest(
+    "/courses?limit=1&offset=1",
+    {},
+    {
+      courses: {
+        listCourses: async () => [
+          {
+            courseId: "course-1",
+            name: "Alpha",
+            fullname: "Alpha Full",
+            type: "park",
+            countryCode: "RU",
+            area: "Moscow",
+            ratingValue1: null,
+            ratingResult1: null,
+            ratingValue2: null,
+            ratingResult2: null,
+            coursePar: 54,
+            basketsCount: null,
+          },
+          {
+            courseId: "course-2",
+            name: "Beta",
+            fullname: "Beta Full",
+            type: "park",
+            countryCode: "RU",
+            area: "Moscow",
+            ratingValue1: null,
+            ratingResult1: null,
+            ratingValue2: null,
+            ratingResult2: null,
+            coursePar: 54,
+            basketsCount: null,
+          },
+        ],
+      },
+    },
+  );
+  const payload = JSON.parse(response.body) as {
+    data: Array<{ courseId: string }>;
+    meta: { count: number; limit: number; offset: number };
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.meta.count, 1);
+  assert.equal(payload.meta.limit, 1);
+  assert.equal(payload.meta.offset, 1);
+  assert.equal(payload.data[0]?.courseId, "course-2");
+});
+
 test("GET /divisions returns reference divisions via the API envelope", async () => {
   const response = await invokeRequest(
     "/divisions",
@@ -787,6 +1016,81 @@ test("GET /players returns persisted players via the API envelope", async () => 
   });
 });
 
+test("GET /players/:id returns one player via the API envelope", async () => {
+  const response = await invokeRequest(
+    "/players/player-100",
+    {},
+    {
+      players: {
+        getPlayer: async (playerId) => {
+          assert.equal(playerId, "player-100");
+          return {
+            playerId: "player-100",
+            playerName: "Ivan Ivanov",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-05",
+            seasonDivision: "MPO",
+            seasonPoints: null,
+            seasonCreditPoints: null,
+            competitionsCount: 5,
+          };
+        },
+      },
+    },
+  );
+
+  const payload = JSON.parse(response.body) as {
+    data: {
+      playerId: string;
+      playerName: string;
+      competitionsCount: number;
+    };
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.data.playerId, "player-100");
+  assert.equal(payload.data.playerName, "Ivan Ivanov");
+  assert.equal(payload.data.competitionsCount, 5);
+});
+
+test("GET /players reuses API read cache for equivalent query params", async () => {
+  let listPlayersCalls = 0;
+  const handler = createApiRequestHandler({
+    players: {
+      listPlayers: async () => {
+        listPlayersCalls += 1;
+        return [
+          {
+            playerId: "player-100",
+            playerName: "Ivan Ivanov",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2025-01-01",
+            seasonDivision: "MPO",
+            seasonPoints: 120.5,
+            seasonCreditPoints: 90,
+            competitionsCount: 8,
+          },
+        ];
+      },
+    },
+  });
+
+  const firstResponse = await invokeRequestWithHandler(
+    handler,
+    "/players?seasonCode=2026&limit=50&offset=0",
+  );
+  const secondResponse = await invokeRequestWithHandler(
+    handler,
+    "/players?offset=0&limit=50&seasonCode=2026",
+  );
+
+  assert.equal(firstResponse.statusCode, 200);
+  assert.equal(secondResponse.statusCode, 200);
+  assert.equal(listPlayersCalls, 1);
+});
+
 test("GET /players/results returns player competition rows with applied filters", async () => {
   const response = await invokeRequest(
     "/players/results?playerId=player-100&seasonCode=2026&dateFrom=2026-01-01&dateTo=2026-12-31",
@@ -799,6 +1103,8 @@ test("GET /players/results returns player competition rows with applied filters"
             seasonCode: "2026",
             dateFrom: "2026-01-01",
             dateTo: "2026-12-31",
+            limit: 200,
+            offset: 0,
           });
 
           return [
@@ -1055,6 +1361,59 @@ test("pickOwnerCompetitionResultRows ignores DNF owner row when ranked child row
     sum: 54,
     dnf: false,
   });
+});
+
+test("buildPlacementByOwnerCompetitionAndPlayerId excludes players with DNF in required source rounds", () => {
+  const placementByOwnerCompetitionAndPlayerId = buildPlacementByOwnerCompetitionAndPlayerId(
+    new Map([
+      ["event-3186083", ["round-1", "round-2"]],
+    ]),
+    [
+      {
+        competition_id: "round-1",
+        player_id: "players/178864",
+        sum: 54,
+        dnf: false,
+      },
+      {
+        competition_id: "round-2",
+        player_id: "players/178864",
+        sum: null,
+        dnf: true,
+      },
+      {
+        competition_id: "round-1",
+        player_id: "player-2",
+        sum: 55,
+        dnf: false,
+      },
+      {
+        competition_id: "round-2",
+        player_id: "player-2",
+        sum: 56,
+        dnf: false,
+      },
+      {
+        competition_id: "round-1",
+        player_id: "player-3",
+        sum: 57,
+        dnf: false,
+      },
+      {
+        competition_id: "round-2",
+        player_id: "player-3",
+        sum: 57,
+        dnf: false,
+      },
+    ],
+  );
+
+  assert.equal(
+    placementByOwnerCompetitionAndPlayerId.get("event-3186083:players/178864"),
+    undefined,
+  );
+  assert.equal(placementByOwnerCompetitionAndPlayerId.get("event-3186083:player-2"), 1);
+  assert.equal(placementByOwnerCompetitionAndPlayerId.get("event-3186083:player-3"), 2);
 });
 
 test("aggregateSeasonStandingsByCompetition sums season points per competition", () => {
@@ -1708,6 +2067,75 @@ test("POST /season-standings/accrual runs points accrual for authenticated user"
   assert.equal(envelope.data.seasonCode, "2026");
   assert.equal(envelope.data.rowsPersisted, 210);
   assert.equal(envelope.data.competitionsWithPoints, 8);
+});
+
+test("POST /season-standings/accrual invalidates read cache for subsequent projections", async () => {
+  let listCompetitionsCalls = 0;
+  const handler = createApiRequestHandler({
+    competitions: {
+      listCompetitions: async () => {
+        listCompetitionsCalls += 1;
+        return [
+          {
+            competitionId: "competition-100",
+            competitionName: "Spring Open",
+            competitionDate: "2026-04-10",
+            parentId: null,
+            courseId: null,
+            courseName: null,
+            categoryId: null,
+            comment: null,
+            recordType: "event",
+            playersCount: 32,
+            metrixId: "metrix-100",
+            hasResults: true,
+            seasonPoints: 120,
+          },
+        ];
+      },
+    },
+    auth: {
+      requireAuthenticatedUser: async () => ({
+        login: "admin",
+      }),
+    },
+    seasonStandings: {
+      runSeasonPointsAccrual: async () => ({
+        seasonCode: "2026",
+        overwriteExisting: true,
+        competitionsInSeason: 1,
+        competitionsEligible: 1,
+        competitionsSkippedByExisting: 0,
+        competitionsWithPoints: 1,
+        rowsPrepared: 10,
+        rowsPersisted: 10,
+      }),
+    },
+  });
+
+  const firstListResponse = await invokeRequestWithHandler(handler, "/competitions");
+  const secondListResponse = await invokeRequestWithHandler(handler, "/competitions");
+  const accrualResponse = await invokeRequestWithHandler(
+    handler,
+    "/season-standings/accrual",
+    {
+      method: "POST",
+      headers: {
+        authorization: "Bearer token-100",
+      },
+      body: JSON.stringify({
+        seasonCode: "2026",
+        overwriteExisting: true,
+      }),
+    },
+  );
+  const thirdListResponse = await invokeRequestWithHandler(handler, "/competitions");
+
+  assert.equal(firstListResponse.statusCode, 200);
+  assert.equal(secondListResponse.statusCode, 200);
+  assert.equal(accrualResponse.statusCode, 200);
+  assert.equal(thirdListResponse.statusCode, 200);
+  assert.equal(listCompetitionsCalls, 2);
 });
 
 test("season standings ranking uses lowest sum and excludes DNF-style rows", () => {
@@ -3004,6 +3432,11 @@ test("GET /results forwards competitionId filter to the results module", async (
   let receivedFilters:
     | {
         competitionId?: string;
+        playerId?: string;
+        className?: string;
+        dnf?: boolean;
+        limit: number;
+        offset: number;
       }
     | undefined;
 
@@ -3043,6 +3476,11 @@ test("GET /results forwards competitionId filter to the results module", async (
   assert.equal(response.statusCode, 200);
   assert.deepEqual(receivedFilters, {
     competitionId: "competition-100",
+    playerId: undefined,
+    className: undefined,
+    dnf: undefined,
+    limit: 200,
+    offset: 0,
   });
   assert.equal(payload.meta.count, 1);
   assert.equal(payload.data[0]?.competitionId, "competition-100");
@@ -3403,6 +3841,79 @@ test("POST /updates/results accepts a period-based update command", async () => 
     dateFrom: "2026-04-01",
     dateTo: "2026-04-30",
   });
+});
+
+test("POST /updates/results invalidates read cache for subsequent projections", async () => {
+  let listResultsCalls = 0;
+  const handler = createApiRequestHandler({
+    results: {
+      listResults: async () => {
+        listResultsCalls += 1;
+        return [
+          {
+            competitionId: "competition-100",
+            playerId: "player-100",
+            competitionName: "Spring Open",
+            playerName: "Ivan Ivanov",
+            className: "MPO",
+            sum: 54,
+            diff: -6,
+            dnf: false,
+            seasonPoints: 80,
+          },
+        ];
+      },
+    },
+    auth: {
+      requireAuthenticatedUser: async () => ({
+        login: "admin",
+      }),
+    },
+    updates: {
+      executeResultsUpdate: async () => ({
+        operation: "results",
+        finalStatus: "completed",
+        source: "runtime",
+        message: "ok",
+        requestedAt: "2026-04-10T10:00:00.000Z",
+        finishedAt: "2026-04-10T10:00:01.000Z",
+        summary: {
+          found: 1,
+          created: 1,
+          updated: 0,
+          skipped: 0,
+          errors: 0,
+        },
+        issues: [],
+        period: {
+          dateFrom: "2026-01-01",
+          dateTo: "2026-12-31",
+        },
+      }),
+    },
+  });
+
+  const firstListResponse = await invokeRequestWithHandler(handler, "/results");
+  const secondListResponse = await invokeRequestWithHandler(handler, "/results");
+  const updateResponse = await invokeRequestWithHandler(handler, "/updates/results", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer token-200",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      dateFrom: "2026-01-01",
+      dateTo: "2026-12-31",
+      overwriteExisting: true,
+    }),
+  });
+  const thirdListResponse = await invokeRequestWithHandler(handler, "/results");
+
+  assert.equal(firstListResponse.statusCode, 200);
+  assert.equal(secondListResponse.statusCode, 200);
+  assert.equal(updateResponse.statusCode, 202);
+  assert.equal(thirdListResponse.statusCode, 200);
+  assert.equal(listResultsCalls, 2);
 });
 
 test("POST /updates/players accepts a period-based update command", async () => {

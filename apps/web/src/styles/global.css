@@ -1732,6 +1732,77 @@ body {
   z-index: 120;
 }
 
+.players-page__pagination-summary,
+.competitions-page__pagination-summary {
+  margin-top: 12px;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+}
+
+.players-page__pagination,
+.competitions-page__pagination {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.players-page__pagination-pages,
+.competitions-page__pagination-pages {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.competitions-page__pagination-ellipsis {
+  min-width: 24px;
+  text-align: center;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+}
+
+.players-page__pagination-button,
+.competitions-page__pagination-button {
+  min-height: 34px;
+  min-width: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-bg);
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.players-page__pagination-button:hover,
+.competitions-page__pagination-button:hover {
+  border-color: var(--accent);
+}
+
+.players-page__pagination-button:focus,
+.competitions-page__pagination-button:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.players-page__pagination-button:disabled,
+.competitions-page__pagination-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.players-page__pagination-button--active,
+.competitions-page__pagination-button--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
 .divisions-page__code-row {
   display: inline-flex;
   align-items: center;

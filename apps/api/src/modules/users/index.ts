@@ -1,6 +1,7 @@
 import type { AppUser } from "@metrix-parser/shared-types";
 
 import { sendSuccess } from "../../lib/http";
+import { resolveListPagination } from "../../lib/pagination";
 import type { RouteDefinition } from "../../lib/router";
 import {
   listUsersFromRuntime,
@@ -21,13 +22,17 @@ export function getUsersRoutes(
     {
       method: "GET",
       path: "/users",
-      handler: async ({ req, res }) => {
+      handler: async ({ req, res, url }) => {
         await requireAuthenticatedUser(readSessionToken(req), authDependencies);
 
-        const users = await (dependencies.listUsers ?? listUsersFromRuntime)();
+        const pagination = resolveListPagination(url);
+        const allUsers = await (dependencies.listUsers ?? listUsersFromRuntime)();
+        const users = allUsers.slice(pagination.offset, pagination.offset + pagination.limit);
 
         sendSuccess(res, users, {
           count: users.length,
+          limit: pagination.limit,
+          offset: pagination.offset,
         });
       },
     },

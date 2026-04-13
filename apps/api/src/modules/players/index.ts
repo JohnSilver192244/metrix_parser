@@ -9,11 +9,13 @@ import type {
 } from "@metrix-parser/shared-types";
 import {
   buildCompetitionChildrenByParentId,
+  resolveCompetitionResultSourceIds,
   resolveCompetitionIdentityById,
 } from "@metrix-parser/shared-types";
 
 import { readJsonBody, sendSuccess } from "../../lib/http";
 import { HttpError } from "../../lib/http-errors";
+import { resolveListPagination } from "../../lib/pagination";
 import type { RouteDefinition } from "../../lib/router";
 import { createApiSupabaseAdminClient } from "../../lib/supabase-admin";
 import {
@@ -21,8 +23,11 @@ import {
   requireAuthenticatedUser,
   type AuthGuardDependencies,
 } from "../auth/runtime";
+import { rankCompetitionResultsForSeasonPoints } from "../season-standings";
 
 const APP_PUBLIC_SCHEMA = "app_public";
+const DEFAULT_PLAYER_RESULTS_LIMIT = 200;
+const MAX_PLAYER_RESULTS_LIMIT = 1000;
 const PLAYERS_SELECT_COLUMNS = [
   "player_id",
   "player_name",
@@ -36,11 +41,6 @@ const PLAYERS_SELECT_COLUMNS_LEGACY = [
   "player_id",
   "player_name",
   "division",
-].join(", ");
-
-const PLAYER_RESULT_COUNTS_SELECT_COLUMNS = [
-  "player_id",
-  "competition_id",
 ].join(", ");
 
 const SEASON_STANDINGS_SELECT_COLUMNS = [
@@ -88,6 +88,7 @@ export interface PlayersListFilters {
 
 interface PlayerReadAdapter {
   listPlayers(filters?: PlayersListFilters): Promise<PlayerDbRecord[]>;
+  getPlayerById(playerId: string): Promise<PlayerDbRecord | null>;
   listPlayerResults(filters: PlayerResultsFilters): Promise<PlayerCompetitionResult[]>;
 }
 
@@ -146,9 +147,32 @@ interface CategorySummaryRow {
   name: string;
 }
 
+interface CompetitionResultRankingRow {
+  competition_id: string;
+  player_id: string;
+  sum: number | null;
+  dnf: boolean;
+}
+
 interface RankedCompetitionResult {
   player_id: string;
   placement: number;
+}
+
+interface PlayerCompetitionCountRow {
+  player_id: string;
+  competitions_count: number | null;
+}
+
+interface RpcPlayerResultRow {
+  competition_id: string;
+  competition_name: string;
+  competition_date: string;
+  category: string | null;
+  placement: number | null;
+  sum: number | null;
+  dnf: boolean;
+  season_points: number | string | null;
 }
 
 export interface PlayerCompetitionOwnerProjectionRow {
@@ -166,6 +190,7 @@ interface CompetitionHierarchyRow {
 
 export interface PlayersRouteDependencies {
   listPlayers?: (filters?: PlayersListFilters) => Promise<Player[]>;
+  getPlayer?: (playerId: string) => Promise<Player | null>;
   listPlayerResults?: (
     filters: PlayerResultsFilters,
   ) => Promise<PlayerCompetitionResult[]>;
@@ -177,6 +202,8 @@ export interface PlayerResultsFilters {
   seasonCode?: string;
   dateFrom?: string;
   dateTo?: string;
+  limit: number;
+  offset: number;
 }
 
 async function loadCompetitionHierarchy(
@@ -221,6 +248,15 @@ function resolveSeasonPointsCompetitionIdForPlayerResult(
   competitionId: string,
   competitionsById: ReadonlyMap<string, CompetitionHierarchyRow>,
 ): string {
+  const ownerCompetitionIdByCompetitionId =
+    buildOwnerCompetitionIdByCompetitionId(competitionsById);
+
+  return ownerCompetitionIdByCompetitionId.get(competitionId) ?? competitionId;
+}
+
+function buildOwnerCompetitionIdByCompetitionId(
+  competitionsById: ReadonlyMap<string, CompetitionHierarchyRow>,
+): Map<string, string> {
   const hierarchyNodes = [...competitionsById.values()].map(
     (competition) =>
       ({
@@ -234,11 +270,16 @@ function resolveSeasonPointsCompetitionIdForPlayerResult(
   );
   const childrenByParentId = buildCompetitionChildrenByParentId(hierarchyNodes);
 
-  return resolveCompetitionIdentityById(
-    competitionId,
-    hierarchyCompetitionsById,
-    childrenByParentId,
-  ).ownerCompetitionId;
+  return new Map(
+    hierarchyNodes.map((node) => [
+      node.competitionId,
+      resolveCompetitionIdentityById(
+        node.competitionId,
+        hierarchyCompetitionsById,
+        childrenByParentId,
+      ).ownerCompetitionId,
+    ]),
+  );
 }
 
 function comparePlayerCompetitionOwnerProjectionRows(
@@ -305,6 +346,306 @@ function toPlayer(record: PlayerDbRecord): Player {
   };
 }
 
+function isMissingPlayerCompetitionCountsTableError(
+  error: SupabaseQueryError | null,
+): boolean {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code === "42P01") {
+    return true;
+  }
+
+  return (
+    error.code?.startsWith("PGRST") === true &&
+    error.message.toLowerCase().includes("player_competition_counts")
+  );
+}
+
+function isMissingPlayerResultsRpcError(error: SupabaseQueryError | null): boolean {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code === "42883" || error.code === "42P01") {
+    return true;
+  }
+
+  return (
+    error.code?.startsWith("PGRST") === true &&
+    error.message.toLowerCase().includes("get_player_results_aggregated")
+  );
+}
+
+async function loadPlayerCompetitionCountsByPlayerId(
+  supabase: ReturnType<typeof createApiSupabaseAdminClient>,
+  playerIds: readonly string[],
+): Promise<Map<string, number> | null> {
+  if (playerIds.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .schema(APP_PUBLIC_SCHEMA)
+    .from("player_competition_counts")
+    .select("player_id, competitions_count")
+    .in("player_id", playerIds);
+
+  if (error) {
+    if (isMissingPlayerCompetitionCountsTableError(error)) {
+      return null;
+    }
+
+    throw new Error(`Failed to load player competition counts read-model: ${error.message}`);
+  }
+
+  return new Map(
+    ((data ?? []) as PlayerCompetitionCountRow[]).map((row) => [
+      row.player_id,
+      Number.isFinite(Number(row.competitions_count)) ? Number(row.competitions_count) : 0,
+    ]),
+  );
+}
+
+function toPlayerResultFromRpcRow(row: RpcPlayerResultRow): PlayerCompetitionResult {
+  return {
+    competitionId: row.competition_id,
+    competitionName: row.competition_name,
+    competitionDate: row.competition_date,
+    category: row.category,
+    placement: row.placement,
+    sum: row.sum,
+    dnf: row.dnf,
+    seasonPoints:
+      row.season_points == null ? null : Number.isFinite(Number(row.season_points))
+        ? Number(row.season_points)
+        : null,
+  };
+}
+
+function chunkArray<T>(values: readonly T[], chunkSize: number): T[][] {
+  if (values.length === 0) {
+    return [];
+  }
+
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += chunkSize) {
+    chunks.push(values.slice(index, index + chunkSize) as T[]);
+  }
+
+  return chunks;
+}
+
+async function loadCompetitionHierarchyRowsByCompetitionIds(
+  supabase: ReturnType<typeof createApiSupabaseAdminClient>,
+  competitionIds: readonly string[],
+): Promise<Map<string, CompetitionHierarchyRow>> {
+  const rowsByCompetitionId = new Map<string, CompetitionHierarchyRow>();
+  for (const idsChunk of chunkArray(competitionIds, 200)) {
+    const { data, error } = await supabase
+      .schema(APP_PUBLIC_SCHEMA)
+      .from("competitions")
+      .select("competition_id, parent_id, record_type")
+      .in("competition_id", idsChunk);
+
+    if (error) {
+      throw new Error(
+        `Failed to load competition hierarchy roots for player results: ${error.message}`,
+      );
+    }
+
+    for (const row of (data ?? []) as CompetitionHierarchyRow[]) {
+      rowsByCompetitionId.set(row.competition_id, row);
+    }
+  }
+
+  return rowsByCompetitionId;
+}
+
+async function loadCompetitionHierarchyDescendantRows(
+  supabase: ReturnType<typeof createApiSupabaseAdminClient>,
+  parentCompetitionIds: readonly string[],
+): Promise<Map<string, CompetitionHierarchyRow>> {
+  const descendantsByCompetitionId = new Map<string, CompetitionHierarchyRow>();
+  let pendingParentCompetitionIds = [...new Set(parentCompetitionIds)];
+
+  while (pendingParentCompetitionIds.length > 0) {
+    const nextParentCompetitionIds = new Set<string>();
+    for (const parentIdsChunk of chunkArray(pendingParentCompetitionIds, 200)) {
+      const { data, error } = await supabase
+        .schema(APP_PUBLIC_SCHEMA)
+        .from("competitions")
+        .select("competition_id, parent_id, record_type")
+        .in("parent_id", parentIdsChunk);
+
+      if (error) {
+        throw new Error(
+          `Failed to load competition hierarchy descendants for player results: ${error.message}`,
+        );
+      }
+
+      for (const row of (data ?? []) as CompetitionHierarchyRow[]) {
+        if (descendantsByCompetitionId.has(row.competition_id)) {
+          continue;
+        }
+
+        descendantsByCompetitionId.set(row.competition_id, row);
+        nextParentCompetitionIds.add(row.competition_id);
+      }
+    }
+
+    pendingParentCompetitionIds = [...nextParentCompetitionIds];
+  }
+
+  return descendantsByCompetitionId;
+}
+
+async function resolvePlayerResultPlacementByOwnerCompetitionAndPlayerId(
+  supabase: ReturnType<typeof createApiSupabaseAdminClient>,
+  ownerCompetitionIds: readonly string[],
+): Promise<Map<string, number>> {
+  if (ownerCompetitionIds.length === 0) {
+    return new Map();
+  }
+
+  const rootsByCompetitionId = await loadCompetitionHierarchyRowsByCompetitionIds(
+    supabase,
+    ownerCompetitionIds,
+  );
+  const descendantsByCompetitionId = await loadCompetitionHierarchyDescendantRows(
+    supabase,
+    ownerCompetitionIds,
+  );
+  const hierarchyByCompetitionId = new Map<string, CompetitionHierarchyRow>([
+    ...rootsByCompetitionId.entries(),
+    ...descendantsByCompetitionId.entries(),
+  ]);
+
+  const hierarchyNodes = [...hierarchyByCompetitionId.values()].map((competition) => ({
+    competitionId: competition.competition_id,
+    parentId: competition.parent_id,
+    recordType: competition.record_type,
+  }));
+  const childrenByParentId = buildCompetitionChildrenByParentId(hierarchyNodes);
+
+  const sourceCompetitionIdsByOwnerCompetitionId = new Map<string, string[]>();
+  for (const ownerCompetitionId of ownerCompetitionIds) {
+    const ownerCompetition = hierarchyByCompetitionId.get(ownerCompetitionId);
+    if (!ownerCompetition) {
+      sourceCompetitionIdsByOwnerCompetitionId.set(ownerCompetitionId, [ownerCompetitionId]);
+      continue;
+    }
+
+    sourceCompetitionIdsByOwnerCompetitionId.set(
+      ownerCompetitionId,
+      resolveCompetitionResultSourceIds(
+        {
+          competitionId: ownerCompetition.competition_id,
+          parentId: ownerCompetition.parent_id,
+          recordType: ownerCompetition.record_type,
+        },
+        childrenByParentId,
+      ),
+    );
+  }
+
+  const sourceCompetitionIds = [...new Set(
+    [...sourceCompetitionIdsByOwnerCompetitionId.values()].flat(),
+  )];
+  if (sourceCompetitionIds.length === 0) {
+    return new Map();
+  }
+
+  const rankingRows: CompetitionResultRankingRow[] = [];
+  for (const sourceIdsChunk of chunkArray(sourceCompetitionIds, 200)) {
+    const { data, error } = await supabase
+      .schema(APP_PUBLIC_SCHEMA)
+      .from("competition_results")
+      .select("competition_id, player_id, sum, dnf")
+      .in("competition_id", sourceIdsChunk);
+
+    if (error) {
+      throw new Error(
+        `Failed to load competition rankings for player results: ${error.message}`,
+      );
+    }
+
+    rankingRows.push(...((data ?? []) as CompetitionResultRankingRow[]));
+  }
+
+  return buildPlacementByOwnerCompetitionAndPlayerId(
+    sourceCompetitionIdsByOwnerCompetitionId,
+    rankingRows,
+  );
+}
+
+export function buildPlacementByOwnerCompetitionAndPlayerId(
+  sourceCompetitionIdsByOwnerCompetitionId: ReadonlyMap<string, readonly string[]>,
+  rankingRows: readonly CompetitionResultRankingRow[],
+): Map<string, number> {
+  const resultsByCompetitionId = new Map<string, CompetitionResultRankingRow[]>();
+  for (const row of rankingRows) {
+    const currentRows = resultsByCompetitionId.get(row.competition_id) ?? [];
+    currentRows.push(row);
+    resultsByCompetitionId.set(row.competition_id, currentRows);
+  }
+
+  const placementByOwnerCompetitionAndPlayerId = new Map<string, number>();
+  for (const [ownerCompetitionId, ownerSourceCompetitionIds] of sourceCompetitionIdsByOwnerCompetitionId.entries()) {
+    const ownerRows = ownerSourceCompetitionIds.flatMap(
+      (sourceCompetitionId) => resultsByCompetitionId.get(sourceCompetitionId) ?? [],
+    );
+    const rankedResults = rankCompetitionResultsForSeasonPoints(
+      ownerRows,
+      ownerSourceCompetitionIds,
+    );
+    for (const rankedResult of rankedResults) {
+      placementByOwnerCompetitionAndPlayerId.set(
+        `${ownerCompetitionId}:${rankedResult.player_id}`,
+        rankedResult.placement,
+      );
+    }
+  }
+
+  return placementByOwnerCompetitionAndPlayerId;
+}
+
+async function alignPlayerResultsWithSeasonRanking(
+  supabase: ReturnType<typeof createApiSupabaseAdminClient>,
+  rows: readonly PlayerCompetitionResult[],
+  playerId: string,
+): Promise<PlayerCompetitionResult[]> {
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const ownerCompetitionIds = [...new Set(
+    rows
+      .map((row) => row.competitionId?.trim() ?? "")
+      .filter((competitionId) => competitionId.length > 0),
+  )];
+  if (ownerCompetitionIds.length === 0) {
+    return [...rows];
+  }
+
+  const placementByOwnerCompetitionAndPlayerId =
+    await resolvePlayerResultPlacementByOwnerCompetitionAndPlayerId(
+      supabase,
+      ownerCompetitionIds,
+    );
+
+  return rows.map((row) => {
+    const placement =
+      placementByOwnerCompetitionAndPlayerId.get(`${row.competitionId}:${playerId}`) ?? null;
+    return {
+      ...row,
+      placement,
+      dnf: placement === null,
+    };
+  });
+}
+
 function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
   const supabase = createApiSupabaseAdminClient();
 
@@ -334,34 +675,49 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
       const players = ((data ?? []) as unknown as PlayerDbRecord[]).map((player) => ({
         ...player,
       }));
-      const { data: resultPairs, error: resultPairsError } = await supabase
-        .schema(APP_PUBLIC_SCHEMA)
-        .from("competition_results")
-        .select(PLAYER_RESULT_COUNTS_SELECT_COLUMNS);
+      const playerIds = players
+        .map((player) => player.player_id?.trim() ?? "")
+        .filter((playerId) => playerId.length > 0);
+      const readModelCompetitionCountsByPlayerId =
+        await loadPlayerCompetitionCountsByPlayerId(supabase, playerIds);
+      const fallbackCompetitionCountsByPlayerId = new Map<string, number>();
 
-      if (resultPairsError) {
-        throw new Error(
-          `Failed to load player competition counts: ${resultPairsError.message}`,
-        );
-      }
+      if (!readModelCompetitionCountsByPlayerId) {
+        const { data: fallbackCountRows, error: fallbackCountError } = await supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("competition_results")
+          .select("player_id, competition_id")
+          .in("player_id", playerIds);
 
-      const competitionIdsByPlayerId = new Map<string, Set<string>>();
-
-      for (const pair of (resultPairs ?? []) as unknown as Array<{
-        player_id: string | null;
-        competition_id: string | null;
-      }>) {
-        const playerId = pair.player_id?.trim();
-        const competitionId = pair.competition_id?.trim();
-
-        if (!playerId || !competitionId) {
-          continue;
+        if (fallbackCountError) {
+          throw new Error(
+            `Failed to load player competition counts: ${fallbackCountError.message}`,
+          );
         }
 
-        const competitionIds =
-          competitionIdsByPlayerId.get(playerId) ?? new Set<string>();
-        competitionIds.add(competitionId);
-        competitionIdsByPlayerId.set(playerId, competitionIds);
+        const fallbackCompetitionIdsByPlayerId = new Map<string, Set<string>>();
+        for (const row of (fallbackCountRows ?? []) as Array<{
+          player_id: string | null;
+          competition_id: string | null;
+        }>) {
+          const playerId = row.player_id?.trim();
+          const competitionId = row.competition_id?.trim();
+          if (!playerId) {
+            continue;
+          }
+          if (!competitionId) {
+            continue;
+          }
+
+          const playerCompetitionIds =
+            fallbackCompetitionIdsByPlayerId.get(playerId) ?? new Set<string>();
+          playerCompetitionIds.add(competitionId);
+          fallbackCompetitionIdsByPlayerId.set(playerId, playerCompetitionIds);
+        }
+
+        for (const [playerId, competitionIds] of fallbackCompetitionIdsByPlayerId.entries()) {
+          fallbackCompetitionCountsByPlayerId.set(playerId, competitionIds.size);
+        }
       }
 
       let seasonPointsByPlayerId = new Map<string, number>();
@@ -414,10 +770,102 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
             : undefined,
         competitions_count: filters.seasonCode
           ? seasonCompetitionCountByPlayerId.get(player.player_id) ?? 0
-          : competitionIdsByPlayerId.get(player.player_id)?.size ?? 0,
+          : (readModelCompetitionCountsByPlayerId?.get(player.player_id) ??
+            fallbackCompetitionCountsByPlayerId.get(player.player_id) ??
+            0),
       }));
     },
+    async getPlayerById(playerId) {
+      const initialResponse = await supabase
+        .schema(APP_PUBLIC_SCHEMA)
+        .from("players")
+        .select(PLAYERS_SELECT_COLUMNS)
+        .eq("player_id", playerId)
+        .maybeSingle();
+      let playerData = (initialResponse.data ?? null) as PlayerDbRecord | null;
+      let playerError = initialResponse.error as SupabaseQueryError | null;
+
+      if (isMissingPlayersColumnsError(playerError)) {
+        const legacyResponse = await supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("players")
+          .select(PLAYERS_SELECT_COLUMNS_LEGACY)
+          .eq("player_id", playerId)
+          .maybeSingle();
+
+        playerData = legacyResponse.data
+          ? {
+              ...(legacyResponse.data as unknown as PlayerDbRecord),
+              rdga: null,
+              rdga_since: null,
+              season_division: null,
+            }
+          : null;
+        playerError = legacyResponse.error as SupabaseQueryError | null;
+      }
+
+      if (playerError) {
+        throw new Error(`Failed to load player: ${playerError.message}`);
+      }
+
+      if (!playerData) {
+        return null;
+      }
+
+      const readModelCompetitionCountsByPlayerId = await loadPlayerCompetitionCountsByPlayerId(
+        supabase,
+        [playerId],
+      );
+      let competitionsCount = readModelCompetitionCountsByPlayerId?.get(playerId);
+
+      if (competitionsCount == null) {
+        const { data: fallbackCountRows, error: fallbackCountError } = await supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("competition_results")
+          .select("competition_id")
+          .eq("player_id", playerId);
+
+        if (fallbackCountError) {
+          throw new Error(
+            `Failed to load player competition counts: ${fallbackCountError.message}`,
+          );
+        }
+
+        competitionsCount = new Set(
+          ((fallbackCountRows ?? []) as Array<{ competition_id: string | null }>)
+            .map((row) => row.competition_id?.trim() ?? "")
+            .filter((competitionId) => competitionId.length > 0),
+        ).size;
+      }
+
+      return {
+        ...playerData,
+        season_points: null,
+        season_credit_points: null,
+        competitions_count: competitionsCount ?? 0,
+      };
+    },
     async listPlayerResults(filters) {
+      const { data: rpcRows, error: rpcError } = await supabase
+        .schema(APP_PUBLIC_SCHEMA)
+        .rpc("get_player_results_aggregated", {
+          p_player_id: filters.playerId,
+          p_season_code: filters.seasonCode ?? null,
+          p_date_from: filters.dateFrom ?? null,
+          p_date_to: filters.dateTo ?? null,
+          p_limit: filters.limit,
+          p_offset: filters.offset,
+        });
+
+      if (!rpcError) {
+        const rows = ((rpcRows ?? []) as RpcPlayerResultRow[]).map(toPlayerResultFromRpcRow);
+        return alignPlayerResultsWithSeasonRanking(supabase, rows, filters.playerId);
+      }
+
+      if (!isMissingPlayerResultsRpcError(rpcError)) {
+        throw new Error(`Failed to load player results RPC read model: ${rpcError.message}`);
+      }
+
       const { data: playerRows, error: playerResultsError } = await supabase
         .schema(APP_PUBLIC_SCHEMA)
         .from("competition_results")
@@ -447,11 +895,13 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
       }
 
       const competitionsById = await loadCompetitionHierarchy(competitionIds);
+      const ownerCompetitionIdByCompetitionId =
+        buildOwnerCompetitionIdByCompetitionId(competitionsById);
       const ownerCompetitionIdBySourceCompetitionId = new Map<string, string>();
       for (const competitionId of competitionIds) {
         ownerCompetitionIdBySourceCompetitionId.set(
           competitionId,
-          resolveSeasonPointsCompetitionIdForPlayerResult(competitionId, competitionsById),
+          ownerCompetitionIdByCompetitionId.get(competitionId) ?? competitionId,
         );
       }
 
@@ -672,7 +1122,7 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
         ownerProjectionRows,
       );
 
-      return [...selectedRowsByOwnerCompetitionId.entries()]
+      const aggregatedRows = [...selectedRowsByOwnerCompetitionId.entries()]
         .map(([ownerCompetitionId, selectedRow]) => {
           const competition = competitionById.get(ownerCompetitionId);
           if (!competition) {
@@ -711,6 +1161,12 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
 
           return left.competitionName.localeCompare(right.competitionName, "ru");
         });
+
+      return alignPlayerResultsWithSeasonRanking(
+        supabase,
+        aggregatedRows.slice(filters.offset, filters.offset + filters.limit),
+        filters.playerId,
+      );
     },
   };
 }
@@ -1194,6 +1650,22 @@ function normalizeFilterDate(value: string | null, fieldName: string): string | 
   return normalizedValue;
 }
 
+function normalizePaginationNumber(
+  rawValue: string | null,
+  fallbackValue: number,
+  fieldName: "limit" | "offset",
+): number {
+  if (rawValue == null || rawValue.trim().length === 0) {
+    return fallbackValue;
+  }
+
+  if (!/^\d+$/.test(rawValue.trim())) {
+    throw new HttpError(400, "invalid_pagination", `${fieldName} must be a non-negative integer`);
+  }
+
+  return Number(rawValue);
+}
+
 function resolvePlayerResultsFilters(url: URL): PlayerResultsFilters {
   const playerId = url.searchParams.get("playerId")?.trim();
   if (!playerId) {
@@ -1212,11 +1684,20 @@ function resolvePlayerResultsFilters(url: URL): PlayerResultsFilters {
     );
   }
 
+  const rawLimit = normalizePaginationNumber(
+    url.searchParams.get("limit"),
+    DEFAULT_PLAYER_RESULTS_LIMIT,
+    "limit",
+  );
+  const rawOffset = normalizePaginationNumber(url.searchParams.get("offset"), 0, "offset");
+
   return {
     playerId,
     seasonCode,
     dateFrom,
     dateTo,
+    limit: Math.min(rawLimit, MAX_PLAYER_RESULTS_LIMIT),
+    offset: rawOffset,
   };
 }
 
@@ -1278,6 +1759,12 @@ async function listPlayersFromRuntime(filters?: PlayersListFilters): Promise<Pla
   const records = await adapter.listPlayers(filters);
 
   return records.map(toPlayer);
+}
+
+async function getPlayerFromRuntime(playerId: string): Promise<Player | null> {
+  const adapter = createSupabasePlayerReadAdapter();
+  const player = await adapter.getPlayerById(playerId);
+  return player ? toPlayer(player) : null;
 }
 
 async function listPlayerResultsFromRuntime(
@@ -1369,13 +1856,20 @@ export function getPlayersRoutes(
       method: "GET",
       path: "/players",
       handler: async ({ res, url }) => {
+        const pagination = resolveListPagination(url);
         const filters = resolvePlayersListFilters(url);
-        const players = await (dependencies.listPlayers ?? listPlayersFromRuntime)(
+        const allPlayers = await (dependencies.listPlayers ?? listPlayersFromRuntime)(
           filters,
+        );
+        const players = allPlayers.slice(
+          pagination.offset,
+          pagination.offset + pagination.limit,
         );
 
         sendSuccess(res, players, {
           count: players.length,
+          limit: pagination.limit,
+          offset: pagination.offset,
         });
       },
     },
@@ -1390,7 +1884,26 @@ export function getPlayersRoutes(
 
         sendSuccess(res, results, {
           count: results.length,
+          limit: filters.limit,
+          offset: filters.offset,
         });
+      },
+    },
+    {
+      method: "GET",
+      path: "/players/:playerId",
+      handler: async ({ res, params }) => {
+        const playerId = params.playerId?.trim();
+        if (!playerId) {
+          throw new HttpError(400, "invalid_player_id", "playerId path parameter is required");
+        }
+
+        const player = await (dependencies.getPlayer ?? getPlayerFromRuntime)(playerId);
+        if (!player) {
+          throw new HttpError(404, "not_found", "Player not found");
+        }
+
+        sendSuccess(res, player);
       },
     },
     {

@@ -10,22 +10,20 @@ import {
 } from "@metrix-parser/shared-types";
 
 import {
-  createCourseNamesById,
   formatCompetitionRecordType,
   formatCompetitionDate,
   resolveCompetitionCourseName,
   resolveCompetitionExternalUrl,
 } from "../competitions/competition-presenters";
 import {
-  listCompetitions,
+  getCompetitionContext,
   resolveCompetitionsErrorMessage,
 } from "../../shared/api/competitions";
-import { listCourses } from "../../shared/api/courses";
 import {
   listResults,
   resolveResultsErrorMessage,
 } from "../../shared/api/results";
-import { listTournamentCategories } from "../../shared/api/tournament-categories";
+import { ApiClientError } from "../../shared/api/http";
 import { decodeHtmlEntities } from "../../shared/text";
 import {
   consumeCompetitionResultsSourcePlayerContext,
@@ -798,61 +796,26 @@ export function CompetitionResultsPage({
 
     void (async () => {
       try {
-        const [competitionsResult, coursesResult, categoriesResult] = await Promise.allSettled([
-          listCompetitions(),
-          listCourses(),
-          listTournamentCategories(),
-        ]);
+        const context = await getCompetitionContext(competitionId);
 
         if (!isActive) {
           return;
         }
 
-        if (competitionsResult.status === "rejected") {
-          setState({
-            status: "error",
-            message: resolveCompetitionResultsErrorMessage(
-              competitionsResult.reason,
-              null,
-            ),
-          });
-
-          return;
-        }
-
-        const allCompetitions = competitionsResult.value.data;
-        const selectedCompetition = allCompetitions.find((item) => {
-          return item.competitionId === competitionId;
-        });
-
-        if (!selectedCompetition) {
-          setState({
-            status: "not-found",
-            competitionId,
-          });
-
-          return;
-        }
-
-        const courseNamesById =
-          coursesResult.status === "fulfilled"
-            ? createCourseNamesById(coursesResult.value.data)
-            : {};
-        const categoryNamesById =
-          categoriesResult.status === "fulfilled"
-            ? Object.fromEntries(
-                categoriesResult.value.data.map((category) => [
-                  category.categoryId,
-                  category.name,
-                ]),
-              )
-            : {};
+        const allCompetitions = context.hierarchy;
+        const selectedCompetition = context.competition;
+        const courseNamesById = context.courseNamesById;
+        const categoryNamesById = context.categoryNamesById;
         const displayContext = resolveCompetitionDisplayContext(
           selectedCompetition,
           allCompetitions,
         );
+        const resultCompetitionIds =
+          context.resultCompetitionIds.length > 0
+            ? context.resultCompetitionIds
+            : displayContext.resultCompetitionIds;
         const resultEnvelopes = await Promise.all(
-          displayContext.resultCompetitionIds.map(async (resultCompetitionId) => {
+          resultCompetitionIds.map(async (resultCompetitionId) => {
             const response = await listResults({
               competitionId: resultCompetitionId,
             });
@@ -885,6 +848,14 @@ export function CompetitionResultsPage({
         });
       } catch (error) {
         if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiClientError && error.code === "not_found") {
+          setState({
+            status: "not-found",
+            competitionId,
+          });
           return;
         }
 

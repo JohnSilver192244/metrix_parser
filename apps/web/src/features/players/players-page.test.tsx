@@ -452,6 +452,65 @@ test("PlayersPageView sorts players by metrix id and player name", () => {
   assert.ok(markupByName.indexOf("Alpha") < markupByName.indexOf("Zulu"));
 });
 
+test("PlayersPageView renders visible pagination with 25 players per page", () => {
+  const players = Array.from({ length: 30 }, (_, index) => {
+    const number = String(index + 1).padStart(2, "0");
+    return {
+      playerId: `player-${number}`,
+      playerName: `Player ${number}`,
+      division: "MPO",
+      rdga: true,
+      rdgaSince: "2026-01-15",
+      seasonDivision: "MPO",
+      seasonPoints: Number(index + 1),
+      competitionsCount: index + 1,
+    };
+  });
+
+  const firstPageMarkup = renderToStaticMarkup(
+    <PlayersPageView
+      state={{
+        status: "ready",
+        divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
+        total: players.length,
+        players,
+      }}
+      currentPage={1}
+      sort={{
+        field: "playerId",
+        direction: "asc",
+      }}
+    />,
+  );
+
+  assert.match(firstPageMarkup, /aria-label="Пагинация игроков"/);
+  assert.match(firstPageMarkup, /Показано 25 из 30 игроков\. Страница 1 из 2\./);
+  assert.match(firstPageMarkup, /Player 25/);
+  assert.doesNotMatch(firstPageMarkup, /Player 26/);
+
+  const secondPageMarkup = renderToStaticMarkup(
+    <PlayersPageView
+      state={{
+        status: "ready",
+        divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
+        total: players.length,
+        players,
+      }}
+      currentPage={2}
+      sort={{
+        field: "playerId",
+        direction: "asc",
+      }}
+    />,
+  );
+
+  assert.match(secondPageMarkup, /Показано 5 из 30 игроков\. Страница 2 из 2\./);
+  assert.match(secondPageMarkup, /Player 26/);
+  assert.doesNotMatch(secondPageMarkup, /Player 25/);
+});
+
 test("PlayersPageView renders filtered empty state when search has no matches", () => {
   const markup = renderToStaticMarkup(
     <PlayersPageView

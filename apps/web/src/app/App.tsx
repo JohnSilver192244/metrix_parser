@@ -11,6 +11,10 @@ import {
   getNextTheme,
   type ThemeMode,
 } from "../shared/theme-toggle";
+import {
+  initWebPerformanceTracking,
+  setActiveRouteForPerformance,
+} from "../shared/performance/route-performance";
 
 interface HistoryLike {
   pushState(
@@ -278,6 +282,10 @@ function AppShellController() {
   }, [theme]);
 
   useEffect(() => {
+    initWebPerformanceTracking();
+  }, []);
+
+  useEffect(() => {
     const handlePopState = () => {
       const nextPathname = window.location.pathname;
       pendingScrollRestorePathRef.current = isScrollRestorationPath(nextPathname)
@@ -309,6 +317,10 @@ function AppShellController() {
     return () => {
       window.cancelAnimationFrame(frameId);
     };
+  }, [pathname]);
+
+  useEffect(() => {
+    setActiveRouteForPerformance(pathname);
   }, [pathname]);
 
   return (

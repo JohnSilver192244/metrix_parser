@@ -159,6 +159,43 @@ test("CompetitionsPageView renders saved competitions with key fields", () => {
   assert.doesNotMatch(markup, /metrix-701/);
 });
 
+test("CompetitionsPageView renders visible pagination with 25 competitions per page", () => {
+  const competitions = Array.from({ length: 30 }, (_, index) => {
+    const number = String(index + 1).padStart(3, "0");
+    return {
+      competitionId: `competition-${number}`,
+      competitionName: `Competition ${number}`,
+      competitionDate: `${currentYear}-05-10`,
+      courseId: null,
+      courseName: null,
+      categoryId: null,
+      recordType: "4",
+      playersCount: 20,
+      metrixId: null,
+    } satisfies import("@metrix-parser/shared-types").Competition;
+  });
+
+  const markup = renderToStaticMarkup(
+    <CompetitionsPageView
+      state={{
+        status: "ready",
+        total: competitions.length,
+        categories: [],
+        courses: [],
+        courseNamesById: {},
+        competitions: competitions.slice(0, 25),
+      }}
+      currentPage={1}
+      onNavigate={() => {}}
+    />,
+  );
+
+  assert.match(markup, /aria-label="Пагинация соревнований"/);
+  assert.match(markup, /Показано 25 из 30 соревнований\. Страница 1 из 2\./);
+  assert.match(markup, /Competition 025/);
+  assert.doesNotMatch(markup, /Competition 026/);
+});
+
 test("CompetitionsPageView renders event titles with pool names when a pool exists", () => {
   const markup = renderToStaticMarkup(
     <CompetitionsPageView

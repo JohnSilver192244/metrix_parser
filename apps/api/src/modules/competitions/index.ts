@@ -1,4 +1,5 @@
 import type {
+  CompetitionContextResponse,
   CompetitionCommentReasonCode,
   Competition,
   CompetitionHierarchyNode,
@@ -11,11 +12,14 @@ import {
   clearCompetitionCommentIfMatches,
   normalizeCompetitionComment,
   resolveCompetitionIdentityById,
+  resolveCompetitionResultSourceIds,
   shouldOverwriteCompetitionComment,
 } from "@metrix-parser/shared-types";
 
 import { readJsonBody, sendSuccess } from "../../lib/http";
 import { HttpError } from "../../lib/http-errors";
+import { resolveListPagination } from "../../lib/pagination";
+import { invalidateApiReadCacheAll } from "../../lib/api-read-cache";
 import { createApiSupabaseAdminClient } from "../../lib/supabase-admin";
 import type { RouteDefinition } from "../../lib/router";
 import {
@@ -76,6 +80,12 @@ interface SeasonStandingCompetitionRow {
   season_points: number | string | null;
 }
 
+interface CompetitionReadModelRow {
+  competition_id: string;
+  has_results: boolean | null;
+  season_points: number | string | null;
+}
+
 interface CompetitionReadAdapter {
   listCompetitions(): Promise<CompetitionDbRecord[]>;
 }
@@ -93,6 +103,9 @@ interface CompetitionWriteAdapter {
 
 export interface CompetitionsRouteDependencies {
   listCompetitions?: () => Promise<Competition[]>;
+  getCompetitionContext?: (
+    competitionId: string,
+  ) => Promise<CompetitionContextResponse | null>;
   updateCompetitionCategory?: (
     payload: UpdateCompetitionCategoryRequest,
   ) => Promise<Competition>;
@@ -101,6 +114,70 @@ export interface CompetitionsRouteDependencies {
     competitionId: string,
     comment: string | null,
   ) => Promise<void>;
+}
+
+async function fetchCompetitionRowsWithFallback(
+  supabase: ReturnType<typeof createApiSupabaseAdminClient>,
+  queryFactory: (selectColumns: string) => Promise<{ data: unknown; error: SupabaseQueryError | null }>,
+): Promise<CompetitionDbRecord[]> {
+  let { data, error } = await queryFactory(COMPETITIONS_SELECT_COLUMNS);
+  const fallbackSelectColumns = resolveLegacyFallbackCompetitionSelectColumns(error);
+
+  if (fallbackSelectColumns) {
+    const legacyResponse = await queryFactory(fallbackSelectColumns);
+    data = legacyResponse.data;
+    error = legacyResponse.error;
+  }
+
+  if (error) {
+    throw new Error(`Failed to load competitions context: ${error.message}`);
+  }
+
+  return (data ?? []) as CompetitionDbRecord[];
+}
+
+async function loadCompetitionRowsByIds(
+  supabase: ReturnType<typeof createApiSupabaseAdminClient>,
+  competitionIds: readonly string[],
+): Promise<CompetitionDbRecord[]> {
+  if (competitionIds.length === 0) {
+    return [];
+  }
+
+  return fetchCompetitionRowsWithFallback(supabase, async (selectColumns) => {
+    const response = await supabase
+      .schema(APP_PUBLIC_SCHEMA)
+      .from("competitions")
+      .select(selectColumns)
+      .in("competition_id", competitionIds);
+
+    return {
+      data: response.data,
+      error: response.error,
+    };
+  });
+}
+
+async function loadCompetitionRowsByParentIds(
+  supabase: ReturnType<typeof createApiSupabaseAdminClient>,
+  parentIds: readonly string[],
+): Promise<CompetitionDbRecord[]> {
+  if (parentIds.length === 0) {
+    return [];
+  }
+
+  return fetchCompetitionRowsWithFallback(supabase, async (selectColumns) => {
+    const response = await supabase
+      .schema(APP_PUBLIC_SCHEMA)
+      .from("competitions")
+      .select(selectColumns)
+      .in("parent_id", parentIds);
+
+    return {
+      data: response.data,
+      error: response.error,
+    };
+  });
 }
 
 function toCompetition(record: CompetitionDbRecord): Competition {
@@ -175,9 +252,7 @@ async function listCompetitionIdsWithResults(): Promise<Set<string>> {
     const { data, error } = await supabase
       .schema(APP_PUBLIC_SCHEMA)
       .from("competition_results")
-      .select("competition_id, player_id")
-      .order("competition_id", { ascending: true })
-      .order("player_id", { ascending: true })
+      .select("competition_id")
       .range(from, to);
 
     if (error) {
@@ -345,6 +420,59 @@ function isMissingSeasonStandingsTableError(error: SupabaseQueryError | null): b
   return error?.code === "42P01" && error.message.includes("season_standings");
 }
 
+function isMissingCompetitionReadModelTableError(error: SupabaseQueryError | null): boolean {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code === "42P01" && error.message.includes("competition_read_model")) {
+    return true;
+  }
+
+  return (
+    error.code?.startsWith("PGRST") === true &&
+    error.message.toLowerCase().includes("competition_read_model")
+  );
+}
+
+async function loadCompetitionReadModelByCompetitionId(
+  competitionIds: readonly string[],
+): Promise<Map<string, { hasResults: boolean; seasonPoints: number | null }> | null> {
+  if (competitionIds.length === 0) {
+    return new Map();
+  }
+
+  const supabase = createApiSupabaseAdminClient();
+  const { data, error } = await supabase
+    .schema(APP_PUBLIC_SCHEMA)
+    .from("competition_read_model")
+    .select("competition_id, has_results, season_points")
+    .in("competition_id", competitionIds);
+
+  if (error) {
+    if (isMissingCompetitionReadModelTableError(error)) {
+      return null;
+    }
+
+    throw new Error(`Failed to load competition read model: ${error.message}`);
+  }
+
+  return new Map(
+    ((data ?? []) as CompetitionReadModelRow[]).map((row) => [
+      row.competition_id,
+      {
+        hasResults: row.has_results === true,
+        seasonPoints:
+          row.season_points == null
+            ? null
+            : Number.isFinite(Number(row.season_points))
+              ? Number(row.season_points)
+              : null,
+      },
+    ]),
+  );
+}
+
 async function listSeasonPointsByCompetition(
   competitionIds: readonly string[],
 ): Promise<Map<string, number>> {
@@ -505,13 +633,26 @@ function createSupabaseCompetitionWriteAdapter(): CompetitionWriteAdapter {
 
 async function listCompetitionsFromRuntime(): Promise<Competition[]> {
   const adapter = createSupabaseCompetitionReadAdapter();
-  const [records, directCompetitionIdsWithResults] = await Promise.all([
-    adapter.listCompetitions(),
-    listCompetitionIdsWithResults(),
-  ]);
-  const seasonPointsByOwnerCompetitionId = await listSeasonPointsByCompetition(
-    records.map((record) => record.competition_id),
-  );
+  const records = await adapter.listCompetitions();
+  const competitionIds = records.map((record) => record.competition_id);
+  const competitionReadModelByCompetitionId =
+    await loadCompetitionReadModelByCompetitionId(competitionIds);
+  const directCompetitionIdsWithResults =
+    competitionReadModelByCompetitionId
+      ? new Set(
+          [...competitionReadModelByCompetitionId.entries()]
+            .filter(([, row]) => row.hasResults)
+            .map(([competitionId]) => competitionId),
+        )
+      : await listCompetitionIdsWithResults();
+  const seasonPointsByOwnerCompetitionId =
+    competitionReadModelByCompetitionId
+      ? new Map(
+          [...competitionReadModelByCompetitionId.entries()]
+            .filter(([, row]) => row.seasonPoints !== null)
+            .map(([competitionId, row]) => [competitionId, row.seasonPoints as number]),
+        )
+      : await listSeasonPointsByCompetition(competitionIds);
   const seasonPointsByCompetitionId = resolveCompetitionSeasonPointsByCompetitionId(
     records,
     seasonPointsByOwnerCompetitionId,
@@ -528,6 +669,135 @@ async function listCompetitionsFromRuntime(): Promise<Competition[]> {
       season_points: seasonPointsByCompetitionId.get(record.competition_id) ?? null,
     }),
   );
+}
+
+async function getCompetitionContextFromRuntime(
+  competitionId: string,
+): Promise<CompetitionContextResponse | null> {
+  const normalizedCompetitionId = competitionId.trim();
+  if (normalizedCompetitionId.length === 0) {
+    return null;
+  }
+
+  const supabase = createApiSupabaseAdminClient();
+  const competitionRowsById = new Map<string, CompetitionDbRecord>();
+
+  let pendingAncestorIds = [normalizedCompetitionId];
+  while (pendingAncestorIds.length > 0) {
+    const rows = await loadCompetitionRowsByIds(supabase, pendingAncestorIds);
+    for (const row of rows) {
+      competitionRowsById.set(row.competition_id, row);
+    }
+
+    pendingAncestorIds = [
+      ...new Set(
+        rows
+          .map((row) => row.parent_id?.trim() ?? "")
+          .filter((parentId) => parentId.length > 0)
+          .filter((parentId) => !competitionRowsById.has(parentId)),
+      ),
+    ];
+  }
+
+  if (!competitionRowsById.has(normalizedCompetitionId)) {
+    return null;
+  }
+
+  let pendingParentIds = [normalizedCompetitionId];
+  while (pendingParentIds.length > 0) {
+    const childRows = await loadCompetitionRowsByParentIds(supabase, pendingParentIds);
+    const nextParentIds: string[] = [];
+
+    for (const row of childRows) {
+      if (competitionRowsById.has(row.competition_id)) {
+        continue;
+      }
+
+      competitionRowsById.set(row.competition_id, row);
+      nextParentIds.push(row.competition_id);
+    }
+
+    pendingParentIds = nextParentIds;
+  }
+
+  const hierarchyRecords = [...competitionRowsById.values()];
+  const hierarchyNodes = hierarchyRecords.map(
+    (record) =>
+      ({
+        competitionId: record.competition_id,
+        parentId: record.parent_id ?? null,
+        recordType: record.record_type,
+      }) satisfies CompetitionHierarchyNode,
+  );
+  const childrenByParentId = buildCompetitionChildrenByParentId(hierarchyNodes);
+  const selectedNode = hierarchyNodes.find((node) => node.competitionId === normalizedCompetitionId);
+  const resultCompetitionIds = selectedNode
+    ? resolveCompetitionResultSourceIds(selectedNode, childrenByParentId)
+    : [normalizedCompetitionId];
+
+  const courseIds = [
+    ...new Set(
+      hierarchyRecords
+        .map((record) => record.course_id?.trim() ?? "")
+        .filter((courseId) => courseId.length > 0),
+    ),
+  ];
+  const categoryIds = [
+    ...new Set(
+      hierarchyRecords
+        .map((record) => record.category_id?.trim() ?? "")
+        .filter((categoryId) => categoryId.length > 0),
+    ),
+  ];
+
+  const courseNamesById: Record<string, string> = {};
+  if (courseIds.length > 0) {
+    const { data: courseRows, error: coursesError } = await supabase
+      .schema(APP_PUBLIC_SCHEMA)
+      .from("courses")
+      .select("course_id, name")
+      .in("course_id", courseIds);
+
+    if (coursesError) {
+      throw new Error(`Failed to load course labels for competitions context: ${coursesError.message}`);
+    }
+
+    for (const row of (courseRows ?? []) as Array<{ course_id: string; name: string }>) {
+      courseNamesById[row.course_id] = row.name;
+    }
+  }
+
+  const categoryNamesById: Record<string, string> = {};
+  if (categoryIds.length > 0) {
+    const { data: categoryRows, error: categoriesError } = await supabase
+      .schema(APP_PUBLIC_SCHEMA)
+      .from("tournament_categories")
+      .select("category_id, name")
+      .in("category_id", categoryIds);
+
+    if (categoriesError) {
+      throw new Error(
+        `Failed to load category labels for competitions context: ${categoriesError.message}`,
+      );
+    }
+
+    for (const row of (categoryRows ?? []) as Array<{ category_id: string; name: string }>) {
+      categoryNamesById[row.category_id] = row.name;
+    }
+  }
+
+  const selectedRecord = competitionRowsById.get(normalizedCompetitionId);
+  if (!selectedRecord) {
+    return null;
+  }
+
+  return {
+    competition: toCompetition(selectedRecord),
+    hierarchy: hierarchyRecords.map((record) => toCompetition(record)),
+    courseNamesById,
+    categoryNamesById,
+    resultCompetitionIds,
+  };
 }
 
 function normalizeRequiredString(value: unknown, fieldName: string): string {
@@ -581,14 +851,29 @@ async function updateCompetitionCategoryFromRuntime(
 ): Promise<Competition> {
   const adapter = createSupabaseCompetitionWriteAdapter();
   const readAdapter = createSupabaseCompetitionReadAdapter();
-  const [record, records, directCompetitionIdsWithResults] = await Promise.all([
+  const [record, records] = await Promise.all([
     adapter.updateCompetitionCategory(payload),
     readAdapter.listCompetitions(),
-    listCompetitionIdsWithResults(),
   ]);
-  const seasonPointsByOwnerCompetitionId = await listSeasonPointsByCompetition(
-    records.map((competitionRecord) => competitionRecord.competition_id),
-  );
+  const competitionIds = records.map((competitionRecord) => competitionRecord.competition_id);
+  const competitionReadModelByCompetitionId =
+    await loadCompetitionReadModelByCompetitionId(competitionIds);
+  const directCompetitionIdsWithResults =
+    competitionReadModelByCompetitionId
+      ? new Set(
+          [...competitionReadModelByCompetitionId.entries()]
+            .filter(([, row]) => row.hasResults)
+            .map(([competitionId]) => competitionId),
+        )
+      : await listCompetitionIdsWithResults();
+  const seasonPointsByOwnerCompetitionId =
+    competitionReadModelByCompetitionId
+      ? new Map(
+          [...competitionReadModelByCompetitionId.entries()]
+            .filter(([, row]) => row.seasonPoints !== null)
+            .map(([competitionId, row]) => [competitionId, row.seasonPoints as number]),
+        )
+      : await listSeasonPointsByCompetition(competitionIds);
   const competitionIdsWithResults = resolveCompetitionIdsWithResultsIncludingDescendants(
     records,
     directCompetitionIdsWithResults,
@@ -633,13 +918,44 @@ export function getCompetitionsRoutes(
     {
       method: "GET",
       path: "/competitions",
-      handler: async ({ res }) => {
-        const competitions =
+      handler: async ({ res, url }) => {
+        const pagination = resolveListPagination(url);
+        const allCompetitions =
           await (dependencies.listCompetitions ?? listCompetitionsFromRuntime)();
+        const competitions = allCompetitions.slice(
+          pagination.offset,
+          pagination.offset + pagination.limit,
+        );
 
         sendSuccess(res, competitions, {
-          count: competitions.length,
+          count: allCompetitions.length,
+          limit: pagination.limit,
+          offset: pagination.offset,
         });
+      },
+    },
+    {
+      method: "GET",
+      path: "/competitions/:competitionId/context",
+      handler: async ({ res, params }) => {
+        const competitionId = params.competitionId?.trim();
+        if (!competitionId) {
+          throw new HttpError(
+            400,
+            "invalid_competition_id",
+            "competitionId path parameter is required",
+          );
+        }
+
+        const context = await (
+          dependencies.getCompetitionContext ?? getCompetitionContextFromRuntime
+        )(competitionId);
+
+        if (!context) {
+          throw new HttpError(404, "not_found", "Competition not found");
+        }
+
+        sendSuccess(res, context);
       },
     },
     {
@@ -682,6 +998,7 @@ export function getCompetitionsRoutes(
                   comment: nextComment,
                 };
 
+          invalidateApiReadCacheAll();
           sendSuccess(res, nextCompetition);
           return;
         } catch (error) {

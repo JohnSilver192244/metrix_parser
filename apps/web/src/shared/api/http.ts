@@ -5,6 +5,7 @@ import type {
 } from "@metrix-parser/shared-types";
 
 import { getStoredSessionToken } from "../../features/auth/auth-storage";
+import { observeApiCallPerformance } from "../performance/route-performance";
 
 const apiBaseUrl = resolveApiBaseUrl();
 
@@ -39,8 +40,19 @@ export async function requestJson<TResponse>(
   path: string,
   init: RequestInit,
 ): Promise<TResponse> {
+  const method = init.method ?? "GET";
+  const requestStartedAt = performance.now();
   const response = await fetch(new URL(path, apiBaseUrl), withAuthHeaders(init));
+  const ttfbMs = performance.now() - requestStartedAt;
   const text = await response.text();
+  const durationMs = performance.now() - requestStartedAt;
+  observeApiCallPerformance({
+    apiPath: path,
+    method,
+    status: response.status,
+    ttfbMs,
+    durationMs,
+  });
   const payload = parseJsonPayload<TResponse>(text);
 
   if (!response.ok) {
@@ -58,8 +70,19 @@ export async function requestEnvelope<TResponse, TMeta extends ApiMeta = ApiMeta
   path: string,
   init: RequestInit,
 ): Promise<ApiEnvelope<TResponse, TMeta>> {
+  const method = init.method ?? "GET";
+  const requestStartedAt = performance.now();
   const response = await fetch(new URL(path, apiBaseUrl), withAuthHeaders(init));
+  const ttfbMs = performance.now() - requestStartedAt;
   const text = await response.text();
+  const durationMs = performance.now() - requestStartedAt;
+  observeApiCallPerformance({
+    apiPath: path,
+    method,
+    status: response.status,
+    ttfbMs,
+    durationMs,
+  });
   const payload = parseJsonPayload<TResponse>(text);
 
   if (!response.ok) {

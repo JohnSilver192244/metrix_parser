@@ -1,6 +1,7 @@
 import type { Course, CourseDbRecord } from "@metrix-parser/shared-types";
 
 import { sendSuccess } from "../../lib/http";
+import { resolveListPagination } from "../../lib/pagination";
 import type { RouteDefinition } from "../../lib/router";
 import { createApiSupabaseAdminClient } from "../../lib/supabase-admin";
 
@@ -79,11 +80,18 @@ export function getCoursesRoutes(
     {
       method: "GET",
       path: "/courses",
-      handler: async ({ res }) => {
-        const courses = await (dependencies.listCourses ?? listCoursesFromRuntime)();
+      handler: async ({ res, url }) => {
+        const pagination = resolveListPagination(url);
+        const allCourses = await (dependencies.listCourses ?? listCoursesFromRuntime)();
+        const courses = allCourses.slice(
+          pagination.offset,
+          pagination.offset + pagination.limit,
+        );
 
         sendSuccess(res, courses, {
           count: courses.length,
+          limit: pagination.limit,
+          offset: pagination.offset,
         });
       },
     },

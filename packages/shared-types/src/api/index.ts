@@ -43,32 +43,49 @@ export interface ApiErrorEnvelope {
 
 export interface CompetitionsListMeta extends ApiMeta {
   count: number;
+  limit?: number;
+  offset?: number;
 }
 
 export type CompetitionsListResponse = Competition[];
 export type UpdateCompetitionCategoryResponse = Competition;
 export type UpdateCompetitionCategoryApiRequest = UpdateCompetitionCategoryRequest;
+export interface CompetitionContextResponse {
+  competition: Competition;
+  hierarchy: Competition[];
+  courseNamesById: Record<string, string>;
+  categoryNamesById: Record<string, string>;
+  resultCompetitionIds: string[];
+}
 
 export interface CoursesListMeta extends ApiMeta {
   count: number;
+  limit?: number;
+  offset?: number;
 }
 
 export type CoursesListResponse = Course[];
 
 export interface PlayersListMeta extends ApiMeta {
   count: number;
+  limit?: number;
+  offset?: number;
 }
 
 export type PlayersListResponse = Player[];
 
 export interface PlayerResultsListMeta extends ApiMeta {
   count: number;
+  limit?: number;
+  offset?: number;
 }
 
 export type PlayerResultsListResponse = PlayerCompetitionResult[];
 
 export interface DivisionsListMeta extends ApiMeta {
   count: number;
+  limit?: number;
+  offset?: number;
 }
 
 export type DivisionsListResponse = Division[];
@@ -80,6 +97,8 @@ export type UpdateDivisionResponse = Division;
 
 export interface ResultsListMeta extends ApiMeta {
   count: number;
+  limit?: number;
+  offset?: number;
 }
 
 export type ResultsListResponse = CompetitionResult[];
@@ -88,18 +107,24 @@ export type AuthSessionResponse = AuthSession;
 
 export interface UsersListMeta extends ApiMeta {
   count: number;
+  limit?: number;
+  offset?: number;
 }
 
 export type UsersListResponse = AppUser[];
 
 export interface TournamentCategoriesListMeta extends ApiMeta {
   count: number;
+  limit?: number;
+  offset?: number;
 }
 
 export type TournamentCategoriesListResponse = TournamentCategory[];
 
 export interface SeasonsListMeta extends ApiMeta {
   count: number;
+  limit?: number;
+  offset?: number;
 }
 
 export type SeasonsListResponse = Season[];
@@ -111,6 +136,8 @@ export type UpdateSeasonResponse = Season;
 
 export interface SeasonPointsTableListMeta extends ApiMeta {
   count: number;
+  limit?: number;
+  offset?: number;
 }
 
 export type SeasonPointsTableListResponse = SeasonPointsEntry[];

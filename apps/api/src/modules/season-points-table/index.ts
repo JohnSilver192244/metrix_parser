@@ -5,6 +5,7 @@ import type {
 
 import { sendSuccess } from "../../lib/http";
 import { HttpError } from "../../lib/http-errors";
+import { resolveListPagination } from "../../lib/pagination";
 import type { RouteDefinition } from "../../lib/router";
 import { createApiSupabaseAdminClient } from "../../lib/supabase-admin";
 
@@ -161,13 +162,20 @@ export function getSeasonPointsTableRoutes(
       method: "GET",
       path: "/season-points-table",
       handler: async ({ res, url }) => {
+        const pagination = resolveListPagination(url);
         const filters = resolveSeasonPointsTableFilters(url);
-        const entries = await (
+        const allEntries = await (
           dependencies.listSeasonPointsEntries ?? listSeasonPointsEntriesFromRuntime
         )(filters);
+        const entries = allEntries.slice(
+          pagination.offset,
+          pagination.offset + pagination.limit,
+        );
 
         sendSuccess(res, entries, {
           count: entries.length,
+          limit: pagination.limit,
+          offset: pagination.offset,
         });
       },
     },

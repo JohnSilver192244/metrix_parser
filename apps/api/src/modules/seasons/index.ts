@@ -4,6 +4,7 @@ import type {
 } from "@metrix-parser/shared-types";
 
 import { sendError, sendSuccess } from "../../lib/http";
+import { resolveListPagination } from "../../lib/pagination";
 import type { RouteDefinition } from "../../lib/router";
 import { createApiSupabaseAdminClient } from "../../lib/supabase-admin";
 
@@ -117,11 +118,18 @@ export function getSeasonsRoutes(
     {
       method: "GET",
       path: "/seasons",
-      handler: async ({ res }) => {
-        const seasons = await (dependencies.listSeasons ?? listSeasonsFromRuntime)();
+      handler: async ({ res, url }) => {
+        const pagination = resolveListPagination(url);
+        const allSeasons = await (dependencies.listSeasons ?? listSeasonsFromRuntime)();
+        const seasons = allSeasons.slice(
+          pagination.offset,
+          pagination.offset + pagination.limit,
+        );
 
         sendSuccess(res, seasons, {
           count: seasons.length,
+          limit: pagination.limit,
+          offset: pagination.offset,
         });
       },
     },

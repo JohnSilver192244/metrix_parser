@@ -4,6 +4,7 @@ import type { ApiMeta } from "@metrix-parser/shared-types";
 
 import type { ApiFailureResponse, ApiSuccessResponse } from "../dto/api";
 import { HttpError } from "./http-errors";
+import { markSerializationDuration } from "./performance";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -67,8 +68,12 @@ function sendJson(
   statusCode: number,
   body: ApiSuccessResponse<unknown> | ApiFailureResponse,
 ): void {
+  const serializeStartedAt = performance.now();
+  const serializedBody = JSON.stringify(body);
+  markSerializationDuration(performance.now() - serializeStartedAt);
+
   res.statusCode = statusCode;
   setCorsHeaders(res);
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.end(JSON.stringify(body));
+  res.end(serializedBody);
 }

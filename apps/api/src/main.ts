@@ -5,6 +5,8 @@ import { createApiRequestHandler } from "./app";
 
 const { apiPort } = loadApiRuntimeEnv();
 const server = createServer(createApiRequestHandler());
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
 
 server.listen(apiPort, () => {
   console.log(

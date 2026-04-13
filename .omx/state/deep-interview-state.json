@@ -1,17 +1,16 @@
 {
-  "active": false,
+  "active": true,
   "mode": "deep-interview",
-  "current_phase": "completing",
-  "started_at": "2026-04-09T16:13:43Z",
-  "updated_at": "2026-04-10T07:02:40.526Z",
-  "completed_at": "2026-04-10T07:02:40.526Z",
+  "current_phase": "deep-interview",
+  "started_at": "2026-04-10T18:28:19Z",
+  "updated_at": "2026-04-10T18:28:52.157Z",
   "session_id": "",
-  "thread_id": "019d7633-1943-7db1-b5dd-09549cd34559",
-  "turn_id": "019d7633-1972-7252-b299-c91d848207e8",
+  "thread_id": "019d78a6-8ee2-7ed1-bf80-ca0d779d0662",
+  "turn_id": "019d78a6-a502-78a1-9f69-7a2dd19598f5",
   "input_lock": {
     "active": true,
     "scope": "deep-interview-auto-approval",
-    "acquired_at": "2026-04-09T16:13:40.261Z",
+    "acquired_at": "2026-04-10T18:28:14.344Z",
     "blocked_inputs": [
       "yes",
       "y",
@@ -23,5 +22,7 @@
       "next i should"
     ],
     "message": "Deep interview is active; auto-approval shortcuts are blocked until the interview finishes."
-  }
+  },
+  "iteration": 19,
+  "last_turn_at": "2026-04-13T15:28:51.493Z"
 }

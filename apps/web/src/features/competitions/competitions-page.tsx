@@ -11,7 +11,7 @@ import { buildCompetitionResultsPath } from "../../app/route-paths";
 import { PageHeader } from "../../shared/page-header";
 import { FloatingInfoTooltip } from "../../shared/floating-info-tooltip";
 import {
-  listCompetitions,
+  listCompetitionsPage,
   updateCompetitionCategory,
   resolveCompetitionsErrorMessage,
   resolveCompetitionsTotal,
@@ -87,6 +87,8 @@ const DEFAULT_COMPETITIONS_SORT: CompetitionsSort = {
   field: "competitionDate",
   direction: "desc",
 };
+const COMPETITIONS_PAGE_SIZE = 25;
+const MAX_PAGINATION_BUTTONS = 7;
 
 function buildYearDateRange(year: number): UpdatePeriod {
   return {
@@ -262,10 +264,46 @@ export interface CompetitionsPageViewProps {
   state: CompetitionsPageState;
   canEditCategory?: boolean;
   submitState?: CompetitionCategorySubmitState;
+  currentPage?: number;
   onCategoryChange?: (competitionId: string, categoryId: string | null) => void;
+  onPageChange?: (page: number) => void;
   onAutoAssignCategories?: (competitions: Competition[]) => void;
   isAutoAssigningCategories?: boolean;
   onNavigate: (pathname: string) => void;
+}
+
+function resolvePaginationPages(
+  currentPage: number,
+  totalPages: number,
+): Array<number | "ellipsis"> {
+  if (totalPages <= MAX_PAGINATION_BUTTONS) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set<number>([1, totalPages]);
+  const windowRadius = 1;
+
+  for (
+    let page = Math.max(2, currentPage - windowRadius);
+    page <= Math.min(totalPages - 1, currentPage + windowRadius);
+    page += 1
+  ) {
+    pages.add(page);
+  }
+
+  const ordered = [...pages].sort((left, right) => left - right);
+  const result: Array<number | "ellipsis"> = [];
+  let previousPage = 0;
+
+  for (const page of ordered) {
+    if (previousPage > 0 && page - previousPage > 1) {
+      result.push("ellipsis");
+    }
+    result.push(page);
+    previousPage = page;
+  }
+
+  return result;
 }
 
 function resolveCompetitionCategoryName(
@@ -310,7 +348,9 @@ interface CompetitionSortValues {
 export function CompetitionsPageView({
   state,
   canEditCategory = false,
+  currentPage = 1,
   onAutoAssignCategories,
+  onPageChange,
   isAutoAssigningCategories = false,
   submitState = {
     status: "idle",
@@ -520,6 +560,9 @@ export function CompetitionsPageView({
       ].sort((left, right) => left.localeCompare(right)),
     [competitions, courseNamesById],
   );
+  const totalPages = Math.max(1, Math.ceil(total / COMPETITIONS_PAGE_SIZE));
+  const normalizedCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
+  const paginationPages = resolvePaginationPages(normalizedCurrentPage, totalPages);
   const toggleSort = (field: CompetitionsSortField) => {
     setSort((currentSort) => {
       if (currentSort.field === field) {
@@ -683,6 +726,7 @@ export function CompetitionsPageView({
                 placeholder="Поиск по названию"
                 onChange={(event) => {
                   setNameQuery(event.target.value);
+                  onPageChange?.(1);
                 }}
               />
             </label>
@@ -690,7 +734,10 @@ export function CompetitionsPageView({
               <span>Период</span>
               <UpdatePeriodPicker
                 value={periodFilter}
-                onChange={setPeriodFilter}
+                onChange={(period) => {
+                  setPeriodFilter(period);
+                  onPageChange?.(1);
+                }}
                 presets={periodPresets}
                 inputNames={{
                   dateFrom: "competitions-date-from",
@@ -706,6 +753,7 @@ export function CompetitionsPageView({
                 value={courseFilter}
                 onChange={(event) => {
                   setCourseFilter(event.target.value);
+                  onPageChange?.(1);
                 }}
               >
                 <option value="">Все парки</option>
@@ -723,6 +771,7 @@ export function CompetitionsPageView({
                 value={categoryFilter}
                 onChange={(event) => {
                   setCategoryFilter(event.target.value);
+                  onPageChange?.(1);
                 }}
               >
                 <option value="">Все категории</option>
@@ -744,6 +793,7 @@ export function CompetitionsPageView({
                   checked={withoutResultsOnly}
                   onChange={(event) => {
                     setWithoutResultsOnly(event.target.checked);
+                    onPageChange?.(1);
                   }}
                 />
                 <span>Нет результатов</span>
@@ -977,6 +1027,59 @@ export function CompetitionsPageView({
                   </tbody>
                 </table>
               </div>
+              <div className="competitions-page__pagination-summary" aria-live="polite">
+                Показано {visibleCompetitions.length} из {total} соревнований.
+                Страница {normalizedCurrentPage} из {totalPages}.
+              </div>
+              {totalPages > 1 ? (
+                <nav className="competitions-page__pagination" aria-label="Пагинация соревнований">
+                  <button
+                    className="competitions-page__pagination-button"
+                    type="button"
+                    disabled={normalizedCurrentPage === 1}
+                    onClick={() => {
+                      onPageChange?.(normalizedCurrentPage - 1);
+                    }}
+                  >
+                    Назад
+                  </button>
+                  <div className="competitions-page__pagination-pages">
+                    {paginationPages.map((item, index) =>
+                      item === "ellipsis" ? (
+                        <span
+                          key={`ellipsis-${index}`}
+                          className="competitions-page__pagination-ellipsis"
+                          aria-hidden="true"
+                        >
+                          ...
+                        </span>
+                      ) : (
+                        <button
+                          key={item}
+                          className={`competitions-page__pagination-button${item === normalizedCurrentPage ? " competitions-page__pagination-button--active" : ""}`}
+                          type="button"
+                          aria-current={item === normalizedCurrentPage ? "page" : undefined}
+                          onClick={() => {
+                            onPageChange?.(item);
+                          }}
+                        >
+                          {item}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                  <button
+                    className="competitions-page__pagination-button"
+                    type="button"
+                    disabled={normalizedCurrentPage === totalPages}
+                    onClick={() => {
+                      onPageChange?.(normalizedCurrentPage + 1);
+                    }}
+                  >
+                    Вперед
+                  </button>
+                </nav>
+              ) : null}
             </section>
           )}
         </>
@@ -991,6 +1094,7 @@ export interface CompetitionsPageProps {
 
 export function CompetitionsPage({ onNavigate }: CompetitionsPageProps) {
   const auth = useAuth();
+  const [currentPage, setCurrentPage] = useState(1);
   const [state, setState] = useState<CompetitionsPageState>({
     status: "loading",
   });
@@ -1007,7 +1111,10 @@ export function CompetitionsPage({ onNavigate }: CompetitionsPageProps) {
     void (async () => {
       try {
         const [competitionsResult, coursesResult, categoriesResult] = await Promise.allSettled([
-          listCompetitions(),
+          listCompetitionsPage({
+            limit: COMPETITIONS_PAGE_SIZE,
+            offset: (currentPage - 1) * COMPETITIONS_PAGE_SIZE,
+          }),
           listCourses(),
           listTournamentCategories(),
         ]);
@@ -1044,7 +1151,7 @@ export function CompetitionsPage({ onNavigate }: CompetitionsPageProps) {
           courses: coursesResult.status === "fulfilled" ? coursesResult.value.data : [],
           categories,
           courseNamesById,
-          total: resolveCompetitionsTotal(visibleCompetitions),
+          total: resolveCompetitionsTotal(competitionsEnvelope.data, competitionsEnvelope.meta),
         });
       } catch (error) {
         if (!isActive) {
@@ -1061,7 +1168,7 @@ export function CompetitionsPage({ onNavigate }: CompetitionsPageProps) {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [currentPage]);
 
   return (
     <CompetitionsPageView
@@ -1069,6 +1176,10 @@ export function CompetitionsPage({ onNavigate }: CompetitionsPageProps) {
       canEditCategory={auth.status === "authenticated"}
       isAutoAssigningCategories={isAutoAssigningCategories}
       submitState={submitState}
+      currentPage={currentPage}
+      onPageChange={(page) => {
+        setCurrentPage(page);
+      }}
       onAutoAssignCategories={(filteredCompetitions) => {
         try {
           if (state.status !== "ready" || isAutoAssigningCategories) {

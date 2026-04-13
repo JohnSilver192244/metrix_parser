@@ -1,0 +1,138 @@
+{
+  "capturedAt": "2026-04-10T15:56:45.960Z",
+  "requests": {
+    "endpointTop10ByP95": [
+      {
+        "name": "GET /results",
+        "count": 4,
+        "p95Ms": 24428.52,
+        "avgMs": 7222.87,
+        "maxMs": 24428.52
+      },
+      {
+        "name": "GET /competitions",
+        "count": 4,
+        "p95Ms": 16196.64,
+        "avgMs": 6624.62,
+        "maxMs": 16196.64
+      },
+      {
+        "name": "GET /players",
+        "count": 4,
+        "p95Ms": 9233.35,
+        "avgMs": 2737.04,
+        "maxMs": 9233.35
+      },
+      {
+        "name": "GET /courses",
+        "count": 4,
+        "p95Ms": 719.29,
+        "avgMs": 395.57,
+        "maxMs": 719.29
+      },
+      {
+        "name": "GET /season-points-table",
+        "count": 4,
+        "p95Ms": 365.62,
+        "avgMs": 268.03,
+        "maxMs": 365.62
+      },
+      {
+        "name": "GET /seasons",
+        "count": 4,
+        "p95Ms": 292.09,
+        "avgMs": 218.16,
+        "maxMs": 292.09
+      },
+      {
+        "name": "POST /health/performance/reset",
+        "count": 1,
+        "p95Ms": 4.05,
+        "avgMs": 4.05,
+        "maxMs": 4.05
+      },
+      {
+        "name": "GET /health",
+        "count": 4,
+        "p95Ms": 2.62,
+        "avgMs": 0.98,
+        "maxMs": 2.62
+      }
+    ]
+  },
+  "sql": {
+    "top10ByP95": [
+      {
+        "name": "GET /rest/v1/competitions?competition_id&select",
+        "count": 16,
+        "p95Ms": 10442.92,
+        "avgMs": 979.59,
+        "maxMs": 10442.92
+      },
+      {
+        "name": "GET /rest/v1/season_standings?competition_id&select",
+        "count": 4,
+        "p95Ms": 10179.94,
+        "avgMs": 2702.48,
+        "maxMs": 10179.94
+      },
+      {
+        "name": "GET /rest/v1/players?order&select",
+        "count": 4,
+        "p95Ms": 8038.75,
+        "avgMs": 2232.8,
+        "maxMs": 8038.75
+      },
+      {
+        "name": "GET /rest/v1/season_standings?competition_id&limit&offset&select",
+        "count": 12,
+        "p95Ms": 6325.25,
+        "avgMs": 1102.2,
+        "maxMs": 6325.25
+      },
+      {
+        "name": "GET /rest/v1/competition_results?select",
+        "count": 4,
+        "p95Ms": 1162.62,
+        "avgMs": 487.18,
+        "maxMs": 1162.62
+      },
+      {
+        "name": "GET /rest/v1/competition_results?limit&offset&order&select",
+        "count": 20,
+        "p95Ms": 996.28,
+        "avgMs": 634.48,
+        "maxMs": 4905.95
+      },
+      {
+        "name": "GET /rest/v1/courses?order&select",
+        "count": 4,
+        "p95Ms": 707.79,
+        "avgMs": 390.26,
+        "maxMs": 707.79
+      },
+      {
+        "name": "GET /rest/v1/competitions?order&select",
+        "count": 4,
+        "p95Ms": 668.12,
+        "avgMs": 422.63,
+        "maxMs": 668.12
+      },
+      {
+        "name": "GET /rest/v1/competition_results?order&select",
+        "count": 4,
+        "p95Ms": 507.23,
+        "avgMs": 323.55,
+        "maxMs": 507.23
+      },
+      {
+        "name": "GET /rest/v1/season_points_table?order&select",
+        "count": 4,
+        "p95Ms": 357.42,
+        "avgMs": 260.86,
+        "maxMs": 357.42
+      }
+    ],
+    "totalCalls": 80
+  }
+}

@@ -14,6 +14,7 @@ import {
   shouldOverwriteCompetitionComment,
 } from "@metrix-parser/shared-types";
 
+import { invalidateApiReadCacheAfterBackgroundRecompute } from "../../lib/api-read-cache";
 import { readJsonBody, sendSuccess } from "../../lib/http";
 import { HttpError } from "../../lib/http-errors";
 import type { RouteDefinition } from "../../lib/router";
@@ -909,6 +910,10 @@ export function getSeasonStandingsRoutes(
         const result = await (
           dependencies.runSeasonPointsAccrual ?? runSeasonPointsAccrualFromRuntime
         )(payload);
+
+        invalidateApiReadCacheAfterBackgroundRecompute({
+          seasonCode: payload.seasonCode,
+        });
 
         sendSuccess(res, result);
       },

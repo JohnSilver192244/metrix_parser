@@ -11,6 +11,7 @@ import type {
 
 import { readJsonBody, sendSuccess } from "../../lib/http";
 import { HttpError } from "../../lib/http-errors";
+import { resolveListPagination } from "../../lib/pagination";
 import type { RouteDefinition } from "../../lib/router";
 import { createApiSupabaseAdminClient } from "../../lib/supabase-admin";
 import {
@@ -343,13 +344,20 @@ export function getTournamentCategoriesRoutes(
     {
       method: "GET",
       path: "/tournament-categories",
-      handler: async ({ res }) => {
-        const categories = await (
+      handler: async ({ res, url }) => {
+        const pagination = resolveListPagination(url);
+        const allCategories = await (
           dependencies.listTournamentCategories ?? listTournamentCategoriesFromRuntime
         )();
+        const categories = allCategories.slice(
+          pagination.offset,
+          pagination.offset + pagination.limit,
+        );
 
         sendSuccess(res, categories, {
           count: categories.length,
+          limit: pagination.limit,
+          offset: pagination.offset,
         });
       },
     },

@@ -22,18 +22,32 @@ export interface ListPlayerResultsFilters {
   dateTo?: string;
 }
 
-function buildPlayersPath(filters: ListPlayersFilters = {}): string {
+const PLAYERS_PAGE_LIMIT = 1_000;
+const PLAYER_RESULTS_PAGE_LIMIT = 1_000;
+
+function buildPlayersPath(
+  filters: ListPlayersFilters = {},
+  pagination?: { limit: number; offset: number },
+): string {
   const params = new URLSearchParams();
 
   if (filters.seasonCode) {
     params.set("seasonCode", filters.seasonCode);
   }
 
+  if (pagination) {
+    params.set("limit", String(pagination.limit));
+    params.set("offset", String(pagination.offset));
+  }
+
   const query = params.toString();
   return query.length > 0 ? `/players?${query}` : "/players";
 }
 
-function buildPlayerResultsPath(filters: ListPlayerResultsFilters): string {
+function buildPlayerResultsPath(
+  filters: ListPlayerResultsFilters,
+  pagination?: { limit: number; offset: number },
+): string {
   const params = new URLSearchParams();
 
   params.set("playerId", filters.playerId);
@@ -50,7 +64,29 @@ function buildPlayerResultsPath(filters: ListPlayerResultsFilters): string {
     params.set("dateTo", filters.dateTo);
   }
 
+  if (pagination) {
+    params.set("limit", String(pagination.limit));
+    params.set("offset", String(pagination.offset));
+  }
+
   return `/players/results?${params.toString()}`;
+}
+
+const PLAYER_CACHE_TTL_MS = 30_000;
+const playerCacheById = new Map<string, { value: Player; expiresAt: number }>();
+
+function readPlayerFromCache(playerId: string): Player | null {
+  const cached = playerCacheById.get(playerId);
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    playerCacheById.delete(playerId);
+    return null;
+  }
+
+  return cached.value;
 }
 
 export function listPlayers(): Promise<
@@ -62,30 +98,43 @@ export function listPlayers(
 export function listPlayers(
   filters: ListPlayersFilters = {},
 ): Promise<ApiEnvelope<PlayersListResponse, PlayersListMeta>> {
-  return requestEnvelope<PlayersListResponse, PlayersListMeta>(
-    buildPlayersPath(filters),
-    {
+  return loadAllPlayers(filters);
+}
+
+export async function getPlayer(playerId: string): Promise<Player> {
+  const cachedPlayer = readPlayerFromCache(playerId);
+  if (cachedPlayer) {
+    return cachedPlayer;
+  }
+
+  const envelope = await requestEnvelope<Player>(`/players/${encodeURIComponent(playerId)}`, {
     method: "GET",
-    },
-  );
+  });
+  playerCacheById.set(playerId, {
+    value: envelope.data,
+    expiresAt: Date.now() + PLAYER_CACHE_TTL_MS,
+  });
+
+  return envelope.data;
 }
 
 export function updatePlayer(payload: UpdatePlayerRequest): Promise<Player> {
   return requestEnvelope<Player>("/players", {
     method: "PUT",
     body: JSON.stringify(payload),
-  }).then((envelope) => envelope.data);
+  }).then((envelope) => {
+    playerCacheById.set(envelope.data.playerId, {
+      value: envelope.data,
+      expiresAt: Date.now() + PLAYER_CACHE_TTL_MS,
+    });
+    return envelope.data;
+  });
 }
 
 export function listPlayerResults(
   filters: ListPlayerResultsFilters,
 ): Promise<ApiEnvelope<PlayerResultsListResponse, PlayerResultsListMeta>> {
-  return requestEnvelope<PlayerResultsListResponse, PlayerResultsListMeta>(
-    buildPlayerResultsPath(filters),
-    {
-      method: "GET",
-    },
-  );
+  return loadAllPlayerResults(filters);
 }
 
 export function resolvePlayersErrorMessage(error: unknown): string {
@@ -108,4 +157,74 @@ export function resolvePlayerResultsTotal(
   meta?: PlayerResultsListMeta,
 ): number {
   return meta?.count ?? results.length;
+}
+
+async function loadAllPlayers(
+  filters: ListPlayersFilters,
+): Promise<ApiEnvelope<PlayersListResponse, PlayersListMeta>> {
+  const players: Player[] = [];
+  let offset = 0;
+
+  while (true) {
+    const envelope = await requestEnvelope<PlayersListResponse, PlayersListMeta>(
+      buildPlayersPath(filters, {
+        limit: PLAYERS_PAGE_LIMIT,
+        offset,
+      }),
+      {
+        method: "GET",
+      },
+    );
+    players.push(...envelope.data);
+
+    if (envelope.data.length < PLAYERS_PAGE_LIMIT) {
+      break;
+    }
+
+    offset += PLAYERS_PAGE_LIMIT;
+  }
+
+  return {
+    data: players,
+    meta: {
+      count: players.length,
+      limit: players.length,
+      offset: 0,
+    },
+  };
+}
+
+async function loadAllPlayerResults(
+  filters: ListPlayerResultsFilters,
+): Promise<ApiEnvelope<PlayerResultsListResponse, PlayerResultsListMeta>> {
+  const results: PlayerCompetitionResult[] = [];
+  let offset = 0;
+
+  while (true) {
+    const envelope = await requestEnvelope<PlayerResultsListResponse, PlayerResultsListMeta>(
+      buildPlayerResultsPath(filters, {
+        limit: PLAYER_RESULTS_PAGE_LIMIT,
+        offset,
+      }),
+      {
+        method: "GET",
+      },
+    );
+    results.push(...envelope.data);
+
+    if (envelope.data.length < PLAYER_RESULTS_PAGE_LIMIT) {
+      break;
+    }
+
+    offset += PLAYER_RESULTS_PAGE_LIMIT;
+  }
+
+  return {
+    data: results,
+    meta: {
+      count: results.length,
+      limit: results.length,
+      offset: 0,
+    },
+  };
 }

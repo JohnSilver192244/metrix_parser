@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  getPlayer,
   listPlayerResults,
   listPlayers,
   resolvePlayerResultsTotal,
@@ -11,10 +12,17 @@ import {
 
 test("listPlayers reads data and meta from the backend envelope", async () => {
   const originalFetch = globalThis.fetch;
-  let requestUrl = "";
+  let requestPathname = "";
+  let requestSeasonCode = "";
+  let requestLimit = "";
+  let requestOffset = "";
 
   globalThis.fetch = (async (input) => {
-    requestUrl = String(input);
+    const parsedUrl = new URL(String(input));
+    requestPathname = parsedUrl.pathname;
+    requestSeasonCode = parsedUrl.searchParams.get("seasonCode") ?? "";
+    requestLimit = parsedUrl.searchParams.get("limit") ?? "";
+    requestOffset = parsedUrl.searchParams.get("offset") ?? "";
 
     return {
       ok: true,
@@ -43,7 +51,10 @@ test("listPlayers reads data and meta from the backend envelope", async () => {
   try {
     const envelope = await listPlayers({ seasonCode: "2026" });
 
-    assert.match(requestUrl, /\/players\?seasonCode=2026$/);
+    assert.equal(requestPathname, "/players");
+    assert.equal(requestSeasonCode, "2026");
+    assert.equal(requestLimit, "1000");
+    assert.equal(requestOffset, "0");
     assert.equal(envelope.meta?.count, 1);
     assert.equal(envelope.data[0]?.playerId, "player-777");
     assert.equal(envelope.data[0]?.division, "FPO");
@@ -54,6 +65,92 @@ test("listPlayers reads data and meta from the backend envelope", async () => {
     assert.equal(envelope.data[0]?.seasonCreditPoints, 74.2);
     assert.equal(envelope.data[0]?.competitionsCount, 4);
     assert.equal(resolvePlayersTotal(envelope.data, envelope.meta), 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("listPlayers loads all pages and returns merged meta count", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+
+  globalThis.fetch = (async (input) => {
+    const parsedUrl = new URL(String(input));
+    const offset = Number(parsedUrl.searchParams.get("offset") ?? "0");
+    calls += 1;
+
+    const pageSize = offset === 0 ? 1000 : 3;
+    const data = Array.from({ length: pageSize }, (_, index) => ({
+      playerId: `player-${offset + index + 1}`,
+      playerName: `Player ${offset + index + 1}`,
+      division: "MPO",
+      rdga: null,
+      rdgaSince: null,
+      seasonDivision: null,
+      seasonPoints: null,
+      seasonCreditPoints: null,
+      competitionsCount: 0,
+    }));
+
+    return {
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          data,
+          meta: {
+            count: data.length,
+            limit: 1000,
+            offset,
+          },
+        }),
+    } as Response;
+  }) as typeof globalThis.fetch;
+
+  try {
+    const envelope = await listPlayers();
+
+    assert.equal(calls, 2);
+    assert.equal(envelope.data.length, 1003);
+    assert.equal(envelope.meta?.count, 1003);
+    assert.equal(envelope.data[1002]?.playerId, "player-1003");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("getPlayer reads a single player by id", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestPathname = "";
+
+  globalThis.fetch = (async (input) => {
+    requestPathname = new URL(String(input)).pathname;
+
+    return {
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          data: {
+            playerId: "player-888",
+            playerName: "Alex Petrov",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-01",
+            seasonDivision: "MPO",
+            seasonPoints: null,
+            seasonCreditPoints: null,
+            competitionsCount: 7,
+          },
+        }),
+    } as Response;
+  }) as typeof globalThis.fetch;
+
+  try {
+    const player = await getPlayer("player-888");
+
+    assert.equal(requestPathname, "/players/player-888");
+    assert.equal(player.playerId, "player-888");
+    assert.equal(player.playerName, "Alex Petrov");
+    assert.equal(player.competitionsCount, 7);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -119,6 +216,8 @@ test("listPlayerResults reads data and query filters from the backend envelope",
   let requestSeasonCode = "";
   let requestDateFrom = "";
   let requestDateTo = "";
+  let requestLimit = "";
+  let requestOffset = "";
 
   globalThis.fetch = (async (input) => {
     const parsedUrl = new URL(String(input));
@@ -127,6 +226,8 @@ test("listPlayerResults reads data and query filters from the backend envelope",
     requestSeasonCode = parsedUrl.searchParams.get("seasonCode") ?? "";
     requestDateFrom = parsedUrl.searchParams.get("dateFrom") ?? "";
     requestDateTo = parsedUrl.searchParams.get("dateTo") ?? "";
+    requestLimit = parsedUrl.searchParams.get("limit") ?? "";
+    requestOffset = parsedUrl.searchParams.get("offset") ?? "";
 
     return {
       ok: true,
@@ -164,8 +265,59 @@ test("listPlayerResults reads data and query filters from the backend envelope",
     assert.equal(requestSeasonCode, "2026");
     assert.equal(requestDateFrom, "2026-01-01");
     assert.equal(requestDateTo, "2026-12-31");
+    assert.equal(requestLimit, "1000");
+    assert.equal(requestOffset, "0");
     assert.equal(envelope.data[0]?.placement, 2);
     assert.equal(resolvePlayerResultsTotal(envelope.data, envelope.meta), 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("listPlayerResults loads all pages and returns merged meta count", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+
+  globalThis.fetch = (async (input) => {
+    const parsedUrl = new URL(String(input));
+    const offset = Number(parsedUrl.searchParams.get("offset") ?? "0");
+    calls += 1;
+
+    const pageSize = offset === 0 ? 1000 : 1;
+    const data = Array.from({ length: pageSize }, (_, index) => ({
+      competitionId: `competition-${offset + index + 1}`,
+      competitionName: `Competition ${offset + index + 1}`,
+      competitionDate: "2026-04-01",
+      category: "A",
+      placement: 1,
+      sum: 54,
+      dnf: false,
+      seasonPoints: 50,
+    }));
+
+    return {
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          data,
+          meta: {
+            count: data.length,
+            limit: 1000,
+            offset,
+          },
+        }),
+    } as Response;
+  }) as typeof globalThis.fetch;
+
+  try {
+    const envelope = await listPlayerResults({
+      playerId: "player-777",
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(envelope.data.length, 1001);
+    assert.equal(envelope.meta?.count, 1001);
+    assert.equal(envelope.data[1000]?.competitionId, "competition-1001");
   } finally {
     globalThis.fetch = originalFetch;
   }
