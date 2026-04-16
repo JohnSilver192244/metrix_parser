@@ -1,0 +1,3 @@
+Error: leader_workspace_dirty_for_worktrees:/Users/andreynikolaev/Documents/optima-ide/metrixParser: M .omx/logs/tmux-hook-2026-04-13.jsonl |  M .omx/logs/turns-2026-04-13.jsonl |  M .omx/metrics.json |  M .omx/state/deep-interview-state.json |  M .omx/state/hud-state.json |  M .omx/state/notify-hook-state.json |  M .omx/state/skill-active-state.json |  M .omx/state/tmux-hook-state.json:commit_or_stash_before_omx_team
+
+EXIT:0
