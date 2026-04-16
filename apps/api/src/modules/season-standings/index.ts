@@ -478,6 +478,7 @@ export function buildSeasonScoringCompetitionUnits(
 
 export function resolveSeasonPointsPlayersCount(
   competitionPlayersCount: number | null,
+  competitionResults: readonly CompetitionResultRecord[],
   rankedResultsCount: number,
 ): number {
   const normalizedCompetitionPlayersCount =
@@ -488,7 +489,18 @@ export function resolveSeasonPointsPlayersCount(
     Number.isInteger(normalizedCompetitionPlayersCount) &&
     normalizedCompetitionPlayersCount > 0
   ) {
-    return Math.max(normalizedCompetitionPlayersCount, rankedResultsCount);
+    const dnfPlayerIds = new Set<string>();
+
+    for (const result of competitionResults) {
+      if (result.dnf) {
+        dnfPlayerIds.add(result.player_id);
+      }
+    }
+
+    return Math.max(
+      normalizedCompetitionPlayersCount - dnfPlayerIds.size,
+      rankedResultsCount,
+    );
   }
 
   return rankedResultsCount;
@@ -780,6 +792,7 @@ export async function runSeasonPointsAccrual(
     );
     const participantsCount = resolveSeasonPointsPlayersCount(
       competition.players_count,
+      resultsForCompetition,
       rankedResults.length,
     );
     const hasExistingRows =

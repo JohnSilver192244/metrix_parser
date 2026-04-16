@@ -116,6 +116,42 @@ test("mapDiscGolfMetrixCompetitionResults accepts result records without class n
   assert.equal(result.results[0]?.className, null);
 });
 
+test("mapDiscGolfMetrixCompetitionResults infers DNF from incomplete basket results", () => {
+  const result = mapDiscGolfMetrixCompetitionResults([
+    {
+      ...regularCompetitionResultsFixture,
+      competitionId: "competition-107",
+      rawPayload: {
+        Competition: {
+          Tracks: [{ Number: "1" }, { Number: "2" }, { Number: "3" }],
+          Results: [
+            {
+              UserID: "player-7",
+              Name: "Nikolay",
+              Class: "MPO",
+              Sum: 7,
+              Diff: -2,
+              PlayerResults: [{ Result: "3" }, { Result: "4" }],
+            },
+          ],
+        },
+      },
+    },
+  ]);
+
+  assert.equal(result.skippedCount, 0);
+  assert.equal(result.issues.length, 0);
+  assert.equal(result.results.length, 1);
+  assert.deepEqual(result.results[0], {
+    competitionId: "competition-107",
+    playerId: "player-7",
+    className: "MPO",
+    sum: 7,
+    diff: -2,
+    dnf: true,
+  });
+});
+
 test("mapDiscGolfMetrixCompetitionResultRecord rejects incomplete non-DNF result fragments", () => {
   const competitionSection = incompleteCompetitionResultsFixture.rawPayload
     .Competition as { Results?: unknown[] } | undefined;

@@ -1,0 +1,307 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const DEFAULT_OUTPUT_PATH = path.resolve(
+  "supabase/migrations/0027_refresh_season_points_matrix_2025_2026.sql",
+);
+
+const TARGET_SEASONS = [
+  {
+    seasonCode: "2025",
+    name: "Сезон РДГА 2025",
+    dateFrom: "2025-01-01",
+    dateTo: "2025-12-31",
+    bestLeaguesCount: 4,
+    bestTournamentsCount: 4,
+  },
+  {
+    seasonCode: "2026",
+    name: "Сезон РДГА 2026",
+    dateFrom: "2026-04-01",
+    dateTo: "2026-11-01",
+    bestLeaguesCount: 4,
+    bestTournamentsCount: 4,
+  },
+];
+
+function parseArgs(argv) {
+  const args = {
+    csvPath: null,
+    outPath: DEFAULT_OUTPUT_PATH,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--csv") {
+      args.csvPath = argv[index + 1] ?? null;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--out") {
+      args.outPath = path.resolve(argv[index + 1] ?? DEFAULT_OUTPUT_PATH);
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--help" || arg === "-h") {
+      args.help = true;
+      continue;
+    }
+
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  return args;
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (inQuotes) {
+      if (char === '"') {
+        const nextChar = text[index + 1];
+        if (nextChar === '"') {
+          cell += '"';
+          index += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+      continue;
+    }
+
+    if (char === ",") {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+
+    if (char === "\n") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    if (char === "\r") {
+      continue;
+    }
+
+    cell += char;
+  }
+
+  if (cell.length > 0 || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+
+  return rows.filter((currentRow) => currentRow.some((value) => value.length > 0));
+}
+
+function normalizeInteger(value, fieldName) {
+  const normalized = Number.parseInt(String(value).trim(), 10);
+  if (!Number.isInteger(normalized)) {
+    throw new Error(`Invalid ${fieldName}: ${value}`);
+  }
+
+  return normalized;
+}
+
+function normalizePoints(value) {
+  const normalized = String(value).trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const points = Number.parseFloat(normalized.replace(",", "."));
+  if (!Number.isFinite(points)) {
+    throw new Error(`Invalid points value: ${value}`);
+  }
+
+  return Number(points.toFixed(2));
+}
+
+export function extractSeasonPointsEntries(csvText) {
+  const rows = parseCsv(csvText);
+  if (rows.length < 2) {
+    throw new Error("CSV must contain a header row and at least one placement row");
+  }
+
+  const [header, ...dataRows] = rows;
+  const playersCounts = header.slice(1).map((value) => normalizeInteger(value, "players_count"));
+  const entries = [];
+
+  for (const dataRow of dataRows) {
+    const placement = normalizeInteger(dataRow[0], "placement");
+    const pointsCells = dataRow.slice(1);
+
+    if (pointsCells.length !== playersCounts.length) {
+      throw new Error(
+        `Placement ${placement} has ${pointsCells.length} point cells, expected ${playersCounts.length}`,
+      );
+    }
+
+    pointsCells.forEach((cell, columnIndex) => {
+      const playersCount = playersCounts[columnIndex];
+      const points = normalizePoints(cell);
+
+      if (points == null) {
+        if (placement <= playersCount) {
+          throw new Error(
+            `Missing points for players_count=${playersCount}, placement=${placement}`,
+          );
+        }
+        return;
+      }
+
+      if (placement > playersCount) {
+        throw new Error(
+          `Unexpected points for players_count=${playersCount}, placement=${placement}`,
+        );
+      }
+
+      entries.push({
+        playersCount,
+        placement,
+        points,
+      });
+    });
+  }
+
+  return entries;
+}
+
+function escapeSqlString(value) {
+  return value.replaceAll("'", "''");
+}
+
+export function buildSeasonPointsMigrationSql(csvText) {
+  const entries = extractSeasonPointsEntries(csvText);
+
+  const seasonValuesSql = TARGET_SEASONS.map(
+    (season) =>
+      `  ('${season.seasonCode}', '${escapeSqlString(season.name)}', date '${season.dateFrom}', date '${season.dateTo}', ${season.bestLeaguesCount}, ${season.bestTournamentsCount})`,
+  ).join(",\n");
+
+  const sourceValuesSql = entries
+    .map(
+      (entry) =>
+        `  (${entry.playersCount}, ${entry.placement}, ${entry.points.toFixed(2)})`,
+    )
+    .join(",\n");
+
+  return `-- Purpose: replace the season points matrix with the new CSV source for seasons 2025 and 2026.
+-- Generated by scripts/generate-season-points-migration.mjs.
+
+insert into app_public.seasons (
+  season_code,
+  name,
+  date_from,
+  date_to,
+  best_leagues_count,
+  best_tournaments_count
+)
+values
+${seasonValuesSql}
+on conflict (season_code) do nothing;
+
+delete from app_public.season_standings
+where season_code in ('2025', '2026');
+
+delete from app_public.season_points_table
+where season_code in ('2025', '2026');
+
+with source_points (players_count, placement, points) as (
+values
+${sourceValuesSql}
+),
+target_seasons (season_code) as (
+  values ('2025'), ('2026')
+)
+insert into app_public.season_points_table (
+  season_code,
+  players_count,
+  placement,
+  points
+)
+select
+  target_seasons.season_code,
+  source_points.players_count,
+  source_points.placement,
+  source_points.points
+from source_points
+cross join target_seasons;
+`;
+}
+
+export function writeSeasonPointsMigration({ csvPath, outPath }) {
+  const csvText = fs.readFileSync(csvPath, "utf8");
+  const sql = buildSeasonPointsMigrationSql(csvText);
+  fs.writeFileSync(outPath, sql);
+
+  return {
+    outPath,
+    entriesCount: extractSeasonPointsEntries(csvText).length,
+    seasonsCount: TARGET_SEASONS.length,
+  };
+}
+
+function printHelp() {
+  console.log(`Usage:
+  node scripts/generate-season-points-migration.mjs --csv <csv-path> [--out <sql-path>]
+
+Defaults:
+  --out ${DEFAULT_OUTPUT_PATH}`);
+}
+
+function isMainModule() {
+  const entryPath = process.argv[1];
+  if (!entryPath) {
+    return false;
+  }
+
+  return path.resolve(entryPath) === path.resolve(fileURLToPath(import.meta.url));
+}
+
+if (isMainModule()) {
+  try {
+    const args = parseArgs(process.argv.slice(2));
+
+    if (args.help) {
+      printHelp();
+      process.exit(0);
+    }
+
+    if (!args.csvPath) {
+      throw new Error("Missing required --csv argument");
+    }
+
+    const result = writeSeasonPointsMigration({
+      csvPath: path.resolve(args.csvPath),
+      outPath: args.outPath,
+    });
+
+    console.log(
+      `Wrote ${result.entriesCount * result.seasonsCount} season point rows to ${result.outPath}`,
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+}

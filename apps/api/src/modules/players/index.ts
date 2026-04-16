@@ -19,6 +19,10 @@ import { resolveListPagination } from "../../lib/pagination";
 import type { RouteDefinition } from "../../lib/router";
 import { createApiSupabaseAdminClient } from "../../lib/supabase-admin";
 import {
+  loadCompetitionHierarchyContext,
+  type CompetitionHierarchyContextRow,
+} from "../competition-hierarchy";
+import {
   readSessionToken,
   requireAuthenticatedUser,
   type AuthGuardDependencies,
@@ -182,11 +186,7 @@ export interface PlayerCompetitionOwnerProjectionRow {
   dnf: boolean;
 }
 
-interface CompetitionHierarchyRow {
-  competition_id: string;
-  parent_id: string | null;
-  record_type: string | null;
-}
+interface CompetitionHierarchyRow extends CompetitionHierarchyContextRow {}
 
 export interface PlayersRouteDependencies {
   listPlayers?: (filters?: PlayersListFilters) => Promise<Player[]>;
@@ -214,34 +214,37 @@ async function loadCompetitionHierarchy(
   }
 
   const supabase = createApiSupabaseAdminClient();
-  const competitionsById = new Map<string, CompetitionHierarchyRow>();
-  let pendingCompetitionIds = [...new Set(competitionIds)];
+  return loadCompetitionHierarchyContext({
+    competitionIds,
+    loadRowsByCompetitionIds: async (ids) => {
+      const { data, error } = await supabase
+        .schema(APP_PUBLIC_SCHEMA)
+        .from("competitions")
+        .select("competition_id, parent_id, record_type")
+        .in("competition_id", ids);
 
-  while (pendingCompetitionIds.length > 0) {
-    const { data, error } = await supabase
-      .schema(APP_PUBLIC_SCHEMA)
-      .from("competitions")
-      .select("competition_id, parent_id, record_type")
-      .in("competition_id", pendingCompetitionIds);
+      if (error) {
+        throw new Error(`Failed to load competition hierarchy for player results: ${error.message}`);
+      }
 
-    if (error) {
-      throw new Error(`Failed to load competition hierarchy for player results: ${error.message}`);
-    }
+      return (data ?? []) as CompetitionHierarchyRow[];
+    },
+    loadRowsByParentIds: async (parentIds) => {
+      const { data, error } = await supabase
+        .schema(APP_PUBLIC_SCHEMA)
+        .from("competitions")
+        .select("competition_id, parent_id, record_type")
+        .in("parent_id", parentIds);
 
-    const fetchedRows = (data ?? []) as CompetitionHierarchyRow[];
-    for (const row of fetchedRows) {
-      competitionsById.set(row.competition_id, row);
-    }
+      if (error) {
+        throw new Error(
+          `Failed to load competition hierarchy descendants for player results: ${error.message}`,
+        );
+      }
 
-    const parentIdsToLoad = fetchedRows
-      .map((row) => row.parent_id?.trim() ?? "")
-      .filter((parentId) => parentId.length > 0)
-      .filter((parentId) => !competitionsById.has(parentId));
-
-    pendingCompetitionIds = [...new Set(parentIdsToLoad)];
-  }
-
-  return competitionsById;
+      return (data ?? []) as CompetitionHierarchyRow[];
+    },
+  });
 }
 
 function resolveSeasonPointsCompetitionIdForPlayerResult(

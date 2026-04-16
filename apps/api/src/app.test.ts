@@ -20,6 +20,7 @@ import {
   buildPlacementByOwnerCompetitionAndPlayerId,
   pickOwnerCompetitionResultRows,
 } from "./modules/players";
+import { loadCompetitionHierarchyContext } from "./modules/competition-hierarchy";
 import {
   resolveCanonicalSeasonCodeByCompetition,
   resolveSeasonPointsByResultIdentity,
@@ -1813,6 +1814,92 @@ test("resolveSeasonPointsByResultIdentity maps child round rows to owner season 
   assert.equal(seasonPointsByResultIdentity.get("round-1:player-1"), 88.5);
 });
 
+test("loadCompetitionHierarchyContext keeps pool owner for multi-pool events when seeded with one pool rounds", async () => {
+  const hierarchyRows = [
+    {
+      competition_id: "event-100",
+      parent_id: null,
+      record_type: "4",
+    },
+    {
+      competition_id: "pool-long",
+      parent_id: "event-100",
+      record_type: "3",
+    },
+    {
+      competition_id: "pool-short",
+      parent_id: "event-100",
+      record_type: "3",
+    },
+    {
+      competition_id: "round-long-1",
+      parent_id: "pool-long",
+      record_type: "1",
+    },
+    {
+      competition_id: "round-long-2",
+      parent_id: "pool-long",
+      record_type: "1",
+    },
+    {
+      competition_id: "round-short-1",
+      parent_id: "pool-short",
+      record_type: "1",
+    },
+  ];
+
+  const competitionsById = await loadCompetitionHierarchyContext({
+    competitionIds: ["round-long-1", "round-long-2"],
+    loadRowsByCompetitionIds: async (competitionIds) =>
+      hierarchyRows.filter((row) => competitionIds.includes(row.competition_id)),
+    loadRowsByParentIds: async (parentIds) =>
+      hierarchyRows.filter((row) => row.parent_id !== null && parentIds.includes(row.parent_id)),
+  });
+
+  assert.equal(
+    resolveSeasonPointsCompetitionIdForResult("round-long-1", competitionsById),
+    "pool-long",
+  );
+});
+
+test("loadCompetitionHierarchyContext keeps event owner for single-pool events when seeded with round rows", async () => {
+  const hierarchyRows = [
+    {
+      competition_id: "event-100",
+      parent_id: null,
+      record_type: "4",
+    },
+    {
+      competition_id: "pool-100",
+      parent_id: "event-100",
+      record_type: "3",
+    },
+    {
+      competition_id: "round-1",
+      parent_id: "pool-100",
+      record_type: "1",
+    },
+    {
+      competition_id: "round-2",
+      parent_id: "pool-100",
+      record_type: "1",
+    },
+  ];
+
+  const competitionsById = await loadCompetitionHierarchyContext({
+    competitionIds: ["round-1", "round-2"],
+    loadRowsByCompetitionIds: async (competitionIds) =>
+      hierarchyRows.filter((row) => competitionIds.includes(row.competition_id)),
+    loadRowsByParentIds: async (parentIds) =>
+      hierarchyRows.filter((row) => row.parent_id !== null && parentIds.includes(row.parent_id)),
+  });
+
+  assert.equal(
+    resolveSeasonPointsCompetitionIdForResult("round-1", competitionsById),
+    "event-100",
+  );
+});
+
 test("GET /tournament-categories returns persisted categories via the API envelope", async () => {
   const response = await invokeRequest(
     "/tournament-categories",
@@ -2501,7 +2588,7 @@ test("buildSeasonScoringCompetitionUnits treats orphan round rows as standalone 
   ]);
 });
 
-test("runSeasonPointsAccrual uses scoring competition players_count for matrix lookup when fewer players finish", async () => {
+test("runSeasonPointsAccrual subtracts DNF players from competition players_count for matrix lookup", async () => {
   let savedStandings: Array<{
     players_count: number;
     raw_points: number;
@@ -2589,17 +2676,17 @@ test("runSeasonPointsAccrual uses scoring competition players_count for matrix l
             points: 65,
           },
           {
-            players_count: 3,
+            players_count: 41,
             placement: 1,
             points: 78.5,
           },
           {
-            players_count: 3,
+            players_count: 41,
             placement: 2,
             points: 70,
           },
           {
-            players_count: 3,
+            players_count: 41,
             placement: 3,
             points: 64,
           },
@@ -2628,23 +2715,23 @@ test("runSeasonPointsAccrual uses scoring competition players_count for matrix l
   assert.equal(result.rowsPersisted, 3);
   assert.deepEqual(savedStandings, [
     {
-      players_count: 42,
-      raw_points: 80,
-      season_points: 240,
+      players_count: 41,
+      raw_points: 78.5,
+      season_points: 235.5,
       placement: 1,
       player_id: "player-1",
     },
     {
-      players_count: 42,
-      raw_points: 72,
-      season_points: 216,
+      players_count: 41,
+      raw_points: 70,
+      season_points: 210,
       placement: 2,
       player_id: "player-2",
     },
     {
-      players_count: 42,
-      raw_points: 65,
-      season_points: 195,
+      players_count: 41,
+      raw_points: 64,
+      season_points: 192,
       placement: 3,
       player_id: "player-3",
     },
@@ -2797,7 +2884,7 @@ test("runSeasonPointsAccrual clears stale season standings rows before overwrite
       async listSeasonPointsMatrix() {
         return [
           {
-            players_count: 24,
+            players_count: 23,
             placement: 1,
             points: 80,
           },
