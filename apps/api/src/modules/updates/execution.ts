@@ -5,12 +5,13 @@ import {
   createUpdateIssue,
   resolveRecordAction,
   resolveUpdateFinalStatus,
-  type TriggerUpdateResponse,
   type UpdateOperation,
+  type UpdateOperationResult,
   type UpdatePeriod,
   type UpdateProcessingIssue,
   type UpdateRecordResult,
 } from "@metrix-parser/shared-types";
+import { loadWorkerExecutionEnv } from "../../../../worker/src/config/env";
 
 import { executeCompetitionsUpdate as executeWorkerCompetitionsUpdate } from "../../../../worker/src/orchestration/competitions-update";
 import { executeCoursesUpdate as executeWorkerCoursesUpdate } from "../../../../worker/src/orchestration/courses-update";
@@ -71,83 +72,65 @@ function createDemoRecordResult(record: DemoRecord): UpdateRecordResult {
   };
 }
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-
-  return value;
-}
-
-function loadCompetitionsExecutionEnv() {
-  return {
-    discGolfMetrixBaseUrl: process.env.DISCGOLFMETRIX_BASE_URL ?? "https://discgolfmetrix.com",
-    discGolfMetrixCountryCode: requireEnv("DISCGOLFMETRIX_COUNTRY_CODE"),
-    discGolfMetrixApiCode: requireEnv("DISCGOLFMETRIX_API_CODE"),
-  };
-}
-
 export interface UpdatesExecutionDependencies {
   executeCompetitionsUpdate?: (
     period: UpdatePeriod,
     overwriteExisting: boolean,
-  ) => Promise<TriggerUpdateResponse>;
-  executeCoursesUpdate?: (overwriteExisting: boolean) => Promise<TriggerUpdateResponse>;
+  ) => Promise<UpdateOperationResult>;
+  executeCoursesUpdate?: (overwriteExisting: boolean) => Promise<UpdateOperationResult>;
   executePlayersUpdate?: (
     period: UpdatePeriod,
     overwriteExisting: boolean,
-  ) => Promise<TriggerUpdateResponse>;
+  ) => Promise<UpdateOperationResult>;
   executeResultsUpdate?: (
     period: UpdatePeriod,
     overwriteExisting: boolean,
-  ) => Promise<TriggerUpdateResponse>;
+  ) => Promise<UpdateOperationResult>;
 }
 
 async function executeRuntimeCompetitionsUpdate(
   period: UpdatePeriod,
   overwriteExisting: boolean,
-): Promise<TriggerUpdateResponse> {
+): Promise<UpdateOperationResult> {
   return executeWorkerCompetitionsUpdate(
     period,
     overwriteExisting,
-    loadCompetitionsExecutionEnv(),
+    loadWorkerExecutionEnv(),
   );
 }
 
 async function executeRuntimeCoursesUpdate(
   overwriteExisting: boolean,
-): Promise<TriggerUpdateResponse> {
-  return executeWorkerCoursesUpdate(overwriteExisting, loadCompetitionsExecutionEnv());
+): Promise<UpdateOperationResult> {
+  return executeWorkerCoursesUpdate(overwriteExisting, loadWorkerExecutionEnv());
 }
 
 async function executeRuntimePlayersUpdate(
   period: UpdatePeriod,
   overwriteExisting: boolean,
-): Promise<TriggerUpdateResponse> {
+): Promise<UpdateOperationResult> {
   return executeWorkerPlayersUpdate(
     period,
     overwriteExisting,
-    loadCompetitionsExecutionEnv(),
+    loadWorkerExecutionEnv(),
   );
 }
 
 async function executeRuntimeResultsUpdate(
   period: UpdatePeriod,
   overwriteExisting: boolean,
-): Promise<TriggerUpdateResponse> {
+): Promise<UpdateOperationResult> {
   return executeWorkerResultsUpdate(
     period,
     overwriteExisting,
-    loadCompetitionsExecutionEnv(),
+    loadWorkerExecutionEnv(),
   );
 }
 
 export function createAcceptedResponse(
   operation: UpdateOperation,
   period?: UpdatePeriod,
-): TriggerUpdateResponse {
+): UpdateOperationResult {
   const requestedAt = new Date().toISOString();
   const issues: UpdateProcessingIssue[] = [];
   let summary = createEmptyUpdateSummary();
@@ -189,7 +172,7 @@ export async function executeUpdateOperation(
   period: UpdatePeriod | undefined,
   overwriteExisting: boolean,
   dependencies: UpdatesExecutionDependencies = {},
-): Promise<TriggerUpdateResponse> {
+): Promise<UpdateOperationResult> {
   if (operation === "competitions") {
     const executeCompetitionsUpdate =
       dependencies.executeCompetitionsUpdate ?? executeRuntimeCompetitionsUpdate;

@@ -6,6 +6,12 @@ export type UpdateRecordAction = "created" | "updated" | "skipped";
 export type UpdateEntityIdentity = "competition" | "course" | "player" | "result";
 export type UpdateIdempotencyStrategy = "single-field" | "fallback-fields" | "composite-key";
 export type UpdateProcessingStage = "transport" | "validation" | "matching" | "persistence";
+export type UpdateJobState =
+  | "accepted"
+  | "running"
+  | "completed"
+  | "completed_with_issues"
+  | "failed";
 
 export interface UpdatePeriod {
   dateFrom: string;
@@ -71,7 +77,49 @@ export interface UpdateOperationResult {
   period?: UpdatePeriod;
 }
 
-export type TriggerUpdateResponse = UpdateOperationResult;
+export interface AcceptedUpdateOperation {
+  jobId: string;
+  operation: UpdateOperation;
+  state: "accepted";
+  source: UpdateResultSource;
+  message: string;
+  requestedAt: string;
+  period?: UpdatePeriod;
+  pollPath: string;
+}
+
+export interface RunningUpdateJobStatus {
+  jobId: string;
+  operation: UpdateOperation;
+  state: "running";
+  source: UpdateResultSource;
+  message: string;
+  requestedAt: string;
+  startedAt: string;
+  period?: UpdatePeriod;
+  pollPath: string;
+}
+
+export interface FinishedUpdateJobStatus {
+  jobId: string;
+  operation: UpdateOperation;
+  state: Extract<UpdateJobState, "completed" | "completed_with_issues" | "failed">;
+  source: UpdateResultSource;
+  message: string;
+  requestedAt: string;
+  startedAt: string;
+  finishedAt: string;
+  period?: UpdatePeriod;
+  pollPath: string;
+  result: UpdateOperationResult;
+}
+
+export type UpdateJobStatusResponse =
+  | AcceptedUpdateOperation
+  | RunningUpdateJobStatus
+  | FinishedUpdateJobStatus;
+
+export type TriggerUpdateResponse = UpdateOperationResult | AcceptedUpdateOperation;
 
 export const UPDATE_IDENTITY_RULES: Record<UpdateEntityIdentity, UpdateIdentityRule> = {
   competition: {
@@ -149,4 +197,20 @@ export function createUpdateIssue(
   issue: UpdateProcessingIssue,
 ): UpdateProcessingIssue {
   return issue;
+}
+
+export function isAcceptedUpdateOperation(
+  response: TriggerUpdateResponse,
+): response is AcceptedUpdateOperation {
+  return "jobId" in response && response.state === "accepted";
+}
+
+export function isTerminalUpdateJobStatus(
+  response: UpdateJobStatusResponse,
+): response is FinishedUpdateJobStatus {
+  return (
+    response.state === "completed" ||
+    response.state === "completed_with_issues" ||
+    response.state === "failed"
+  );
 }

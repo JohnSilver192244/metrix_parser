@@ -1,11 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  Request as UndiciRequest,
+  Response as UndiciResponse,
+} from "undici";
 
 import { createRouter, type RouteDefinition } from "../lib/router";
 import {
   adaptNodeHandlerToCloudflareFetch,
   createCloudflareFetchHandler,
 } from "./fetch-handler-spike";
+
+if (typeof globalThis.Request === "undefined") {
+  globalThis.Request = UndiciRequest as unknown as typeof globalThis.Request;
+}
+
+if (typeof globalThis.Response === "undefined") {
+  globalThis.Response = UndiciResponse as unknown as typeof globalThis.Response;
+}
 
 test("Cloudflare fetch handler serves a representative read route through /competitions", async () => {
   const handler = createCloudflareFetchHandler({
@@ -86,7 +98,7 @@ test("Cloudflare fetch handler serves a protected write route through /updates/c
       },
       body: JSON.stringify({
         dateFrom: "2026-01-01",
-        dateTo: "2026-01-31",
+        dateTo: "2026-01-14",
       }),
     }),
   );
@@ -103,7 +115,7 @@ test("Cloudflare fetch handler serves a protected write route through /updates/c
   assert.equal(payload.data.finalStatus, "completed");
   assert.deepEqual(payload.data.period, {
     dateFrom: "2026-01-01",
-    dateTo: "2026-01-31",
+    dateTo: "2026-01-14",
   });
 });
 

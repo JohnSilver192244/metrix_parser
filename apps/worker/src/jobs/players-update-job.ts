@@ -25,6 +25,7 @@ export interface PlayersUpdateJobResult extends UpdateOperationResult {
   fetchedResults?: DiscGolfMetrixResultsResponse[];
   mappedPlayers?: Player[];
   extractedPlayers?: ExtractedPlayerEntry[];
+  nextSelectionOffset?: number;
 }
 
 function toPlayersUpdateJobResult(

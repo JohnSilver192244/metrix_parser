@@ -5,7 +5,9 @@
 - `Phase 2` — complete
 - `Phase 3` — complete
 - `Phase 4` — complete
-- `Phase 5` — next active phase
+- `Phase 5` — complete
+- `Phase 6` — complete
+- `Phase 7` — next active phase
 
 ## Completed Artifacts
 - [PRD](/Users/andreynikolaev/Documents/optima-ide/metrixParser/.omx/plans/prd-cloudflare-one-deploy.md)
@@ -25,17 +27,17 @@
 - `npm run check --workspace @metrix-parser/api`
 - `npm run check --workspace @metrix-parser/worker`
 - `npm run check --workspace @metrix-parser/web`
+- `npm run check:workspace`
 - `./node_modules/.bin/tsx --test apps/api/src/app.test.ts apps/api/src/cloudflare/fetch-handler-spike.test.ts`
-- `./node_modules/.bin/tsx --test apps/api/src/cloudflare/fetch-handler-spike.test.ts apps/web/src/cloudflare/app-shell.test.ts`
-- `npm run test --workspace @metrix-parser/api`
-- `npm run test --workspace @metrix-parser/web`
-- `npm run build --workspace @metrix-parser/web`
+- `./node_modules/.bin/tsx --test apps/web/src/cloudflare/app-shell.test.ts apps/web/src/features/admin-updates/admin-updates-page.test.tsx apps/web/src/features/admin-updates/update-action-card.test.tsx`
+- `./node_modules/.bin/tsx --test apps/worker/src/jobs/courses-update-job.test.ts apps/worker/src/jobs/results-update-job.test.ts apps/worker/src/jobs/players-update-job.test.ts apps/worker/src/jobs/results-pipeline-update-job.test.ts`
+- `npm run build --workspace @metrix-parser/web` (blocked in this sandbox by Node `16.17.0`; current Vite/Workers stack requires `20.19+` or `22.12+`)
 
 ## Next Phase Scope
-- Start `Phase 5`
-- Classify and expose current worker jobs as cron-driven vs on-demand modules under the unified Cloudflare runtime
-- Replace the `scheduled` no-op placeholder with explicit Cloudflare cron dispatch wiring
-- Align admin-triggered update flows with the accepted-job contract selected in Phase 2
+- Start `Phase 7`
+- Run deploy smoke and cutover-hardening checks against the unified Cloudflare project
+- Verify same-origin SPA/API behavior in deployed form
+- Verify cron execution from deployed configuration and confirm UTC schedule behavior
 - Do not reopen Phase 1 or Phase 2 decisions unless new evidence breaks the thin-adapter path
 
 ## Suggested Starting Point

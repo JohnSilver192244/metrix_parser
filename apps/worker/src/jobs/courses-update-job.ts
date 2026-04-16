@@ -29,14 +29,18 @@ export interface CoursesUpdateJobDependencies extends DiscGolfMetrixClientDepend
   readCourseIds?: () => Promise<CompetitionCourseIdsReadResult>;
   repository?: CoursesRepository;
   overwriteExisting?: boolean;
+  courseIdOffset?: number;
+  maxCourseIdsPerRun?: number;
 }
 
 export interface CoursesUpdateJobResult extends UpdateOperationResult {
   discoveredCourseIds?: string[];
   fetchedCoursesCount?: number;
+  nextCourseIdOffset?: number;
 }
 
 const COURSES_FETCH_CONCURRENCY = 6;
+const MAX_COURSE_IDS_PER_RUN = 100;
 
 async function fetchCoursePayloads(
   courseIds: readonly string[],
@@ -92,8 +96,21 @@ export async function runCoursesUpdateJob(
       dependencies.repository ??
       createCoursesRepository(createSupabaseCoursesAdapter(supabase!));
     const discoveryResult = await readCourseIds();
-
-    const fetchedResult = await fetchCoursePayloads(discoveryResult.courseIds, dependencies);
+    const courseIdOffset = dependencies.courseIdOffset ?? 0;
+    const maxCourseIdsPerRun = dependencies.maxCourseIdsPerRun ?? MAX_COURSE_IDS_PER_RUN;
+    const overflowCourseIdsCount = Math.max(
+      discoveryResult.courseIds.length - (courseIdOffset + maxCourseIdsPerRun),
+      0,
+    );
+    const boundedCourseIds = discoveryResult.courseIds.slice(
+      courseIdOffset,
+      courseIdOffset + maxCourseIdsPerRun,
+    );
+    const nextCourseIdOffset =
+      overflowCourseIdsCount > 0
+        ? courseIdOffset + boundedCourseIds.length
+        : undefined;
+    const fetchedResult = await fetchCoursePayloads(boundedCourseIds, dependencies);
     const mappingIssues: UpdateProcessingIssue[] = [];
     const mappedCourses: Parameters<CoursesRepository["saveCourses"]>[0] = [];
 
@@ -118,20 +135,17 @@ export async function runCoursesUpdateJob(
 
     const summary = {
       ...(persistenceResult.summary ?? createEmptyUpdateSummary()),
-      found: discoveryResult.courseIds.length,
+      found: boundedCourseIds.length,
       skipped:
         (persistenceResult.summary?.skipped ?? 0) +
-        discoveryResult.skippedCount +
         fetchedResult.skippedCount +
         mappingIssues.length,
       errors:
         (persistenceResult.summary?.errors ?? 0) +
-        discoveryResult.issues.length +
         fetchedResult.issues.length +
         mappingIssues.length,
     };
     const issues = [
-      ...discoveryResult.issues,
       ...fetchedResult.issues,
       ...mappingIssues,
       ...persistenceResult.issues,
@@ -147,8 +161,9 @@ export async function runCoursesUpdateJob(
       finishedAt: new Date().toISOString(),
       summary,
       issues,
-      discoveredCourseIds: discoveryResult.courseIds,
+      discoveredCourseIds: boundedCourseIds,
       fetchedCoursesCount: fetchedResult.responses.length,
+      nextCourseIdOffset,
     };
   } catch (error) {
     const issue = toDiscGolfMetrixIssue(error, "courses:update");

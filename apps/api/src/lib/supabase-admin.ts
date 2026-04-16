@@ -12,7 +12,7 @@ import { recordSqlCall } from "./performance";
 
 function ensureFetchGlobals() {
   if (typeof globalThis.fetch !== "function") {
-    globalThis.fetch = undiciFetch as typeof globalThis.fetch;
+    globalThis.fetch = undiciFetch as unknown as typeof globalThis.fetch;
   }
 
   if (typeof globalThis.Headers === "undefined") {
@@ -44,7 +44,7 @@ export function createApiSupabaseAdminClient() {
 
   const env = loadApiEnv();
   ensureFetchGlobals();
-  const originalFetch = globalThis.fetch.bind(globalThis);
+  const originalFetch = globalThis.fetch.bind(globalThis) as unknown as typeof undiciFetch;
 
   cachedApiSupabaseClient = createClient(env.supabaseUrl, env.supabaseServiceRoleKey, {
     auth: {
@@ -56,10 +56,14 @@ export function createApiSupabaseAdminClient() {
         const startedAtMs = performance.now();
         const sqlSignature = resolveSqlSignature(input, init);
         try {
-          const response = await originalFetch(input, {
+          const requestInit = {
             ...init,
-            dispatcher: supabaseHttpAgent as never,
-          });
+            dispatcher: supabaseHttpAgent,
+          } as unknown as Parameters<typeof undiciFetch>[1];
+          const response = (await originalFetch(
+            input as Parameters<typeof undiciFetch>[0],
+            requestInit,
+          )) as unknown as Response;
           const durationMs = performance.now() - startedAtMs;
           const rows = resolveRowsCount(response);
 

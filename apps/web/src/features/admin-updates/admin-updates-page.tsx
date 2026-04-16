@@ -1,12 +1,18 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import type {
+  AcceptedUpdateOperation,
   Competition,
   Course,
   TournamentCategory,
   UpdateLifecyclePhase,
+  UpdateJobStatusResponse,
   UpdateOperationResult,
   UpdatePeriod,
+} from "@metrix-parser/shared-types";
+import {
+  isAcceptedUpdateOperation,
+  isTerminalUpdateJobStatus,
 } from "@metrix-parser/shared-types";
 
 import {
@@ -17,7 +23,12 @@ import {
 import { listCompetitions, updateCompetitionCategory } from "../../shared/api/competitions";
 import { listCourses } from "../../shared/api/courses";
 import { listTournamentCategories } from "../../shared/api/tournament-categories";
-import { mapUpdateError, triggerUpdate } from "../../shared/api/updates";
+import {
+  createFailedUpdateResult,
+  mapUpdateError,
+  startUpdateJobStatusPolling,
+  triggerUpdate,
+} from "../../shared/api/updates";
 import { UpdateActionCard } from "./update-action-card";
 import { UpdatePeriodPicker } from "./update-period-picker";
 import type { UpdateScenarioDefinition } from "./update-scenarios";
@@ -38,17 +49,38 @@ const updateSkipConditions = [
   "Результаты пропускаются при сохранении, если пусты competitionId или playerId, либо для не-DNF записи отсутствуют sum или diff.",
 ] as const;
 
-function PendingStatus({ scenario, period }: { scenario: UpdateScenarioDefinition; period: UpdatePeriod }) {
+function PendingStatus({
+  scenario,
+  period,
+  job,
+}: {
+  scenario: UpdateScenarioDefinition;
+  period: UpdatePeriod;
+  job: AcceptedUpdateOperation | UpdateJobStatusResponse | null;
+}) {
+  const statusLabel =
+    job === null
+      ? "Команда запускается"
+      : job.state === "accepted"
+      ? "Операция принята в очередь"
+      : job.state === "running"
+        ? "Фоновое обновление выполняется"
+        : "Статус обновления синхронизируется";
+
   return (
     <div className="update-card__status update-card__status--pending" role="status">
       <div className="update-card__status-heading">
-        <strong>Выполняется обновление: {scenario.title}</strong>
-        <span>Остальные кнопки временно заблокированы</span>
+        <strong>{statusLabel}: {scenario.title}</strong>
+        <span>{job ? `Job ID: ${job.jobId}` : "Подготавливаем accepted-job ответ"}</span>
       </div>
-      <p>Команда отправлена в backend API. Как только запрос завершится, здесь появится итоговая статистика.</p>
+      <p>
+        {job?.message ??
+          "Команда отправлена в backend API. После получения accepted-job ответа страница переключится на polling статуса."}
+      </p>
       <p>
         Период: {period.dateFrom} - {period.dateTo}
       </p>
+      <p>Статус проверяется через polling endpoint unified Cloudflare runtime.</p>
       <dl className="update-card__summary-grid">
         <div>
           <dt>Найдено</dt>
@@ -92,6 +124,9 @@ export function AdminUpdatesPage() {
   const [phase, setPhase] = useState<UpdateLifecyclePhase>("idle");
   const [activeScenario, setActiveScenario] = useState<UpdateScenarioDefinition | null>(null);
   const [result, setResult] = useState<UpdateOperationResult | null>(null);
+  const [pendingJob, setPendingJob] = useState<
+    AcceptedUpdateOperation | UpdateJobStatusResponse | null
+  >(null);
   const [isAssigningCategories, setIsAssigningCategories] = useState(false);
   const [categoryAssignmentMessage, setCategoryAssignmentMessage] = useState<string | null>(null);
   const [categoryAssignmentError, setCategoryAssignmentError] = useState(false);
@@ -116,12 +151,19 @@ export function AdminUpdatesPage() {
     setActiveScenario(scenario);
     setPhase("submitting");
     setResult(null);
+    setPendingJob(null);
 
     try {
       const response = await triggerUpdate(scenario.operation, {
         ...submittedPeriod,
         overwriteExisting,
       });
+
+      if (isAcceptedUpdateOperation(response)) {
+        setPendingJob(response);
+        return;
+      }
+
       setPhase(response.finalStatus === "failed" ? "error" : "success");
       setResult(response);
     } catch (error) {
@@ -129,6 +171,37 @@ export function AdminUpdatesPage() {
       setResult(mapUpdateError(scenario.operation, error, submittedPeriod));
     }
   }
+
+  useEffect(() => {
+    if (!pendingJob || isTerminalUpdateJobStatus(pendingJob)) {
+      return;
+    }
+
+    const currentPendingJob = pendingJob;
+    return startUpdateJobStatusPolling(currentPendingJob.jobId, {
+      onStatus: (status) => {
+        if (isTerminalUpdateJobStatus(status)) {
+          setPendingJob(status);
+          setResult(status.result);
+          setPhase(status.result.finalStatus === "failed" ? "error" : "success");
+          return;
+        }
+
+        setPendingJob(status);
+      },
+      onError: (error) => {
+        setPendingJob(null);
+        setPhase("error");
+        setResult(
+          createFailedUpdateResult(
+            activeScenario?.operation ?? "competitions",
+            error instanceof Error ? error.message : "Не удалось получить статус фонового обновления.",
+            period,
+          ),
+        );
+      },
+    });
+  }, [activeScenario?.operation, pendingJob, period]);
 
   async function handleAssignCategoriesByPeriod() {
     if (!hasSelectedPeriod || isBusy) {
@@ -334,7 +407,7 @@ export function AdminUpdatesPage() {
 
       <section className="update-launcher__status" aria-live="polite" aria-label="Статус обновления">
         {phase === "submitting" && activeScenario ? (
-          <PendingStatus scenario={activeScenario} period={period} />
+          <PendingStatus scenario={activeScenario} period={period} job={pendingJob} />
         ) : null}
         {phase !== "submitting" && result ? <UpdateOperationStatus result={result} /> : null}
         {phase === "idle" && !result ? (

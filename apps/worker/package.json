@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
     "build": "tsc --noEmit -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json",
     "test": "tsx --test ./src/orchestration/update-execution.test.ts ./src/integration/discgolfmetrix/client.test.ts ./src/mapping/competitions.test.ts ./src/mapping/competition-results.test.ts ./src/mapping/courses.test.ts ./src/mapping/players.test.ts ./src/read-side/competition-course-ids.test.ts ./src/read-side/competitions-for-results.test.ts ./src/persistence/competition-results-repository.test.ts ./src/persistence/competitions-repository.test.ts ./src/persistence/courses-repository.test.ts ./src/persistence/players-repository.test.ts ./src/jobs/competitions-update-job.test.ts ./src/jobs/courses-update-job.test.ts ./src/jobs/results-update-job.test.ts ./src/jobs/players-update-job.test.ts ./src/jobs/results-pipeline-update-job.test.ts"

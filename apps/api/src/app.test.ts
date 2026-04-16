@@ -3497,7 +3497,7 @@ test("POST /updates/competitions accepts a period-based update command", async (
       },
       body: JSON.stringify({
         dateFrom: "2026-01-01",
-        dateTo: "2026-01-31",
+        dateTo: "2026-01-14",
       }),
     },
     {
@@ -3562,7 +3562,7 @@ test("POST /updates/competitions accepts a period-based update command", async (
   assert.equal(payload.data.issues.length, 0);
   assert.deepEqual(payload.data.period, {
     dateFrom: "2026-01-01",
-    dateTo: "2026-01-31",
+    dateTo: "2026-01-14",
   });
 });
 
@@ -3579,7 +3579,7 @@ test("POST /updates/competitions forwards overwriteExisting flag", async () => {
       },
       body: JSON.stringify({
         dateFrom: "2026-01-01",
-        dateTo: "2026-01-31",
+        dateTo: "2026-01-14",
         overwriteExisting: true,
       }),
     },
@@ -3617,6 +3617,144 @@ test("POST /updates/competitions forwards overwriteExisting flag", async () => {
 
   assert.equal(response.statusCode, 202);
   assert.equal(receivedOverwriteExisting, true);
+});
+
+test("POST /updates/competitions returns accepted-job payload when runtime provides background scheduling", async () => {
+  const response = await invokeRequest(
+    "/updates/competitions",
+    {
+      method: "POST",
+      headers: {
+        authorization: "Bearer session-100",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        dateFrom: "2026-01-01",
+        dateTo: "2026-01-14",
+      }),
+    },
+    {
+      updates: {
+        enqueueAcceptedUpdate: async ({ operation, period }) => ({
+          jobId: "job-100",
+          operation,
+          state: "accepted",
+          source: "runtime",
+          message: "accepted in background queue",
+          requestedAt: "2026-03-21T10:00:00.000Z",
+          period,
+          pollPath: "/updates/jobs/job-100",
+        }),
+      },
+      auth: {
+        requireAuthenticatedUser: async () => ({
+          login: "admin",
+        }),
+      },
+    },
+  );
+  const payload = JSON.parse(response.body) as {
+    data: {
+      jobId: string;
+      operation: string;
+      state: string;
+      pollPath: string;
+      period?: { dateFrom: string; dateTo: string };
+    };
+  };
+
+  assert.equal(response.statusCode, 202);
+  assert.equal(payload.data.jobId, "job-100");
+  assert.equal(payload.data.operation, "competitions");
+  assert.equal(payload.data.state, "accepted");
+  assert.equal(payload.data.pollPath, "/updates/jobs/job-100");
+  assert.deepEqual(payload.data.period, {
+    dateFrom: "2026-01-01",
+    dateTo: "2026-01-14",
+  });
+});
+
+test("GET /updates/jobs/:jobId returns the current background status for authenticated users", async () => {
+  const response = await invokeRequest(
+    "/updates/jobs/job-100",
+    {
+      headers: {
+        authorization: "Bearer session-100",
+      },
+    },
+    {
+      updates: {
+        readAcceptedUpdateStatus: async (jobId) => {
+          assert.equal(jobId, "job-100");
+
+          return {
+            jobId,
+            operation: "players",
+            state: "running",
+            source: "runtime",
+            message: "running in background",
+            requestedAt: "2026-03-21T10:00:00.000Z",
+            startedAt: "2026-03-21T10:00:01.000Z",
+            pollPath: "/updates/jobs/job-100",
+            period: {
+              dateFrom: "2026-03-01",
+              dateTo: "2026-03-14",
+            },
+          };
+        },
+      },
+      auth: {
+        requireAuthenticatedUser: async () => ({
+          login: "admin",
+        }),
+      },
+    },
+  );
+  const payload = JSON.parse(response.body) as {
+    data: {
+      jobId: string;
+      operation: string;
+      state: string;
+      pollPath: string;
+    };
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.data.jobId, "job-100");
+  assert.equal(payload.data.operation, "players");
+  assert.equal(payload.data.state, "running");
+  assert.equal(payload.data.pollPath, "/updates/jobs/job-100");
+});
+
+test("POST /updates/competitions rejects periods longer than fourteen days", async () => {
+  const response = await invokeRequest(
+    "/updates/competitions",
+    {
+      method: "POST",
+      headers: {
+        authorization: "Bearer session-100",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        dateFrom: "2026-01-01",
+        dateTo: "2026-01-16",
+      }),
+    },
+    {
+      auth: {
+        requireAuthenticatedUser: async () => ({
+          login: "admin",
+        }),
+      },
+    },
+  );
+  const payload = JSON.parse(response.body) as {
+    error: { code: string; message: string };
+  };
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(payload.error.code, "invalid_period");
+  assert.match(payload.error.message, /14 days/);
 });
 
 test("POST /updates/courses accepts a period-free update command", async () => {
@@ -3708,7 +3846,7 @@ test("POST /updates/results accepts a period-based update command", async () => 
       },
       body: JSON.stringify({
         dateFrom: "2026-04-01",
-        dateTo: "2026-04-30",
+        dateTo: "2026-04-14",
       }),
     },
     {
@@ -3839,7 +3977,7 @@ test("POST /updates/results accepts a period-based update command", async () => 
   assert.equal(payload.data.diagnostics?.results?.summary.found, 3);
   assert.deepEqual(payload.data.period, {
     dateFrom: "2026-04-01",
-    dateTo: "2026-04-30",
+    dateTo: "2026-04-14",
   });
 });
 
@@ -3887,7 +4025,7 @@ test("POST /updates/results invalidates read cache for subsequent projections", 
         issues: [],
         period: {
           dateFrom: "2026-01-01",
-          dateTo: "2026-12-31",
+          dateTo: "2026-01-14",
         },
       }),
     },
@@ -3903,7 +4041,7 @@ test("POST /updates/results invalidates read cache for subsequent projections", 
     },
     body: JSON.stringify({
       dateFrom: "2026-01-01",
-      dateTo: "2026-12-31",
+      dateTo: "2026-01-14",
       overwriteExisting: true,
     }),
   });
@@ -3927,7 +4065,7 @@ test("POST /updates/players accepts a period-based update command", async () => 
       },
       body: JSON.stringify({
         dateFrom: "2026-04-01",
-        dateTo: "2026-04-30",
+        dateTo: "2026-04-14",
       }),
     },
     {
@@ -4049,7 +4187,7 @@ test("POST /updates/players accepts a period-based update command", async () => 
   assert.equal(payload.data.issues[0]?.recordKey, "player:player-2");
   assert.deepEqual(payload.data.period, {
     dateFrom: "2026-04-01",
-    dateTo: "2026-04-30",
+        dateTo: "2026-04-14",
   });
 });
 

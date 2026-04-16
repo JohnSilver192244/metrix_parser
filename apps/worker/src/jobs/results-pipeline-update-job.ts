@@ -58,6 +58,7 @@ export interface ResultsPipelineUpdateJobResult extends UpdateOperationResult {
   extractedPlayers?: ExtractedPlayerEntry[];
   mappedResults?: CompetitionResult[];
   extractedResults?: ExtractedCompetitionResultEntry[];
+  nextSelectionOffset?: number;
 }
 
 function createPersistablePlayerRecords(
@@ -318,5 +319,6 @@ export async function runResultsPipelineUpdateJob(
     extractedPlayers: playerMappingResult.extractedPlayers,
     mappedResults: resultMappingResult.results,
     extractedResults: resultMappingResult.extractedResults,
+    nextSelectionOffset: fetchResult.nextSelectionOffset,
   };
 }

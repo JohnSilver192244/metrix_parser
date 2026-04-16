@@ -15,12 +15,12 @@ function resolveApiBaseUrl(): string {
     return configuredBaseUrl;
   }
 
-  if (import.meta.env?.DEV) {
-    return "http://localhost:3001";
-  }
-
   if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin;
+  }
+
+  if (import.meta.env?.DEV) {
+    return "http://localhost:3001";
   }
 
   return "http://localhost:3001";

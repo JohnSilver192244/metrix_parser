@@ -10,7 +10,7 @@ import { loadWorkerEnv } from "../config/env";
 
 function ensureFetchGlobals() {
   if (typeof globalThis.fetch !== "function") {
-    globalThis.fetch = undiciFetch as typeof globalThis.fetch;
+    globalThis.fetch = undiciFetch as unknown as typeof globalThis.fetch;
   }
 
   if (typeof globalThis.Headers === "undefined") {

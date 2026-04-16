@@ -164,8 +164,8 @@ test("runCoursesUpdateJob isolates broken course fetches and incomplete payloads
     found: 3,
     created: 1,
     updated: 0,
-    skipped: 3,
-    errors: 3,
+    skipped: 2,
+    errors: 2,
   });
-  assert.equal(result.issues.length, 3);
+  assert.equal(result.issues.length, 2);
 });

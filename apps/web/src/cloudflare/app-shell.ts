@@ -4,6 +4,10 @@ import {
   createCloudflareFetchHandler,
   type CloudflareApiRuntimeEnv,
 } from "../../../api/src/cloudflare/fetch-handler-spike";
+import {
+  createAcceptedUpdateRouteDependencies,
+  runScheduledUpdate,
+} from "./update-jobs";
 
 export interface AssetsBinding {
   fetch(request: Request): Promise<Response>;
@@ -22,26 +26,24 @@ export interface ExecutionContextLike {
   waitUntil(promise: Promise<unknown>): void;
 }
 
-type ScheduledTask = (
-  controller: ScheduledControllerLike,
-  env: CloudflareAppShellEnv,
-  ctx: ExecutionContextLike,
-) => Promise<void>;
-
 const ASSET_PATH_PATTERN = /\.[a-z0-9]+$/i;
-const scheduledTasksByCron = new Map<string, ScheduledTask>();
-const appShellEnvStorage = new AsyncLocalStorage<CloudflareAppShellEnv>();
+const appShellRuntimeStorage = new AsyncLocalStorage<{
+  env: CloudflareAppShellEnv;
+  ctx?: ExecutionContextLike;
+}>();
 type FetchHandler = (
   request: Request,
   env: CloudflareAppShellEnv,
 ) => Promise<Response>;
 
 const stableCloudflareApiHandler = createCloudflareFetchHandler(
-  undefined,
-  () => appShellEnvStorage.getStore(),
+  {
+    updates: createAcceptedUpdateRouteDependencies(() => appShellRuntimeStorage.getStore()),
+  },
+  () => appShellRuntimeStorage.getStore()?.env,
 );
 const apiHandler: FetchHandler = (request, env) =>
-  appShellEnvStorage.run(env, () => stableCloudflareApiHandler(request));
+  appShellRuntimeStorage.run({ env }, () => stableCloudflareApiHandler(request));
 
 function isAssetRequest(pathname: string): boolean {
   return ASSET_PATH_PATTERN.test(pathname);
@@ -82,6 +84,7 @@ export function shouldHandleWithApi(request: Request): boolean {
 
 export function createCloudflareAppShell(
   handler: FetchHandler = apiHandler,
+  scheduledRunner: typeof runScheduledUpdate = runScheduledUpdate,
 ): {
   fetch(request: Request, env: CloudflareAppShellEnv): Promise<Response>;
   scheduled(
@@ -93,7 +96,7 @@ export function createCloudflareAppShell(
   return {
     async fetch(request: Request, env: CloudflareAppShellEnv): Promise<Response> {
       if (shouldHandleWithApi(request)) {
-        return handler(request, env);
+        return appShellRuntimeStorage.run({ env }, () => handler(request, env));
       }
 
       return env.ASSETS.fetch(request);
@@ -103,9 +106,11 @@ export function createCloudflareAppShell(
       env: CloudflareAppShellEnv,
       ctx: ExecutionContextLike,
     ): Promise<void> {
-      const task = scheduledTasksByCron.get(controller.cron);
+      const handled = await appShellRuntimeStorage.run({ env, ctx }, () =>
+        scheduledRunner(controller, env),
+      );
 
-      if (!task) {
+      if (!handled) {
         console.log(
           JSON.stringify({
             service: "web-cloudflare-shell",
@@ -116,8 +121,6 @@ export function createCloudflareAppShell(
         );
         return;
       }
-
-      await task(controller, env, ctx);
     },
   };
 }

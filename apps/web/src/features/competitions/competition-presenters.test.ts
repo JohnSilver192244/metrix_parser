@@ -505,7 +505,7 @@ test("resolveCompetitionCategoryIdByMetrics treats missing rating as zero", () =
     {
       categoryId: "no-rating",
       name: "Без рейтинга",
-      description: null,
+      description: "",
       competitionClass: "league",
       segmentsCount: 18,
       ratingGte: 0,
@@ -515,7 +515,7 @@ test("resolveCompetitionCategoryIdByMetrics treats missing rating as zero", () =
     {
       categoryId: "rated-only",
       name: "Только с рейтингом",
-      description: null,
+      description: "",
       competitionClass: "league",
       segmentsCount: 18,
       ratingGte: 1,

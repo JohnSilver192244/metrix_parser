@@ -8,8 +8,6 @@ const requiredPaths = [
   "packages/shared-utils",
   "supabase",
   "apps/web/src/app/App.tsx",
-  "apps/api/src/main.ts",
-  "apps/worker/src/main.ts",
   "packages/shared-types/src/api/index.ts",
   "packages/shared-utils/src/errors/index.ts",
   "supabase/migrations",

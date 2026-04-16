@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  Request as UndiciRequest,
+  Response as UndiciResponse,
+} from "undici";
 
 import { createCloudflareAppShell, shouldHandleWithApi } from "./app-shell";
+
+if (typeof globalThis.Request === "undefined") {
+  globalThis.Request = UndiciRequest as unknown as typeof globalThis.Request;
+}
+
+if (typeof globalThis.Response === "undefined") {
+  globalThis.Response = UndiciResponse as unknown as typeof globalThis.Response;
+}
 
 test("shouldHandleWithApi sends SPA document navigations to static assets", () => {
   const request = new Request("https://example.com/competitions", {
@@ -82,4 +94,32 @@ test("Cloudflare app shell serves non-document overlapping routes from the API h
   assert.equal(apiRequestUrl, "https://example.com/competitions");
   assert.equal(response.headers.get("Content-Type"), "application/json");
   assert.deepEqual(await response.json(), { ok: true });
+});
+
+test("Cloudflare app shell dispatches known scheduled cron jobs through the unified runtime", async () => {
+  let receivedCron = "";
+  const shell = createCloudflareAppShell(
+    async () => new Response("api"),
+    async (controller) => {
+      receivedCron = controller.cron;
+      return true;
+    },
+  );
+
+  await shell.scheduled(
+    {
+      cron: "0 1 * * *",
+      scheduledTime: Date.UTC(2026, 3, 16, 1, 0, 0),
+    },
+    {
+      ASSETS: {
+        fetch: async () => new Response("assets"),
+      },
+    },
+    {
+      waitUntil() {},
+    },
+  );
+
+  assert.equal(receivedCron, "0 1 * * *");
 });

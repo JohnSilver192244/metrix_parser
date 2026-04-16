@@ -44,6 +44,8 @@ export interface ResultsUpdateJobDependencies extends DiscGolfMetrixClientDepend
   persistResults?: boolean;
   overwriteExisting?: boolean;
   reconcileCompetitionComments?: boolean;
+  selectionOffset?: number;
+  maxCompetitionsPerRun?: number;
 }
 
 export interface ResultsUpdateJobResult extends UpdateOperationResult {
@@ -52,9 +54,11 @@ export interface ResultsUpdateJobResult extends UpdateOperationResult {
   fetchedResults?: DiscGolfMetrixResultsResponse[];
   mappedResults?: PersistableCompetitionResultRecord["result"][];
   extractedResults?: ExtractedCompetitionResultEntry[];
+  nextSelectionOffset?: number;
 }
 
 const RESULTS_FETCH_CONCURRENCY = 4;
+const MAX_COMPETITIONS_PER_RUN = 50;
 
 function extractCompetitionIdFromRecordKey(
   recordKey: string | undefined,
@@ -214,18 +218,33 @@ export async function runResultsUpdateJob(
               )
             : null));
     const selectionResult = await readCompetitions(period);
-    const fetchedResult = await fetchResultsPayloads(selectionResult.competitions, dependencies);
+    const selectionOffset = dependencies.selectionOffset ?? 0;
+    const maxCompetitionsPerRun =
+      dependencies.maxCompetitionsPerRun ?? MAX_COMPETITIONS_PER_RUN;
+    const overflowCompetitionsCount = Math.max(
+      selectionResult.competitions.length - (selectionOffset + maxCompetitionsPerRun),
+      0,
+    );
+    const boundedCompetitions = selectionResult.competitions.slice(
+      selectionOffset,
+      selectionOffset + maxCompetitionsPerRun,
+    );
+    const nextSelectionOffset =
+      overflowCompetitionsCount > 0
+        ? selectionOffset + boundedCompetitions.length
+        : undefined;
+    const fetchedResult = await fetchResultsPayloads(boundedCompetitions, dependencies);
 
     if (dependencies.persistResults === false) {
       const summary = createEmptyUpdateSummary();
-      summary.found = selectionResult.competitions.length;
-      summary.skipped = selectionResult.skippedCount + fetchedResult.skippedCount;
-      summary.errors = selectionResult.issues.length + fetchedResult.issues.length;
+      summary.found = boundedCompetitions.length;
+      summary.skipped = fetchedResult.skippedCount;
+      summary.errors = fetchedResult.issues.length;
       const finalStatus = resolveResultsJobFinalStatus(summary, fetchedResult.payloads.length);
 
       if (competitionCommentsRepository) {
         await competitionCommentsRepository.reconcileResultsComments({
-          competitionIds: selectionResult.competitions.map(
+          competitionIds: boundedCompetitions.map(
             (competition) => competition.competitionId,
           ),
           fetchFailureCompetitionIds: fetchedResult.issues
@@ -243,13 +262,14 @@ export async function runResultsUpdateJob(
         requestedAt,
         finishedAt: new Date().toISOString(),
         summary,
-        issues: [...selectionResult.issues, ...fetchedResult.issues],
+        issues: [...fetchedResult.issues],
         period,
-        selectedCompetitionsCount: selectionResult.competitions.length,
-        selectedCompetitionIds: selectionResult.competitions.map(
+        selectedCompetitionsCount: boundedCompetitions.length,
+        selectedCompetitionIds: boundedCompetitions.map(
           (competition) => competition.competitionId,
         ),
         fetchedResults: fetchedResult.payloads,
+        nextSelectionOffset,
       };
     }
 
@@ -273,12 +293,10 @@ export async function runResultsUpdateJob(
       found: mappingResult.results.length,
       skipped:
         (persistenceResult.summary?.skipped ?? 0) +
-        selectionResult.skippedCount +
         fetchedResult.skippedCount +
         mappingResult.skippedCount,
       errors:
         (persistenceResult.summary?.errors ?? 0) +
-        selectionResult.issues.length +
         fetchedResult.issues.length +
         mappingResult.issues.length,
     };
@@ -286,7 +304,7 @@ export async function runResultsUpdateJob(
 
     if (competitionCommentsRepository) {
       await competitionCommentsRepository.reconcileResultsComments({
-        competitionIds: selectionResult.competitions.map(
+        competitionIds: boundedCompetitions.map(
           (competition) => competition.competitionId,
         ),
         fetchFailureCompetitionIds: fetchedResult.issues
@@ -309,19 +327,19 @@ export async function runResultsUpdateJob(
       finishedAt: new Date().toISOString(),
       summary,
       issues: [
-        ...selectionResult.issues,
         ...fetchedResult.issues,
         ...mappingResult.issues,
         ...persistenceResult.issues,
       ],
       period,
-      selectedCompetitionsCount: selectionResult.competitions.length,
-      selectedCompetitionIds: selectionResult.competitions.map(
+      selectedCompetitionsCount: boundedCompetitions.length,
+      selectedCompetitionIds: boundedCompetitions.map(
         (competition) => competition.competitionId,
       ),
       fetchedResults: fetchedResult.payloads,
       mappedResults: mappingResult.results,
       extractedResults: mappingResult.extractedResults,
+      nextSelectionOffset,
     };
   } catch (error) {
     const issue = toDiscGolfMetrixIssue(error, "results:update");

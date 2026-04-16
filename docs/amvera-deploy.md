@@ -5,29 +5,19 @@
 Для текущего состояния репозитория оптимальная схема такая:
 
 1. `Supabase` как отдельная база данных.
-2. `API` как отдельный `Node.JS Server` проект в Amvera.
-3. `Web` как отдельный `Node.JS Browser` проект в Amvera.
+2. `apps/web` как единый full-stack проект, который обслуживает SPA, API и scheduled jobs.
 
-Отдельный `worker` как long-running сервис сейчас не обязателен: обновления данных вызываются через API-эндпоинты `/updates/*`, а сама логика воркера импортируется внутрь `apps/api`.
+Отдельные runtime для `apps/api` и `apps/worker` больше не нужны: их код используется как internal layer внутри unified Cloudflare app.
 
-## Почему лучше два Amvera-проекта
+## Почему старая схема с двумя проектами устарела
 
-Репозиторий является монорепой, а `apps/web` и `apps/api` разворачиваются по-разному:
+Раньше монорепозиторий разворачивался как два проекта, но после Cloudflare one-deploy migration это уже не целевая модель:
 
-- `apps/web` собирается в статические файлы Vite (`dist`)
-- `apps/api` запускается как Node.js сервер
+- `apps/web` остается единственной deployable runtime surface
+- `apps/api` больше не должен стартовать как самостоятельный Node.js сервер
+- `apps/worker` больше не должен жить как отдельный процесс или scheduler
 
-Amvera ищет `amvera.yaml` в корне репозитория, поэтому для одного и того же репозитория удобнее завести два отдельных deployment-branch:
-
-- `amvera-api`
-- `amvera-web`
-
-В каждой ветке в корне должен лежать свой `amvera.yaml`.
-
-Шаблоны уже подготовлены:
-
-- `deploy/amvera/api.amvera.yaml`
-- `deploy/amvera/web.amvera.yaml`
+Если нужен Amvera-специфичный deploy, ориентируйтесь только на surviving app workspace `apps/web`.
 
 ## Что понадобится заранее
 
@@ -264,29 +254,24 @@ curl -X POST "https://<api-domain>/updates/results" \
 
 ## Полезные замечания
 
-- API в production сейчас запускается напрямую из TypeScript через `node --import tsx apps/api/src/main.ts`.
+- `apps/api/src/main.ts` больше не является production entrypoint.
 - `npm run build` в корне репозитория проходит успешно, но для Amvera выгоднее запускать только нужный workspace.
-- Веб-проект не должен ходить в Supabase напрямую. Он работает только через API.
-- Если вы используете привязку GitHub/GitLab в Amvera, удобно назначить разные ветки разным проектам: `amvera-api` и `amvera-web`.
+- Веб-проект не должен ходить в Supabase напрямую. Он работает через unified app runtime.
+- Для scheduled update-сценариев ориентируйтесь на cron wiring surviving app, а не на отдельные внешние worker-процессы.
 
 ## Быстрая памятка по runtime-настройкам
 
-### API
+### Unified app
 
-- `Variables`: `API_PORT`, `DISCGOLFMETRIX_BASE_URL`
-- `Secrets`: `SUPABASE_SERVICE_ROLE_KEY`, `DISCGOLFMETRIX_API_CODE`
-- `Variables` или `Secrets`: `SUPABASE_URL`, `DISCGOLFMETRIX_COUNTRY_CODE`
-
-### Web
-
-- `VITE_API_BASE_URL`
-
-Для `Web` это не secret: это публичный URL API, который всё равно попадает в собранный frontend.
+- `DISCGOLFMETRIX_BASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `DISCGOLFMETRIX_API_CODE`
+- `SUPABASE_URL`
+- `DISCGOLFMETRIX_COUNTRY_CODE`
 
 ## Полезные ссылки
 
 - Amvera config file: https://docs.amvera.ru/applications/configuration/config-file.html
 - Amvera Node.JS Server: https://docs.amvera.ru/applications/environments/nodejs-server.html
 - Amvera Node.JS Browser: https://docs.amvera.ru/applications/environments/nodejs-browser.html
-- Amvera example with separate branches and projects: https://docs.amvera.ru/general/examples/miniappex.html
 - Amvera Cron Jobs: https://docs.amvera.ru/cron/cronjobs.html
