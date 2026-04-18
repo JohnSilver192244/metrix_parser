@@ -15,6 +15,7 @@
     "check:workspace": "node scripts/verify-workspace.mjs",
     "deploy": "npm run deploy --workspace @metrix-parser/web",
     "deploy:web": "npm run deploy --workspace @metrix-parser/web",
+    "deploy:cloudflare": "XDG_CONFIG_HOME=apps/web/.wrangler WRANGLER_HOME=apps/web/.wrangler wrangler --cwd=apps/web deploy",
     "monitor": "npm run monitor:omx",
     "monitor:omx": "node scripts/omx-dashboard.mjs",
     "dev:web": "npm run dev --workspace @metrix-parser/web",
