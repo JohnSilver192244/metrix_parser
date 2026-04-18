@@ -33,6 +33,7 @@ import { rankCompetitionResultsForSeasonPoints } from "../season-standings";
 const APP_PUBLIC_SCHEMA = "app_public";
 const DEFAULT_PLAYER_RESULTS_LIMIT = 200;
 const MAX_PLAYER_RESULTS_LIMIT = 1000;
+const SEASON_STANDINGS_PAGE_SIZE = 1000;
 const PLAYERS_SELECT_COLUMNS = [
   "player_id",
   "player_name",
@@ -379,6 +380,28 @@ async function loadPlayerCompetitionCountsByPlayerId(
   );
 }
 
+async function loadPaginatedSeasonStandingsRows(
+  loadPage: (from: number, to: number) => Promise<SeasonStandingRow[]>,
+  pageSize: number = SEASON_STANDINGS_PAGE_SIZE,
+): Promise<SeasonStandingRow[]> {
+  const rows: SeasonStandingRow[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + pageSize - 1;
+    const pageRows = await loadPage(from, to);
+    rows.push(...pageRows);
+
+    if (pageRows.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return rows;
+}
+
 function toPlayerResultFromRpcRow(row: RpcPlayerResultRow): PlayerCompetitionResult {
   return {
     competitionId: row.competition_id,
@@ -706,28 +729,33 @@ function createSupabasePlayerReadAdapter(): PlayerReadAdapter {
       let seasonCreditCompetitionsByPlayerId = new Map<string, PlayerSeasonCreditCompetition[]>();
 
       if (filters.seasonCode) {
-        const { data: seasonStandings, error: seasonStandingsError } = await supabase
-          .schema(APP_PUBLIC_SCHEMA)
-          .from("season_standings")
-          .select(SEASON_STANDINGS_SELECT_COLUMNS)
-          .eq("season_code", filters.seasonCode);
+        const seasonStandings = await loadPaginatedSeasonStandingsRows(async (from, to) => {
+          const { data, error } = await supabase
+            .schema(APP_PUBLIC_SCHEMA)
+            .from("season_standings")
+            .select(SEASON_STANDINGS_SELECT_COLUMNS)
+            .eq("season_code", filters.seasonCode)
+            .range(from, to);
 
-        if (seasonStandingsError && !isMissingSeasonStandingsTableError(seasonStandingsError)) {
-          throw new Error(
-            `Failed to load season standings for players list: ${seasonStandingsError.message}`,
-          );
-        }
+          if (error && !isMissingSeasonStandingsTableError(error)) {
+            throw new Error(
+              `Failed to load season standings for players list: ${error.message}`,
+            );
+          }
+
+          return ((data ?? []) as unknown as SeasonStandingRow[]).map((row) => ({ ...row }));
+        });
 
         const aggregatedSeasonStandings = aggregateSeasonStandingsByPlayer(
-          (seasonStandings ?? []) as unknown as SeasonStandingRow[],
+          seasonStandings,
           await loadSeasonCreditAggregationConfig(
             supabase,
             filters.seasonCode,
-            (seasonStandings ?? []) as unknown as SeasonStandingRow[],
+            seasonStandings,
           ),
           await loadCompetitionNameByCompetitionId(
             supabase,
-            (seasonStandings ?? []) as unknown as SeasonStandingRow[],
+            seasonStandings,
           ),
         );
         seasonPointsByPlayerId = aggregatedSeasonStandings.seasonPointsByPlayerId;

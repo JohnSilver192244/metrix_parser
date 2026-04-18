@@ -495,20 +495,6 @@ export function PlayersPageView({
                           Игрок{resolveSortIndicator(sort, "playerName")}
                         </button>
                       </th>
-                      <th scope="col">Дивизион</th>
-                      <th scope="col">RDGA</th>
-                      <th scope="col">RDGA с</th>
-                      <th scope="col" aria-sort={resolveAriaSort(sort, "seasonPoints")}>
-                        <button
-                          className="data-table__sort-button"
-                          type="button"
-                          onClick={() => {
-                            onSortChange?.("seasonPoints");
-                          }}
-                        >
-                          Очки сезона{resolveSortIndicator(sort, "seasonPoints")}
-                        </button>
-                      </th>
                       <th scope="col" aria-sort={resolveAriaSort(sort, "seasonCreditPoints")}>
                         <button
                           className="data-table__sort-button"
@@ -520,6 +506,20 @@ export function PlayersPageView({
                           Очки зачета{resolveSortIndicator(sort, "seasonCreditPoints")}
                         </button>
                       </th>
+                      <th scope="col" aria-sort={resolveAriaSort(sort, "seasonPoints")}>
+                        <button
+                          className="data-table__sort-button"
+                          type="button"
+                          onClick={() => {
+                            onSortChange?.("seasonPoints");
+                          }}
+                        >
+                          Очки сезона{resolveSortIndicator(sort, "seasonPoints")}
+                        </button>
+                      </th>
+                      <th scope="col">Дивизион</th>
+                      <th scope="col">RDGA</th>
+                      <th scope="col">RDGA с</th>
                       <th scope="col">Соревнований</th>
                       {canEdit ? <th scope="col">Действия</th> : null}
                     </tr>
@@ -598,6 +598,27 @@ export function PlayersPageView({
                               )}
                             </span>
                           </td>
+                          <td>
+                            {(player.seasonCreditCompetitions?.length ?? 0) > 0 ? (
+                              <FloatingInfoTooltip
+                                value={formatSeasonPointsValue(player.seasonCreditPoints)}
+                                ariaLabel={`Показать список зачетных соревнований игрока ${decodeHtmlEntities(player.playerName)}`}
+                                title="Соревнования в зачете"
+                                items={[...(player.seasonCreditCompetitions ?? [])]
+                                  .sort((left, right) => right.seasonPoints - left.seasonPoints)
+                                  .map(
+                                    (competition) =>
+                                      `${decodeHtmlEntities(competition.competitionName)}, ${formatPlacementValue(competition.placement)}, ${formatSeasonPointsValue(competition.seasonPoints)}`,
+                                  )}
+                                anchorClassName="players-page__credit-tooltip-anchor"
+                                tooltipClassName="players-page__credit-tooltip"
+                                showTriggerButton={false}
+                              />
+                            ) : (
+                              formatSeasonPointsValue(player.seasonCreditPoints)
+                            )}
+                          </td>
+                          <td>{formatSeasonPointsValue(player.seasonPoints)}</td>
                           <td>
                             {canEdit ? (
                               <>
@@ -686,27 +707,6 @@ export function PlayersPageView({
                               <span className="players-table__readonly-value">
                                 {formatRdgaSinceValue(player.rdgaSince)}
                               </span>
-                            )}
-                          </td>
-                          <td>{formatSeasonPointsValue(player.seasonPoints)}</td>
-                          <td>
-                            {(player.seasonCreditCompetitions?.length ?? 0) > 0 ? (
-                              <FloatingInfoTooltip
-                                value={formatSeasonPointsValue(player.seasonCreditPoints)}
-                                ariaLabel={`Показать список зачетных соревнований игрока ${decodeHtmlEntities(player.playerName)}`}
-                                title="Соревнования в зачете"
-                                items={[...(player.seasonCreditCompetitions ?? [])]
-                                  .sort((left, right) => right.seasonPoints - left.seasonPoints)
-                                  .map(
-                                    (competition) =>
-                                      `${decodeHtmlEntities(competition.competitionName)}, ${formatPlacementValue(competition.placement)}, ${formatSeasonPointsValue(competition.seasonPoints)}`,
-                                  )}
-                                anchorClassName="players-page__credit-tooltip-anchor"
-                                tooltipClassName="players-page__credit-tooltip"
-                                showTriggerButton={false}
-                              />
-                            ) : (
-                              formatSeasonPointsValue(player.seasonCreditPoints)
                             )}
                           </td>
                           <td>
