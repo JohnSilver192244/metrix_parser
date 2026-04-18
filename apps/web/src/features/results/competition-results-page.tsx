@@ -349,10 +349,20 @@ export function resolveCompetitionResults(
   competitions: readonly Competition[],
   resultsByCompetitionId: Readonly<Record<string, readonly CompetitionResult[]>>,
 ): CompetitionResultsRow[] {
-  const roundCompetitions = competitions
+  const directRoundCompetitions = competitions
     .filter((item) => item.parentId === competition.competitionId)
     .filter((item) => item.recordType === "1")
     .sort((left, right) => left.competitionDate.localeCompare(right.competitionDate));
+  const resultSourceRoundCompetitions = Object.keys(resultsByCompetitionId)
+    .map((competitionId) =>
+      competitions.find((item) => item.competitionId === competitionId) ?? null,
+    )
+    .filter((item): item is Competition => item !== null && item.recordType === "1")
+    .sort((left, right) => left.competitionDate.localeCompare(right.competitionDate));
+  const roundCompetitions =
+    directRoundCompetitions.length > 0
+      ? directRoundCompetitions
+      : resultSourceRoundCompetitions;
 
   if (roundCompetitions.length === 0) {
     return assignCalculatedPlacements(

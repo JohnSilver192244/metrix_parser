@@ -570,6 +570,93 @@ test("resolveCompetitionResults aggregates pool rounds by player", () => {
   assert.equal(aggregated[1]?.seasonPoints, 0);
 });
 
+test("resolveCompetitionResults aggregates descendant rounds for a wrapper competition when result ids already point to rounds", () => {
+  const aggregated = resolveCompetitionResults(
+    {
+      competitionId: "tour-100",
+      competitionName: "Tour Wrapper",
+      competitionDate: "2026-04-26",
+      parentId: null,
+      courseId: null,
+      courseName: null,
+      recordType: "5",
+      playersCount: 2,
+      metrixId: null,
+    },
+    [
+      {
+        competitionId: "tour-100",
+        competitionName: "Tour Wrapper",
+        competitionDate: "2026-04-26",
+        parentId: null,
+        courseId: null,
+        courseName: null,
+        recordType: "5",
+        playersCount: 2,
+        metrixId: null,
+      },
+      {
+        competitionId: "event-100",
+        competitionName: "Event 1",
+        competitionDate: "2026-04-26",
+        parentId: "tour-100",
+        courseId: null,
+        courseName: null,
+        recordType: "4",
+        playersCount: 2,
+        metrixId: null,
+      },
+      {
+        competitionId: "round-100",
+        competitionName: "Round 1",
+        competitionDate: "2026-04-26",
+        parentId: "event-100",
+        courseId: null,
+        courseName: null,
+        recordType: "1",
+        playersCount: 2,
+        metrixId: null,
+      },
+    ],
+    {
+      "round-100": [
+        {
+          competitionId: "round-100",
+          playerId: "player-1",
+          playerName: "Player 1",
+          className: "MPO",
+          sum: 60,
+          diff: -7,
+          dnf: false,
+          seasonPoints: 39.2,
+        },
+        {
+          competitionId: "round-100",
+          playerId: "player-2",
+          playerName: "Player 2",
+          className: "MPO",
+          sum: 63,
+          diff: -4,
+          dnf: false,
+          seasonPoints: 31.4,
+        },
+      ],
+    },
+  );
+
+  assert.equal(aggregated.length, 2);
+  assert.equal(aggregated[0]?.competitionId, "tour-100");
+  assert.equal(aggregated[0]?.playerId, "player-1");
+  assert.equal(aggregated[0]?.sum, 60);
+  assert.deepEqual(aggregated[0]?.roundBreakdown, [
+    {
+      roundId: "round-100",
+      roundName: "Round 1",
+      diff: -7,
+    },
+  ]);
+});
+
 test("resolveCompetitionResults calculates tie placements from sum", () => {
   const resolved = resolveCompetitionResults(
     {
