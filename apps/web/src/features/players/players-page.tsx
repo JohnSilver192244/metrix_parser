@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-import type { Division, Player, Season } from "@metrix-parser/shared-types";
+import type { CompetitionClass, Division, Player, Season } from "@metrix-parser/shared-types";
 
 import { useAuth } from "../auth/auth-context";
 import { buildPlayerPath } from "../../app/route-paths";
@@ -113,6 +113,12 @@ function resolvePlayerExternalUrl(playerId: string): string {
   return new URL(`/player/${playerId}`, discGolfMetrixBaseUrl).toString();
 }
 
+function resolveSeasonCreditCompetitionPrefix(
+  competitionClass: CompetitionClass | null | undefined,
+): string {
+  return competitionClass === "league" ? "Л" : "Т";
+}
+
 function filterPlayersByRdga(
   players: Player[],
   rdgaFilter: PlayersRdgaFilter,
@@ -209,6 +215,36 @@ function comparePlayersByField(
     decodeHtmlEntities(right.playerName),
     "ru",
   );
+}
+
+function formatSeasonCreditCompetitionRows(
+  competitions: ReadonlyArray<NonNullable<Player["seasonCreditCompetitions"]>[number]>,
+): React.ReactNode[] {
+  const classCounters: Record<CompetitionClass, number> = {
+    league: 0,
+    tournament: 0,
+  };
+
+  return competitions.map((competition) => {
+    const competitionClass = competition.competitionClass ?? "tournament";
+    classCounters[competitionClass] += 1;
+    const label = `${resolveSeasonCreditCompetitionPrefix(competition.competitionClass)}${
+      classCounters[competitionClass]
+    }`;
+
+    return (
+      <span key={competition.competitionId} className="players-page__credit-tooltip-row">
+        <span className="players-page__credit-tooltip-row-label">{label}</span>
+        <span className="players-page__credit-tooltip-row-meta">
+          {formatPlacementValue(competition.placement)},{" "}
+          {formatSeasonPointsValue(competition.seasonPoints)}
+        </span>
+        <span className="players-page__credit-tooltip-row-name">
+          {decodeHtmlEntities(competition.competitionName)}
+        </span>
+      </span>
+    );
+  });
 }
 
 function resolvePatchedPlayerField<T>(
@@ -604,14 +640,14 @@ export function PlayersPageView({
                                 value={formatSeasonPointsValue(player.seasonCreditPoints)}
                                 ariaLabel={`Показать список зачетных соревнований игрока ${decodeHtmlEntities(player.playerName)}`}
                                 title="Соревнования в зачете"
-                                items={[...(player.seasonCreditCompetitions ?? [])]
-                                  .sort((left, right) => right.seasonPoints - left.seasonPoints)
-                                  .map(
-                                    (competition) =>
-                                      `${decodeHtmlEntities(competition.competitionName)}, ${formatPlacementValue(competition.placement)}, ${formatSeasonPointsValue(competition.seasonPoints)}`,
-                                  )}
+                                items={formatSeasonCreditCompetitionRows(
+                                  [...(player.seasonCreditCompetitions ?? [])].sort(
+                                    (left, right) => right.seasonPoints - left.seasonPoints,
+                                  ),
+                                )}
                                 anchorClassName="players-page__credit-tooltip-anchor"
                                 tooltipClassName="players-page__credit-tooltip"
+                                listClassName="players-page__credit-tooltip-list"
                                 showTriggerButton={false}
                               />
                             ) : (

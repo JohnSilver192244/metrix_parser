@@ -7,9 +7,10 @@ interface FloatingInfoTooltipProps {
   value: string;
   ariaLabel: string;
   title: string;
-  items: readonly string[];
+  items: readonly React.ReactNode[];
   anchorClassName?: string;
   tooltipClassName?: string;
+  listClassName?: string;
   showTriggerButton?: boolean;
 }
 
@@ -40,6 +41,7 @@ export function FloatingInfoTooltip({
   items,
   anchorClassName,
   tooltipClassName,
+  listClassName,
   showTriggerButton = true,
 }: FloatingInfoTooltipProps) {
   const anchorRef = useRef<HTMLSpanElement | null>(null);
@@ -111,9 +113,9 @@ export function FloatingInfoTooltip({
       }
     >
       <strong>{title}</strong>
-      <ul className="update-card__tooltip-list">
-        {items.map((item) => (
-          <li key={item}>{item}</li>
+      <ul className={["update-card__tooltip-list", listClassName].filter(Boolean).join(" ")}>
+        {items.map((item, index) => (
+          <li key={index}>{item}</li>
         ))}
       </ul>
     </span>

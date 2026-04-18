@@ -1289,6 +1289,7 @@ export function aggregateSeasonStandingsByPlayer(
                 competitionNameByCompetitionId.get(competitionId) ?? competitionId,
               placement: row.placement,
               seasonPoints: roundToTwo(row.seasonPoints),
+              competitionClass: row.competitionClass,
             };
           }),
       );

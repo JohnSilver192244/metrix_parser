@@ -100,6 +100,34 @@ test("Cloudflare app shell serves non-document overlapping routes from the API h
   assert.deepEqual(await response.json(), { ok: true });
 });
 
+test("Cloudflare app shell forwards fetch execution context to the API handler", async () => {
+  let receivedContext: { waitUntil(promise: Promise<unknown>): void } | undefined;
+  const shell = createCloudflareAppShell(async (_request, _env, ctx) => {
+    receivedContext = ctx;
+    return new Response("api");
+  });
+  const ctx = {
+    waitUntil() {},
+  };
+
+  await shell.fetch(
+    new Request("https://example.com/updates/competitions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token",
+      },
+    }),
+    {
+      ASSETS: {
+        fetch: async () => new Response("assets"),
+      },
+    },
+    ctx,
+  );
+
+  assert.equal(receivedContext, ctx);
+});
+
 test("resolveCloudflareAppShellEnv falls back to build-time local env constants", () => {
   const previous = {
     supabaseUrl: globalThis.__LOCAL_SUPABASE_URL__,

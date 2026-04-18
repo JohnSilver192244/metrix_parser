@@ -1,8 +1,11 @@
+import type { CompetitionClass } from "./tournament-category";
+
 export interface PlayerSeasonCreditCompetition {
   competitionId: string;
   competitionName: string;
   placement: number | null;
   seasonPoints: number;
+  competitionClass?: CompetitionClass | null;
 }
 
 export interface Player {

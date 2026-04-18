@@ -42,6 +42,7 @@ const appShellRuntimeStorage = new AsyncLocalStorage<{
 type FetchHandler = (
   request: Request,
   env: CloudflareAppShellEnv,
+  ctx?: ExecutionContextLike,
 ) => Promise<Response>;
 
 const stableCloudflareApiHandler = createCloudflareFetchHandler(
@@ -50,8 +51,8 @@ const stableCloudflareApiHandler = createCloudflareFetchHandler(
   },
   () => appShellRuntimeStorage.getStore()?.env,
 );
-const apiHandler: FetchHandler = (request, env) =>
-  appShellRuntimeStorage.run({ env }, () => stableCloudflareApiHandler(request));
+const apiHandler: FetchHandler = (request, env, ctx) =>
+  appShellRuntimeStorage.run({ env, ctx }, () => stableCloudflareApiHandler(request));
 
 function normalizeOptionalEnvValue(value: string | undefined): string | undefined {
   const normalized = value?.trim();
@@ -129,7 +130,11 @@ export function createCloudflareAppShell(
   handler: FetchHandler = apiHandler,
   scheduledRunner: typeof runScheduledUpdate = runScheduledUpdate,
 ): {
-  fetch(request: Request, env: CloudflareAppShellEnv): Promise<Response>;
+  fetch(
+    request: Request,
+    env: CloudflareAppShellEnv,
+    ctx?: ExecutionContextLike,
+  ): Promise<Response>;
   scheduled(
     controller: ScheduledControllerLike,
     env: CloudflareAppShellEnv,
@@ -137,12 +142,16 @@ export function createCloudflareAppShell(
   ): Promise<void>;
 } {
   return {
-    async fetch(request: Request, env: CloudflareAppShellEnv): Promise<Response> {
+    async fetch(
+      request: Request,
+      env: CloudflareAppShellEnv,
+      ctx?: ExecutionContextLike,
+    ): Promise<Response> {
       const resolvedEnv = resolveCloudflareAppShellEnv(env);
 
       if (shouldHandleWithApi(request)) {
-        return appShellRuntimeStorage.run({ env: resolvedEnv }, () =>
-          handler(request, resolvedEnv),
+        return appShellRuntimeStorage.run({ env: resolvedEnv, ctx }, () =>
+          handler(request, resolvedEnv, ctx),
         );
       }
 

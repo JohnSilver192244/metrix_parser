@@ -349,12 +349,14 @@ test("PlayersPageView renders season credit tooltip rows as name, place, points"
                 competitionName: "Beta Cup",
                 placement: 3,
                 seasonPoints: 42.5,
+                competitionClass: "league",
               },
               {
                 competitionId: "competition-1",
                 competitionName: "Alpha Cup",
                 placement: 1,
                 seasonPoints: 89.9,
+                competitionClass: "tournament",
               },
             ],
             competitionsCount: 5,
@@ -370,8 +372,13 @@ test("PlayersPageView renders season credit tooltip rows as name, place, points"
 
   assert.match(markup, /players-page__credit-tooltip-anchor/);
   assert.match(markup, /Соревнования в зачете/);
-  assert.match(markup, /Alpha Cup, 1, 89\.90/);
-  assert.match(markup, /Beta Cup, 3, 42\.50/);
+  assert.match(markup, /players-page__credit-tooltip-list/);
+  assert.match(markup, /Т1/);
+  assert.match(markup, /Л1/);
+  assert.match(markup, /players-page__credit-tooltip-row-meta">1, 89\.90<\/span><span class="players-page__credit-tooltip-row-name">Alpha Cup/);
+  assert.match(markup, /players-page__credit-tooltip-row-meta">3, 42\.50<\/span><span class="players-page__credit-tooltip-row-name">Beta Cup/);
+  assert.doesNotMatch(markup, /Alpha Cup, 1, 89\.90/);
+  assert.doesNotMatch(markup, /Beta Cup, 3, 42\.50/);
 });
 
 test("PlayersPageView sorts players by metrix id and player name", () => {

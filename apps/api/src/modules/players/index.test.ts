@@ -97,4 +97,10 @@ test("aggregateSeasonStandingsByPlayer keeps full season totals while selecting 
     result.seasonCreditCompetitionsByPlayerId.get(playerId)?.map((row) => row.competitionId),
     ["3415210", "3198575", "3242080", "3186078", "3264746", "3464441", "3264745", "3390010"],
   );
+  assert.deepEqual(
+    result.seasonCreditCompetitionsByPlayerId
+      .get(playerId)
+      ?.map((row) => row.competitionClass),
+    ["tournament", "tournament", "tournament", "tournament", "league", "league", "league", "league"],
+  );
 });

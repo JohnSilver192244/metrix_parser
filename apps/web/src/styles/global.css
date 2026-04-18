@@ -1732,6 +1732,39 @@ body {
   z-index: 120;
 }
 
+.players-page__credit-tooltip-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.players-page__credit-tooltip-list li {
+  display: block;
+}
+
+.players-page__credit-tooltip-row {
+  display: grid;
+  grid-template-columns: 3.5rem 7.5rem minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+}
+
+.players-page__credit-tooltip-row-label {
+  color: var(--accent-strong);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.players-page__credit-tooltip-row-meta {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.players-page__credit-tooltip-row-name {
+  min-width: 0;
+  word-break: break-word;
+}
+
 .players-page__pagination-summary,
 .competitions-page__pagination-summary {
   margin-top: 12px;
