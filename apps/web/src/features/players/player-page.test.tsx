@@ -91,6 +91,49 @@ test("PlayerPageView renders player header, filters, and results table", () => {
   assert.ok(autumnOpenIndex < springOpenIndex);
 });
 
+test("PlayerPageView renders mobile filters drawer content when opened", () => {
+  const markup = renderToStaticMarkup(
+    <PlayerPageView
+      headerState={{
+        status: "ready",
+        player: {
+          playerId: "player-500",
+          playerName: "Sergey &amp; Ivanov",
+          division: "MPO",
+        },
+        seasons: [
+          {
+            seasonCode: "2026",
+            name: "Сезон 2026",
+            dateFrom: "2026-01-01",
+            dateTo: "2026-12-31",
+            bestLeaguesCount: 3,
+            bestTournamentsCount: 3,
+          },
+        ],
+      }}
+      resultsState={{
+        status: "ready",
+        rows: [],
+        total: 0,
+      }}
+      seasonCode="2026"
+      period={{
+        dateFrom: "2026-01-01",
+        dateTo: "2026-12-31",
+      }}
+      mobileFiltersOpen={true}
+      onNavigate={() => {}}
+    />,
+  );
+
+  assert.match(markup, /Закрыть фильтры/);
+  assert.match(markup, /Фильтры результатов игрока/);
+  assert.match(markup, /role="dialog"/);
+  assert.match(markup, /Сезон/);
+  assert.match(markup, /Период/);
+});
+
 test("sortPlayerResultsRows supports sorting by every column", () => {
   const rows = [
     {

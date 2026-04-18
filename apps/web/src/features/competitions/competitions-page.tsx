@@ -10,6 +10,7 @@ import {
 import { buildCompetitionResultsPath } from "../../app/route-paths";
 import { PageHeader } from "../../shared/page-header";
 import { FloatingInfoTooltip } from "../../shared/floating-info-tooltip";
+import { SideDrawer } from "../../shared/side-drawer";
 import {
   listCompetitions,
   updateCompetitionCategory,
@@ -265,6 +266,7 @@ export interface CompetitionsPageViewProps {
   canEditCategory?: boolean;
   submitState?: CompetitionCategorySubmitState;
   currentPage?: number;
+  mobileFiltersOpen?: boolean;
   onCategoryChange?: (competitionId: string, categoryId: string | null) => void;
   onPageChange?: (page: number) => void;
   onAutoAssignCategories?: (competitions: Competition[]) => void;
@@ -317,6 +319,130 @@ function resolveCompetitionCategoryName(
   return categoryNamesById[competition.categoryId] ?? "Не задана";
 }
 
+function FiltersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M4 6h16M7 12h10M10 18h4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+interface CompetitionsFiltersSectionProps {
+  nameQuery: string;
+  periodFilter: UpdatePeriod;
+  periodPresets: PeriodPreset[];
+  courseFilter: string;
+  categoryFilter: string;
+  withoutResultsOnly: boolean;
+  courseOptions: string[];
+  sortedCategories: TournamentCategory[];
+  onNameQueryChange: (value: string) => void;
+  onPeriodChange: (period: UpdatePeriod) => void;
+  onCourseFilterChange: (value: string) => void;
+  onCategoryFilterChange: (value: string) => void;
+  onWithoutResultsOnlyChange: (value: boolean) => void;
+}
+
+function CompetitionsFiltersSection({
+  nameQuery,
+  periodFilter,
+  periodPresets,
+  courseFilter,
+  categoryFilter,
+  withoutResultsOnly,
+  courseOptions,
+  sortedCategories,
+  onNameQueryChange,
+  onPeriodChange,
+  onCourseFilterChange,
+  onCategoryFilterChange,
+  onWithoutResultsOnlyChange,
+}: CompetitionsFiltersSectionProps) {
+  return (
+    <section className="competitions-page__filters" aria-label="Фильтры соревнований">
+      <label className="competitions-page__filter">
+        <span>Название</span>
+        <input
+          className="competitions-page__filter-control"
+          type="search"
+          value={nameQuery}
+          placeholder="Поиск по названию"
+          onChange={(event) => {
+            onNameQueryChange(event.target.value);
+          }}
+        />
+      </label>
+      <div className="competitions-page__filter">
+        <span>Период</span>
+        <UpdatePeriodPicker
+          value={periodFilter}
+          onChange={onPeriodChange}
+          presets={periodPresets}
+          inputNames={{
+            dateFrom: "competitions-date-from",
+            dateTo: "competitions-date-to",
+          }}
+          hideTriggerLabel
+        />
+      </div>
+      <label className="competitions-page__filter">
+        <span>Парк</span>
+        <select
+          className="competitions-page__filter-control"
+          value={courseFilter}
+          onChange={(event) => {
+            onCourseFilterChange(event.target.value);
+          }}
+        >
+          <option value="">Все парки</option>
+          {courseOptions.map((courseName) => (
+            <option key={courseName} value={courseName}>
+              {courseName}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="competitions-page__filter">
+        <span>Категория</span>
+        <select
+          className="competitions-page__filter-control"
+          value={categoryFilter}
+          onChange={(event) => {
+            onCategoryFilterChange(event.target.value);
+          }}
+        >
+          <option value="">Все категории</option>
+          <option value={UNCATEGORIZED_COMPETITION_FILTER_VALUE}>Не указано</option>
+          {sortedCategories.map((category) => (
+            <option key={category.categoryId} value={category.categoryId}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="competitions-page__filter competitions-page__filter--checkbox">
+        <span>Статус результатов</span>
+        <span className="competitions-page__checkbox-control">
+          <input
+            type="checkbox"
+            checked={withoutResultsOnly}
+            onChange={(event) => {
+              onWithoutResultsOnlyChange(event.target.checked);
+            }}
+          />
+          <span>Нет результатов</span>
+        </span>
+      </label>
+    </section>
+  );
+}
+
 const defaultCompetitionFilters = {
   nameQuery: "",
   ...buildYearDateRange(resolveCurrentYear()),
@@ -349,6 +475,7 @@ export function CompetitionsPageView({
   state,
   canEditCategory = false,
   currentPage = 1,
+  mobileFiltersOpen = false,
   onAutoAssignCategories,
   onPageChange,
   isAutoAssigningCategories = false,
@@ -360,6 +487,7 @@ export function CompetitionsPageView({
   onCategoryChange,
   onNavigate,
 }: CompetitionsPageViewProps) {
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(mobileFiltersOpen);
   const [nameQuery, setNameQuery] = useSessionStorageState(
     competitionsNameFilterStorageKey,
     defaultCompetitionFilters.nameQuery,
@@ -587,6 +715,55 @@ export function CompetitionsPageView({
     });
   };
 
+  const filtersAction = (
+    <>
+      <button
+        type="button"
+        className="page-header__icon-button page-header__icon-button--filters"
+        aria-label={isMobileFiltersOpen ? "Закрыть фильтры" : "Открыть фильтры"}
+        aria-expanded={isMobileFiltersOpen}
+        onClick={() => {
+          setIsMobileFiltersOpen((currentValue) => !currentValue);
+        }}
+      >
+        <FiltersIcon />
+      </button>
+      <span className="update-card__tooltip-anchor update-card__tooltip-anchor--info">
+        <button
+          type="button"
+          className="update-launcher__info-button"
+          aria-label="Правила отображения record_type на странице соревнований"
+        >
+          ?
+        </button>
+        <span
+          role="tooltip"
+          className="update-card__tooltip update-card__tooltip--info"
+        >
+          <strong>Правила record_type</strong>
+          <ul className="update-card__tooltip-list">
+            <li>
+              Показываем:
+              {" "}
+              {visibleCompetitionRecordTypes
+                .map((value) => `${value} (${COMPETITION_RECORD_TYPE_LABELS[value]})`)
+                .join(", ")}
+              , а также 3 (Pool), если Event разбит на несколько pool с раундами.
+            </li>
+            <li>
+              Скрываем:
+              {" "}
+              {hiddenCompetitionRecordTypes
+                .map((value) => `${value} (${COMPETITION_RECORD_TYPE_LABELS[value]})`)
+                .join(", ")}
+              , а также записи без `record_type`.
+            </li>
+          </ul>
+        </span>
+      </span>
+    </>
+  );
+
   if (state.status === "loading") {
     return (
       <section className="data-page-shell" aria-labelledby="competitions-page-title">
@@ -628,41 +805,7 @@ export function CompetitionsPageView({
       <PageHeader
         titleId="competitions-page-title"
         title="Список соревнований"
-        titleAction={
-          <span className="update-card__tooltip-anchor update-card__tooltip-anchor--info">
-            <button
-              type="button"
-              className="update-launcher__info-button"
-              aria-label="Правила отображения record_type на странице соревнований"
-            >
-              ?
-            </button>
-            <span
-              role="tooltip"
-              className="update-card__tooltip update-card__tooltip--info"
-            >
-              <strong>Правила record_type</strong>
-              <ul className="update-card__tooltip-list">
-                <li>
-                  Показываем:
-                  {" "}
-                  {visibleCompetitionRecordTypes
-                    .map((value) => `${value} (${COMPETITION_RECORD_TYPE_LABELS[value]})`)
-                    .join(", ")}
-                  , а также 3 (Pool), если Event разбит на несколько pool с раундами.
-                </li>
-                <li>
-                  Скрываем:
-                  {" "}
-                  {hiddenCompetitionRecordTypes
-                    .map((value) => `${value} (${COMPETITION_RECORD_TYPE_LABELS[value]})`)
-                    .join(", ")}
-                  , а также записи без `record_type`.
-                </li>
-              </ul>
-            </span>
-          </span>
-        }
+        titleAction={filtersAction}
         description={
           total > 0
             ? `В системе доступно ${total} соревнований для дальнейшей работы.`
@@ -724,90 +867,36 @@ export function CompetitionsPageView({
             </section>
           ) : null}
 
-          <section className="competitions-page__filters" aria-label="Фильтры соревнований">
-            <label className="competitions-page__filter">
-              <span>Название</span>
-              <input
-                className="competitions-page__filter-control"
-                type="search"
-                value={nameQuery}
-                placeholder="Поиск по названию"
-                onChange={(event) => {
-                  setNameQuery(event.target.value);
-                  onPageChange?.(1);
-                }}
-              />
-            </label>
-            <div className="competitions-page__filter">
-              <span>Период</span>
-              <UpdatePeriodPicker
-                value={periodFilter}
-                onChange={(period) => {
-                  setPeriodFilter(period);
-                  onPageChange?.(1);
-                }}
-                presets={periodPresets}
-                inputNames={{
-                  dateFrom: "competitions-date-from",
-                  dateTo: "competitions-date-to",
-                }}
-                hideTriggerLabel
-              />
-            </div>
-            <label className="competitions-page__filter">
-              <span>Парк</span>
-              <select
-                className="competitions-page__filter-control"
-                value={courseFilter}
-                onChange={(event) => {
-                  setCourseFilter(event.target.value);
-                  onPageChange?.(1);
-                }}
-              >
-                <option value="">Все парки</option>
-                {courseOptions.map((courseName) => (
-                  <option key={courseName} value={courseName}>
-                    {courseName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="competitions-page__filter">
-              <span>Категория</span>
-              <select
-                className="competitions-page__filter-control"
-                value={categoryFilter}
-                onChange={(event) => {
-                  setCategoryFilter(event.target.value);
-                  onPageChange?.(1);
-                }}
-              >
-                <option value="">Все категории</option>
-                <option value={UNCATEGORIZED_COMPETITION_FILTER_VALUE}>
-                  Не указано
-                </option>
-                {sortedCategories.map((category) => (
-                  <option key={category.categoryId} value={category.categoryId}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="competitions-page__filter competitions-page__filter--checkbox">
-              <span>Статус результатов</span>
-              <span className="competitions-page__checkbox-control">
-                <input
-                  type="checkbox"
-                  checked={withoutResultsOnly}
-                  onChange={(event) => {
-                    setWithoutResultsOnly(event.target.checked);
-                    onPageChange?.(1);
-                  }}
-                />
-                <span>Нет результатов</span>
-              </span>
-            </label>
-          </section>
+          <CompetitionsFiltersSection
+            nameQuery={nameQuery}
+            periodFilter={periodFilter}
+            periodPresets={periodPresets}
+            courseFilter={courseFilter}
+            categoryFilter={categoryFilter}
+            withoutResultsOnly={withoutResultsOnly}
+            courseOptions={courseOptions}
+            sortedCategories={sortedCategories}
+            onNameQueryChange={(value) => {
+              setNameQuery(value);
+              onPageChange?.(1);
+            }}
+            onPeriodChange={(period) => {
+              setPeriodFilter(period);
+              onPageChange?.(1);
+            }}
+            onCourseFilterChange={(value) => {
+              setCourseFilter(value);
+              onPageChange?.(1);
+            }}
+            onCategoryFilterChange={(value) => {
+              setCategoryFilter(value);
+              onPageChange?.(1);
+            }}
+            onWithoutResultsOnlyChange={(value) => {
+              setWithoutResultsOnly(value);
+              onPageChange?.(1);
+            }}
+          />
 
           {visibleCompetitions.length === 0 ? (
             <section className="state-panel" aria-live="polite">
@@ -1090,6 +1179,45 @@ export function CompetitionsPageView({
               ) : null}
             </section>
           )}
+          <SideDrawer
+            open={isMobileFiltersOpen}
+            title="Фильтры соревнований"
+            className="side-drawer--filters"
+            onClose={() => {
+              setIsMobileFiltersOpen(false);
+            }}
+          >
+            <CompetitionsFiltersSection
+              nameQuery={nameQuery}
+              periodFilter={periodFilter}
+              periodPresets={periodPresets}
+              courseFilter={courseFilter}
+              categoryFilter={categoryFilter}
+              withoutResultsOnly={withoutResultsOnly}
+              courseOptions={courseOptions}
+              sortedCategories={sortedCategories}
+              onNameQueryChange={(value) => {
+                setNameQuery(value);
+                onPageChange?.(1);
+              }}
+              onPeriodChange={(period) => {
+                setPeriodFilter(period);
+                onPageChange?.(1);
+              }}
+              onCourseFilterChange={(value) => {
+                setCourseFilter(value);
+                onPageChange?.(1);
+              }}
+              onCategoryFilterChange={(value) => {
+                setCategoryFilter(value);
+                onPageChange?.(1);
+              }}
+              onWithoutResultsOnlyChange={(value) => {
+                setWithoutResultsOnly(value);
+                onPageChange?.(1);
+              }}
+            />
+          </SideDrawer>
         </>
       )}
     </section>

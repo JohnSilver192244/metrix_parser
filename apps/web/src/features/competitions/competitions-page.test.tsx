@@ -159,6 +159,41 @@ test("CompetitionsPageView renders saved competitions with key fields", () => {
   assert.doesNotMatch(markup, /metrix-701/);
 });
 
+test("CompetitionsPageView renders mobile filters drawer content when opened", () => {
+  const markup = renderToStaticMarkup(
+    <CompetitionsPageView
+      state={{
+        status: "ready",
+        total: 1,
+        categories: [],
+        courses: [],
+        courseNamesById: {},
+        competitions: [
+          {
+            competitionId: "competition-701",
+            competitionName: "RDGA Spring Tour",
+            competitionDate: "2026-05-10",
+            courseId: null,
+            courseName: null,
+            categoryId: null,
+            recordType: "4",
+            playersCount: 52,
+            metrixId: null,
+          },
+        ],
+      }}
+      mobileFiltersOpen={true}
+      onNavigate={() => {}}
+    />,
+  );
+
+  assert.match(markup, /Закрыть фильтры/);
+  assert.match(markup, /Фильтры соревнований/);
+  assert.match(markup, /role="dialog"/);
+  assert.match(markup, /Поиск по названию/);
+  assert.match(markup, /Период/);
+});
+
 test("CompetitionsPageView renders visible pagination with 25 competitions per page", () => {
   const competitions = Array.from({ length: 30 }, (_, index) => {
     const number = String(index + 1).padStart(3, "0");

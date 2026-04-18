@@ -320,6 +320,10 @@ export function AppShellView({
               );
             })}
           </div>
+          <div className="side-drawer__actions" aria-label="Настройки и вход">
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+            <TopbarAuthControls />
+          </div>
         </SideDrawer>
       </main>
     </MobileMenuDrawerProvider>

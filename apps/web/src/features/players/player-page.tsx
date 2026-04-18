@@ -14,6 +14,7 @@ import {
   resolveCompetitionExternalUrl,
 } from "../competitions/competition-presenters";
 import { PageHeader } from "../../shared/page-header";
+import { SideDrawer } from "../../shared/side-drawer";
 import {
   getPlayer,
   listPlayerResults,
@@ -89,11 +90,79 @@ const SORT_DEFAULT_DIRECTION_BY_FIELD: Readonly<Record<PlayerResultsSortField, "
   seasonPoints: "desc",
 };
 
+function FiltersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M4 6h16M7 12h10M10 18h4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+interface PlayerResultsFiltersSectionProps {
+  seasonCode: string;
+  period: UpdatePeriod;
+  seasons: Season[];
+  onSeasonCodeChange?: (value: string) => void;
+  onPeriodChange?: (period: UpdatePeriod) => void;
+}
+
+function PlayerResultsFiltersSection({
+  seasonCode,
+  period,
+  seasons,
+  onSeasonCodeChange,
+  onPeriodChange,
+}: PlayerResultsFiltersSectionProps) {
+  return (
+    <section className="competitions-page__filters" aria-label="Фильтры результатов игрока">
+      <label className="competitions-page__filter">
+        <span>Сезон</span>
+        <select
+          className="competitions-page__filter-control"
+          value={seasonCode}
+          onChange={(event) => {
+            onSeasonCodeChange?.(event.target.value);
+          }}
+        >
+          {seasons.map((season) => (
+            <option key={season.seasonCode} value={season.seasonCode}>
+              {season.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="competitions-page__filter">
+        <span>Период</span>
+        <UpdatePeriodPicker
+          value={period}
+          onChange={(nextPeriod) => {
+            onPeriodChange?.(nextPeriod);
+          }}
+          label="Период"
+          hideTriggerLabel={true}
+          inputNames={{
+            dateFrom: "player-page-date-from",
+            dateTo: "player-page-date-to",
+          }}
+        />
+      </label>
+    </section>
+  );
+}
+
 export interface PlayerPageViewProps {
   headerState: PlayerHeaderState;
   resultsState: PlayerResultsState;
   seasonCode: string;
   period: UpdatePeriod;
+  mobileFiltersOpen?: boolean;
   onSeasonCodeChange?: (value: string) => void;
   onPeriodChange?: (period: UpdatePeriod) => void;
   onNavigate: (pathname: string) => void;
@@ -284,11 +353,13 @@ export function PlayerPageView({
   resultsState,
   seasonCode,
   period,
+  mobileFiltersOpen = false,
   onSeasonCodeChange,
   onPeriodChange,
   onNavigate,
 }: PlayerPageViewProps) {
   const [sort, setSort] = useState<PlayerResultsSort>(DEFAULT_PLAYER_RESULTS_SORT);
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(mobileFiltersOpen);
   const backButton = (
     <button
       className="page-back-link"
@@ -364,6 +435,19 @@ export function PlayerPageView({
       : [];
   const hasSeasonContext =
     seasonCode.length > 0 && period.dateFrom.length > 0 && period.dateTo.length > 0;
+  const filtersAction = hasSeasonContext ? (
+    <button
+      type="button"
+      className="page-header__icon-button page-header__icon-button--filters"
+      aria-label={isMobileFiltersOpen ? "Закрыть фильтры" : "Открыть фильтры"}
+      aria-expanded={isMobileFiltersOpen}
+      onClick={() => {
+        setIsMobileFiltersOpen((currentValue) => !currentValue);
+      }}
+    >
+      <FiltersIcon />
+    </button>
+  ) : null;
 
   return (
     <section className="data-page-shell" aria-labelledby="player-page-title">
@@ -373,68 +457,44 @@ export function PlayerPageView({
         titleId="player-page-title"
         title={playerName}
         titleAction={
-          <a
-            className="data-table__external-link"
-            href={playerExternalUrl}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`Открыть профиль игрока ${playerName} на Disc Golf Metrix в новой вкладке`}
-          >
-            <svg
-              className="data-table__external-link-icon"
-              viewBox="0 0 16 16"
-              aria-hidden="true"
-              focusable="false"
+          <>
+            {filtersAction}
+            <a
+              className="data-table__external-link"
+              href={playerExternalUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Открыть профиль игрока ${playerName} на Disc Golf Metrix в новой вкладке`}
             >
-              <path
-                d="M6 3h7v7M13 3 6 10M10 6v7H3V6h7"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </a>
+              <svg
+                className="data-table__external-link-icon"
+                viewBox="0 0 16 16"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  d="M6 3h7v7M13 3 6 10M10 6v7H3V6h7"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </a>
+          </>
         }
         description={`Metrix ID: ${player.playerId}`}
       />
 
       {hasSeasonContext ? (
-        <section className="competitions-page__filters" aria-label="Фильтры результатов игрока">
-          <label className="competitions-page__filter">
-            <span>Сезон</span>
-            <select
-              className="competitions-page__filter-control"
-              value={seasonCode}
-              onChange={(event) => {
-                onSeasonCodeChange?.(event.target.value);
-              }}
-            >
-              {seasons.map((season) => (
-                <option key={season.seasonCode} value={season.seasonCode}>
-                  {season.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="competitions-page__filter">
-            <span>Период</span>
-            <UpdatePeriodPicker
-              value={period}
-              onChange={(nextPeriod) => {
-                onPeriodChange?.(nextPeriod);
-              }}
-              label="Период"
-              hideTriggerLabel={true}
-              inputNames={{
-                dateFrom: "player-page-date-from",
-                dateTo: "player-page-date-to",
-              }}
-            />
-          </label>
-        </section>
+        <PlayerResultsFiltersSection
+          seasonCode={seasonCode}
+          period={period}
+          seasons={seasons}
+          onSeasonCodeChange={onSeasonCodeChange}
+          onPeriodChange={onPeriodChange}
+        />
       ) : (
         <section className="state-panel" aria-live="polite">
           <p className="state-panel__eyebrow">empty</p>
@@ -647,6 +707,25 @@ export function PlayerPageView({
           <p>всего строк: {resultsState.total}</p>
         </section>
       )}
+
+      <SideDrawer
+        open={isMobileFiltersOpen}
+        title="Фильтры результатов игрока"
+        className="side-drawer--filters"
+        onClose={() => {
+          setIsMobileFiltersOpen(false);
+        }}
+      >
+        {hasSeasonContext ? (
+          <PlayerResultsFiltersSection
+            seasonCode={seasonCode}
+            period={period}
+            seasons={seasons}
+            onSeasonCodeChange={onSeasonCodeChange}
+            onPeriodChange={onPeriodChange}
+          />
+        ) : null}
+      </SideDrawer>
     </section>
   );
 }
