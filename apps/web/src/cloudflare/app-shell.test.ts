@@ -5,7 +5,11 @@ import {
   Response as UndiciResponse,
 } from "undici";
 
-import { createCloudflareAppShell, shouldHandleWithApi } from "./app-shell";
+import {
+  createCloudflareAppShell,
+  resolveCloudflareAppShellEnv,
+  shouldHandleWithApi,
+} from "./app-shell";
 
 if (typeof globalThis.Request === "undefined") {
   globalThis.Request = UndiciRequest as unknown as typeof globalThis.Request;
@@ -94,6 +98,46 @@ test("Cloudflare app shell serves non-document overlapping routes from the API h
   assert.equal(apiRequestUrl, "https://example.com/competitions");
   assert.equal(response.headers.get("Content-Type"), "application/json");
   assert.deepEqual(await response.json(), { ok: true });
+});
+
+test("resolveCloudflareAppShellEnv falls back to build-time local env constants", () => {
+  const previous = {
+    supabaseUrl: globalThis.__LOCAL_SUPABASE_URL__,
+    supabaseServiceRoleKey: globalThis.__LOCAL_SUPABASE_SERVICE_ROLE_KEY__,
+    discGolfMetrixBaseUrl: globalThis.__LOCAL_DISCGOLFMETRIX_BASE_URL__,
+    discGolfMetrixCountryCode: globalThis.__LOCAL_DISCGOLFMETRIX_COUNTRY_CODE__,
+    discGolfMetrixApiCode: globalThis.__LOCAL_DISCGOLFMETRIX_API_CODE__,
+  };
+
+  Object.assign(globalThis, {
+    __LOCAL_SUPABASE_URL__: "https://supabase.example",
+    __LOCAL_SUPABASE_SERVICE_ROLE_KEY__: "service-role-key",
+    __LOCAL_DISCGOLFMETRIX_BASE_URL__: "https://discgolfmetrix.com",
+    __LOCAL_DISCGOLFMETRIX_COUNTRY_CODE__: "RU",
+    __LOCAL_DISCGOLFMETRIX_API_CODE__: "secret",
+  });
+
+  try {
+    const resolved = resolveCloudflareAppShellEnv({
+      ASSETS: {
+        fetch: async () => new Response("assets"),
+      },
+    });
+
+    assert.equal(resolved.supabaseUrl, "https://supabase.example");
+    assert.equal(resolved.supabaseServiceRoleKey, "service-role-key");
+    assert.equal(resolved.discGolfMetrixBaseUrl, "https://discgolfmetrix.com");
+    assert.equal(resolved.discGolfMetrixCountryCode, "RU");
+    assert.equal(resolved.discGolfMetrixApiCode, "secret");
+  } finally {
+    Object.assign(globalThis, {
+      __LOCAL_SUPABASE_URL__: previous.supabaseUrl,
+      __LOCAL_SUPABASE_SERVICE_ROLE_KEY__: previous.supabaseServiceRoleKey,
+      __LOCAL_DISCGOLFMETRIX_BASE_URL__: previous.discGolfMetrixBaseUrl,
+      __LOCAL_DISCGOLFMETRIX_COUNTRY_CODE__: previous.discGolfMetrixCountryCode,
+      __LOCAL_DISCGOLFMETRIX_API_CODE__: previous.discGolfMetrixApiCode,
+    });
+  }
 });
 
 test("Cloudflare app shell dispatches known scheduled cron jobs through the unified runtime", async () => {

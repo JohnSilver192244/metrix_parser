@@ -45,6 +45,34 @@ const stableCloudflareApiHandler = createCloudflareFetchHandler(
 const apiHandler: FetchHandler = (request, env) =>
   appShellRuntimeStorage.run({ env }, () => stableCloudflareApiHandler(request));
 
+function normalizeOptionalEnvValue(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized : undefined;
+}
+
+export function resolveCloudflareAppShellEnv(
+  env: CloudflareAppShellEnv,
+): CloudflareAppShellEnv {
+  return {
+    ...env,
+    supabaseUrl:
+      env.supabaseUrl ??
+      normalizeOptionalEnvValue(globalThis.__LOCAL_SUPABASE_URL__),
+    supabaseServiceRoleKey:
+      env.supabaseServiceRoleKey ??
+      normalizeOptionalEnvValue(globalThis.__LOCAL_SUPABASE_SERVICE_ROLE_KEY__),
+    discGolfMetrixBaseUrl:
+      env.discGolfMetrixBaseUrl ??
+      normalizeOptionalEnvValue(globalThis.__LOCAL_DISCGOLFMETRIX_BASE_URL__),
+    discGolfMetrixCountryCode:
+      env.discGolfMetrixCountryCode ??
+      normalizeOptionalEnvValue(globalThis.__LOCAL_DISCGOLFMETRIX_COUNTRY_CODE__),
+    discGolfMetrixApiCode:
+      env.discGolfMetrixApiCode ??
+      normalizeOptionalEnvValue(globalThis.__LOCAL_DISCGOLFMETRIX_API_CODE__),
+  };
+}
+
 function isAssetRequest(pathname: string): boolean {
   return ASSET_PATH_PATTERN.test(pathname);
 }
@@ -95,19 +123,24 @@ export function createCloudflareAppShell(
 } {
   return {
     async fetch(request: Request, env: CloudflareAppShellEnv): Promise<Response> {
+      const resolvedEnv = resolveCloudflareAppShellEnv(env);
+
       if (shouldHandleWithApi(request)) {
-        return appShellRuntimeStorage.run({ env }, () => handler(request, env));
+        return appShellRuntimeStorage.run({ env: resolvedEnv }, () =>
+          handler(request, resolvedEnv),
+        );
       }
 
-      return env.ASSETS.fetch(request);
+      return resolvedEnv.ASSETS.fetch(request);
     },
     async scheduled(
       controller: ScheduledControllerLike,
       env: CloudflareAppShellEnv,
       ctx: ExecutionContextLike,
     ): Promise<void> {
-      const handled = await appShellRuntimeStorage.run({ env, ctx }, () =>
-        scheduledRunner(controller, env),
+      const resolvedEnv = resolveCloudflareAppShellEnv(env);
+      const handled = await appShellRuntimeStorage.run({ env: resolvedEnv, ctx }, () =>
+        scheduledRunner(controller, resolvedEnv),
       );
 
       if (!handled) {

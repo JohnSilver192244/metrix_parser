@@ -167,6 +167,41 @@ test("GET /competitions compresses JSON payload when client accepts gzip", async
   assert.equal(payload.data.length, 120);
 });
 
+test("GET /competitions skips compression on local unified dev host", async () => {
+  const handler = createApiRequestHandler({
+    competitions: {
+      listCompetitions: async () =>
+        Array.from({ length: 120 }, (_, index) => ({
+          competitionId: `competition-${index + 1}`,
+          competitionName: `Competition ${index + 1}`,
+          competitionDate: "2026-04-10",
+          parentId: null,
+          courseId: null,
+          courseName: null,
+          categoryId: null,
+          comment: null,
+          recordType: null,
+          playersCount: null,
+          metrixId: null,
+          hasResults: false,
+          seasonPoints: null,
+        })),
+    },
+  });
+  const response = await invokeRequestWithHandler(handler, "/competitions", {
+    headers: {
+      host: "localhost:5173",
+      "accept-encoding": "gzip",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers.get("Content-Encoding"), undefined);
+
+  const payload = JSON.parse(response.body) as { data: unknown[] };
+  assert.equal(payload.data.length, 120);
+});
+
 test("GET /health/performance returns performance snapshot envelope", async () => {
   const response = await invokeRequest("/health/performance");
   const payload = JSON.parse(response.body) as {

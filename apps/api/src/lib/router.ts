@@ -91,10 +91,24 @@ function resolvePreferredEncoding(acceptEncodingHeader: string | undefined): "br
   return null;
 }
 
+function shouldBypassCompressionForLocalDev(hostHeader: string | string[] | undefined): boolean {
+  if (!hostHeader) {
+    return false;
+  }
+
+  const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+  if (!host) {
+    return false;
+  }
+
+  return host === "localhost:5173" || host === "127.0.0.1:5173";
+}
+
 async function maybeCompressResponseBody(
   bodyBuffer: Buffer,
   responseHeaders: ReadonlyMap<string, string>,
   acceptEncodingHeader: string | undefined,
+  hostHeader?: string | string[],
 ): Promise<{ bodyBuffer: Buffer; contentEncoding: "br" | "gzip" | null }> {
   if (bodyBuffer.length < MIN_COMPRESSIBLE_BODY_BYTES) {
     return { bodyBuffer, contentEncoding: null };
@@ -107,6 +121,10 @@ async function maybeCompressResponseBody(
 
   const existingEncoding = responseHeaders.get("content-encoding");
   if (existingEncoding) {
+    return { bodyBuffer, contentEncoding: null };
+  }
+
+  if (shouldBypassCompressionForLocalDev(hostHeader)) {
     return { bodyBuffer, contentEncoding: null };
   }
 
@@ -207,6 +225,7 @@ export function createRouter(routes: RouteDefinition[]) {
             cachedBodyBuffer,
             cachedHeaders,
             req.headers["accept-encoding"],
+            req.headers.host,
           );
 
           res.statusCode = cachedResponse.statusCode;
@@ -288,6 +307,7 @@ export function createRouter(routes: RouteDefinition[]) {
           responseBodyBuffer,
           capturedHeaders,
           req.headers["accept-encoding"],
+          req.headers.host,
         );
 
         if (res.statusCode === 200 && responseBodyBuffer.length > 0) {
@@ -324,6 +344,23 @@ export function createRouter(routes: RouteDefinition[]) {
           );
           return;
         }
+
+        console.error(
+          JSON.stringify({
+            service: "api",
+            status: "request-error",
+            code: httpError.code,
+            message: httpError.message,
+            details:
+              error instanceof Error
+                ? {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack,
+                  }
+                : String(error),
+          }),
+        );
 
         sendError(
           res,

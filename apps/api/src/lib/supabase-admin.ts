@@ -37,6 +37,24 @@ const supabaseHttpAgent = new Agent({
 
 let cachedApiSupabaseClient: ReturnType<typeof createClient<any>> | null = null;
 
+export function canUseUndiciDispatcher(): boolean {
+  return typeof WebSocketPair === "undefined";
+}
+
+export function shouldRetryWithoutDispatcher(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    error.name === "TypeError" &&
+    (message.includes("dispatcher") ||
+      message.includes("invalid init") ||
+      message.includes("unexpected option"))
+  );
+}
+
 export function createApiSupabaseAdminClient() {
   if (cachedApiSupabaseClient) {
     return cachedApiSupabaseClient;
@@ -56,14 +74,37 @@ export function createApiSupabaseAdminClient() {
         const startedAtMs = performance.now();
         const sqlSignature = resolveSqlSignature(input, init);
         try {
-          const requestInit = {
-            ...init,
-            dispatcher: supabaseHttpAgent,
-          } as unknown as Parameters<typeof undiciFetch>[1];
-          const response = (await originalFetch(
-            input as Parameters<typeof undiciFetch>[0],
-            requestInit,
-          )) as unknown as Response;
+          const requestInput = input as Parameters<typeof undiciFetch>[0];
+          let response: Response;
+
+          if (!canUseUndiciDispatcher()) {
+            response = (await originalFetch(
+              requestInput,
+              init as Parameters<typeof undiciFetch>[1],
+            )) as unknown as Response;
+          } else {
+            const requestInit = {
+              ...init,
+              dispatcher: supabaseHttpAgent,
+            } as unknown as Parameters<typeof undiciFetch>[1];
+
+            try {
+              response = (await originalFetch(
+                requestInput,
+                requestInit,
+              )) as unknown as Response;
+            } catch (error) {
+              if (!shouldRetryWithoutDispatcher(error)) {
+                throw error;
+              }
+
+              response = (await originalFetch(
+                requestInput,
+                init as Parameters<typeof undiciFetch>[1],
+              )) as unknown as Response;
+            }
+          }
+
           const durationMs = performance.now() - startedAtMs;
           const rows = resolveRowsCount(response);
 

@@ -7,20 +7,50 @@ import type {
 import { getStoredSessionToken } from "../../features/auth/auth-storage";
 import { observeApiCallPerformance } from "../performance/route-performance";
 
-const apiBaseUrl = resolveApiBaseUrl();
+interface ApiBaseUrlOptions {
+  configuredBaseUrl?: string | null;
+  isDev?: boolean;
+  windowOrigin?: string | null;
+}
 
-function resolveApiBaseUrl(): string {
-  const configuredBaseUrl = import.meta.env?.VITE_API_BASE_URL?.trim();
+function isLoopbackHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "http:" &&
+      (url.hostname === "localhost" || url.hostname === "127.0.0.1")
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function resolveApiBaseUrl(options: ApiBaseUrlOptions = {}): string {
+  const configuredBaseUrl =
+    options.configuredBaseUrl ?? import.meta.env?.VITE_API_BASE_URL?.trim();
+  const isDev = options.isDev ?? import.meta.env?.DEV ?? false;
+  const windowOrigin =
+    options.windowOrigin ??
+    (typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : null);
+
+  if (
+    isDev &&
+    windowOrigin &&
+    isLoopbackHttpUrl(windowOrigin) &&
+    configuredBaseUrl &&
+    isLoopbackHttpUrl(configuredBaseUrl)
+  ) {
+    return windowOrigin;
+  }
+
   if (configuredBaseUrl) {
     return configuredBaseUrl;
   }
 
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin;
-  }
-
-  if (import.meta.env?.DEV) {
-    return "http://localhost:3001";
+  if (windowOrigin) {
+    return windowOrigin;
   }
 
   return "http://localhost:3001";
@@ -42,7 +72,7 @@ export async function requestJson<TResponse>(
 ): Promise<TResponse> {
   const method = init.method ?? "GET";
   const requestStartedAt = performance.now();
-  const response = await fetch(new URL(path, apiBaseUrl), withAuthHeaders(init));
+  const response = await fetch(new URL(path, resolveApiBaseUrl()), withAuthHeaders(init));
   const ttfbMs = performance.now() - requestStartedAt;
   const text = await response.text();
   const durationMs = performance.now() - requestStartedAt;
@@ -72,7 +102,7 @@ export async function requestEnvelope<TResponse, TMeta extends ApiMeta = ApiMeta
 ): Promise<ApiEnvelope<TResponse, TMeta>> {
   const method = init.method ?? "GET";
   const requestStartedAt = performance.now();
-  const response = await fetch(new URL(path, apiBaseUrl), withAuthHeaders(init));
+  const response = await fetch(new URL(path, resolveApiBaseUrl()), withAuthHeaders(init));
   const ttfbMs = performance.now() - requestStartedAt;
   const text = await response.text();
   const durationMs = performance.now() - requestStartedAt;

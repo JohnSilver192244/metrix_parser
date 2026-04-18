@@ -1,0 +1,16 @@
+
+--- 2026-04-18T09:33:38.574Z debug
+🪵  Writing logs to "/Users/andreynikolaev/Documents/optima-ide/metrixParser/apps/web/.wrangler/.wrangler/logs/wrangler-2026-04-18_09-33-38_302.log"
+---
+
+--- 2026-04-18T09:33:38.574Z debug
+local dev variables file not found at ".dev.vars". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-04-18T09:33:38.575Z debug
+.env file not found at "/Users/andreynikolaev/Documents/optima-ide/metrixParser/apps/web/.env". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-04-18T09:33:38.575Z debug
+.env file not found at "/Users/andreynikolaev/Documents/optima-ide/metrixParser/apps/web/.env.local". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
