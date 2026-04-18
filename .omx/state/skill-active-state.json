@@ -2,14 +2,14 @@
   "version": 1,
   "active": true,
   "skill": "deep-interview",
-  "keyword": "Deep interview",
+  "keyword": "$deep-interview",
   "phase": "planning",
-  "activated_at": "2026-04-18T08:57:15.041Z",
-  "updated_at": "2026-04-18T08:57:15.041Z",
+  "activated_at": "2026-04-18T08:57:44.629Z",
+  "updated_at": "2026-04-18T08:57:44.629Z",
   "source": "keyword-detector",
   "session_id": "",
-  "thread_id": "019d9fce-d064-70b3-a179-b14ee1a672e2",
-  "turn_id": "019d9fce-d0b3-7d61-8eac-32c972cac4ef",
+  "thread_id": "019d9fcf-4d53-72a1-81bf-f04b6763c601",
+  "turn_id": "019d9fcf-4d6d-70c3-ba7f-06497726b502",
   "input_lock": {
     "active": true,
     "scope": "deep-interview-auto-approval",
@@ -27,5 +27,5 @@
     "message": "Deep interview is active; auto-approval shortcuts are blocked until the interview finishes."
   },
   "iteration": 1,
-  "last_turn_at": "2026-04-18T08:57:44.494Z"
+  "last_turn_at": "2026-04-18T08:58:10.001Z"
 }
