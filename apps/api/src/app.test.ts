@@ -35,6 +35,7 @@ import {
   loadPaginatedCompetitionResults,
   loadPaginatedSeasonPointsMatrix,
   rankCompetitionResultsForSeasonPoints,
+  resolveSeasonPointsPlayersCount,
   runSeasonPointsAccrual,
 } from "./modules/season-standings";
 
@@ -2568,7 +2569,13 @@ test("buildSeasonScoringCompetitionUnits treats orphan round rows as standalone 
   ]);
 });
 
-test("runSeasonPointsAccrual uses scoring competition players_count for matrix lookup when fewer players finish", async () => {
+test("resolveSeasonPointsPlayersCount excludes DNF players from season points matrix lookup", () => {
+  assert.equal(resolveSeasonPointsPlayersCount(42, 3), 3);
+  assert.equal(resolveSeasonPointsPlayersCount(42, 0), 42);
+  assert.equal(resolveSeasonPointsPlayersCount(null, 0), 0);
+});
+
+test("runSeasonPointsAccrual uses only ranked non-DNF players for matrix lookup when fewer players finish", async () => {
   let savedStandings: Array<{
     players_count: number;
     raw_points: number;
@@ -2695,23 +2702,23 @@ test("runSeasonPointsAccrual uses scoring competition players_count for matrix l
   assert.equal(result.rowsPersisted, 3);
   assert.deepEqual(savedStandings, [
     {
-      players_count: 42,
-      raw_points: 80,
-      season_points: 240,
+      players_count: 3,
+      raw_points: 78.5,
+      season_points: 235.5,
       placement: 1,
       player_id: "player-1",
     },
     {
-      players_count: 42,
-      raw_points: 72,
-      season_points: 216,
+      players_count: 3,
+      raw_points: 70,
+      season_points: 210,
       placement: 2,
       player_id: "player-2",
     },
     {
-      players_count: 42,
-      raw_points: 65,
-      season_points: 195,
+      players_count: 3,
+      raw_points: 64,
+      season_points: 192,
       placement: 3,
       player_id: "player-3",
     },
@@ -2772,7 +2779,7 @@ test("runSeasonPointsAccrual does not apply season-specific minimum players thre
       async listSeasonPointsMatrix() {
         return [
           {
-            players_count: 8,
+            players_count: 1,
             placement: 1,
             points: 80,
           },
@@ -2801,7 +2808,7 @@ test("runSeasonPointsAccrual does not apply season-specific minimum players thre
   assert.deepEqual(savedStandings, [
     {
       competition_id: "event-2027-1",
-      players_count: 8,
+      players_count: 1,
       raw_points: 80,
       season_points: 80,
     },
@@ -2864,7 +2871,7 @@ test("runSeasonPointsAccrual clears stale season standings rows before overwrite
       async listSeasonPointsMatrix() {
         return [
           {
-            players_count: 24,
+            players_count: 1,
             placement: 1,
             points: 80,
           },
@@ -3006,7 +3013,7 @@ test("runSeasonPointsAccrual clears stale season comments after a successful rec
       async listSeasonPointsMatrix() {
         return [
           {
-            players_count: 24,
+            players_count: 1,
             placement: 1,
             points: 80,
           },

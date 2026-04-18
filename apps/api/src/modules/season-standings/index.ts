@@ -480,6 +480,10 @@ export function resolveSeasonPointsPlayersCount(
   competitionPlayersCount: number | null,
   rankedResultsCount: number,
 ): number {
+  if (Number.isInteger(rankedResultsCount) && rankedResultsCount > 0) {
+    return rankedResultsCount;
+  }
+
   const normalizedCompetitionPlayersCount =
     typeof competitionPlayersCount === "number" ? competitionPlayersCount : null;
 
@@ -488,10 +492,10 @@ export function resolveSeasonPointsPlayersCount(
     Number.isInteger(normalizedCompetitionPlayersCount) &&
     normalizedCompetitionPlayersCount > 0
   ) {
-    return Math.max(normalizedCompetitionPlayersCount, rankedResultsCount);
+    return normalizedCompetitionPlayersCount;
   }
 
-  return rankedResultsCount;
+  return 0;
 }
 
 function createSupabaseSeasonStandingsWriteAdapter(): SeasonStandingsWriteAdapter {
