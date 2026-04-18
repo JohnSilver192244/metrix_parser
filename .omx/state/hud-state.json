@@ -1,6 +1,6 @@
 {
-  "last_turn_at": "2026-04-18T11:22:45.882Z",
-  "turn_count": 427,
-  "last_agent_output": "Причина `500` на `/seasons` была в runtime-env web worker: код ожидал секреты в `camelCase` полях (`",
-  "last_progress_at": "2026-04-18T11:22:45.882Z"
+  "last_turn_at": "2026-04-18T12:23:22.409Z",
+  "turn_count": 437,
+  "last_agent_output": "Исправил начисление сезонных очков под новое правило: `DNF` больше не участвуют ни в выдаче очков, н",
+  "last_progress_at": "2026-04-18T12:23:22.409Z"
 }
