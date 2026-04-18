@@ -1,6 +1,6 @@
 {
-  "last_turn_at": "2026-04-18T11:03:07.836Z",
-  "turn_count": 425,
-  "last_agent_output": "В Cloudflare Pages это обычно здесь:\n\n1. Открой `Cloudflare Dashboard`\n2. Перейди в `Workers & Pages",
-  "last_progress_at": "2026-04-18T11:03:07.836Z"
+  "last_turn_at": "2026-04-18T11:22:45.882Z",
+  "turn_count": 427,
+  "last_agent_output": "Причина `500` на `/seasons` была в runtime-env web worker: код ожидал секреты в `camelCase` полях (`",
+  "last_progress_at": "2026-04-18T11:22:45.882Z"
 }
