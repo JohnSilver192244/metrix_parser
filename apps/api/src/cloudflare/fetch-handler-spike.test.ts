@@ -56,6 +56,46 @@ test("Cloudflare fetch handler serves a representative read route through /compe
   assert.equal(payload.meta.count, 1);
 });
 
+test("Cloudflare fetch handler strips client accept-encoding so large JSON responses stay parseable", async () => {
+  const handler = createCloudflareFetchHandler({
+    competitions: {
+      listCompetitions: async () =>
+        Array.from({ length: 120 }, (_, index) => ({
+          competitionId: `competition-${index + 1}`,
+          competitionName: `Competition ${index + 1}`,
+          competitionDate: "2026-04-21",
+          parentId: null,
+          courseId: null,
+          courseName: null,
+          categoryId: null,
+          comment: null,
+          recordType: "tournament",
+          playersCount: 48,
+          metrixId: `metrix-${index + 1}`,
+          hasResults: true,
+          seasonPoints: 186.4,
+        })),
+    },
+  });
+
+  const response = await handler(
+    new Request("https://example.com/competitions", {
+      headers: {
+        "accept-encoding": "gzip",
+      },
+    }),
+  );
+  const payload = (await response.json()) as {
+    data: Array<{ competitionId: string }>;
+    meta: { count: number };
+  };
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Content-Encoding"), null);
+  assert.equal(payload.data.length, 120);
+  assert.equal(payload.meta.count, 120);
+});
+
 test("Cloudflare fetch handler serves a protected write route through /updates/competitions", async () => {
   const handler = createCloudflareFetchHandler({
     updates: {

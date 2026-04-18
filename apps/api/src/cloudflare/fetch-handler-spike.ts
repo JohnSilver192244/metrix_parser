@@ -32,6 +32,9 @@ function toNodeRequestHeaders(request: Request): IncomingHttpHeaders {
   const headers: IncomingHttpHeaders = {};
 
   request.headers.forEach((value, key) => {
+    if (key.toLowerCase() === "accept-encoding") {
+      return;
+    }
     headers[key] = value;
   });
 
