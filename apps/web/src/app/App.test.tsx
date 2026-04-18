@@ -91,10 +91,11 @@ test("navigateToAppPath is a no-op when user selects the current route", () => {
 });
 
 test("AppShellView renders project title and linear SPA navigation", () => {
-  const markup = renderWithAuth("/competitions/competition-100");
+  const markup = renderWithAuth("/");
 
   assert.match(markup, /Сезонная таблица игроков РДГА/);
   assert.match(markup, /Тёмная тема/);
+  assert.match(markup, /Открыть меню/);
   assert.match(markup, /Настройки/);
   assert.match(markup, /Игроки/);
   assert.match(markup, /Соревнования/);
@@ -103,7 +104,7 @@ test("AppShellView renders project title and linear SPA navigation", () => {
   assert.doesNotMatch(markup, /Категории турниров/);
   assert.doesNotMatch(markup, /Дивизионы/);
   assert.doesNotMatch(markup, /Сезоны и очки/);
-  assert.match(markup, /Подтягиваем результаты соревнования/);
+  assert.match(markup, /Подтягиваем игроков и дивизионы/);
   assert.match(markup, />Выйти</);
   assert.doesNotMatch(markup, /Вы вошли как/);
   assert.doesNotMatch(markup, /Пользователи/);

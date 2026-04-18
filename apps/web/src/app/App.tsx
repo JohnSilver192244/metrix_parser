@@ -15,6 +15,10 @@ import {
   initWebPerformanceTracking,
   setActiveRouteForPerformance,
 } from "../shared/performance/route-performance";
+import {
+  MobileMenuDrawerProvider,
+} from "../shared/mobile-menu-context";
+import { SideDrawer } from "../shared/side-drawer";
 
 interface HistoryLike {
   pushState(
@@ -181,60 +185,97 @@ export function AppShellView({
   const activePathname = route?.activePath ?? route?.path ?? pathname;
   const canAccessRoute =
     !route?.requiresAuth || auth.status === "authenticated";
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
 
   return (
-    <main className="app-shell">
-      <header className="app-topbar">
-        <div className="app-topbar__row">
-          <div className="app-topbar__brand">
-            <h1 className="app-topbar__title">Сезонная таблица игроков РДГА</h1>
+    <MobileMenuDrawerProvider
+      value={{
+        isOpen: isMobileMenuOpen,
+        open: () => {
+          setIsMobileMenuOpen(true);
+        },
+        close: () => {
+          setIsMobileMenuOpen(false);
+        },
+        toggle: () => {
+          setIsMobileMenuOpen((currentValue) => !currentValue);
+        },
+      }}
+    >
+      <main className="app-shell">
+        <header className="app-topbar">
+          <div className="app-topbar__row">
+            <div className="app-topbar__brand">
+              <h1 className="app-topbar__title">Сезонная таблица игроков РДГА</h1>
+            </div>
+            <div className="app-topbar__actions">
+              <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+              <TopbarAuthControls />
+            </div>
           </div>
-          <div className="app-topbar__actions">
-            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-            <TopbarAuthControls />
-          </div>
-        </div>
-        <nav className="app-topbar__nav" aria-label="Основная навигация">
-          {visibleRoutes.map((appRoute) => {
-            const isActive = appRoute.path === activePathname;
+          <nav className="app-topbar__nav" aria-label="Основная навигация">
+            {visibleRoutes.map((appRoute) => {
+              const isActive = appRoute.path === activePathname;
 
-            return (
-              <button
-                key={appRoute.path}
-                type="button"
-                className={isActive ? "app-topbar__link app-topbar__link--active" : "app-topbar__link"}
-                onClick={() => {
-                  onNavigate(appRoute.path);
-                }}
-              >
-                {appRoute.label}
-              </button>
-            );
-          })}
-        </nav>
-      </header>
+              return (
+                <button
+                  key={appRoute.path}
+                  type="button"
+                  className={
+                    isActive ? "app-topbar__link app-topbar__link--active" : "app-topbar__link"
+                  }
+                  onClick={() => {
+                    onNavigate(appRoute.path);
+                  }}
+                >
+                  {appRoute.label}
+                </button>
+              );
+            })}
+          </nav>
+        </header>
 
-      <section className="app-content">
-        {route && route.requiresAuth && auth.status === "loading" ? (
-          <section className="state-panel state-panel--pending" aria-live="polite">
-            <p className="state-panel__eyebrow">loading</p>
-            <h2>Проверяем доступ</h2>
-            <p>Смотрим, есть ли активная сессия для административного раздела.</p>
-          </section>
-        ) : route && canAccessRoute ? (
-          <section key={route.path}>
-            {route.render({ onNavigate })}
-          </section>
-        ) : route ? (
-          <section className="state-panel">
-            <p className="state-panel__eyebrow">auth required</p>
-            <h2>Доступ к странице ограничен</h2>
-            <p>
-              Раздел «{route.label}» доступен только авторизованным пользователям.
-              Войдите через форму в правом верхнем углу или перейдите к
-              списку игроков.
-            </p>
-            <p>
+        <section className="app-content">
+          {route && route.requiresAuth && auth.status === "loading" ? (
+            <section className="state-panel state-panel--pending" aria-live="polite">
+              <p className="state-panel__eyebrow">loading</p>
+              <h2>Проверяем доступ</h2>
+              <p>Смотрим, есть ли активная сессия для административного раздела.</p>
+            </section>
+          ) : route && canAccessRoute ? (
+            <section key={route.path}>
+              {route.render({ onNavigate })}
+            </section>
+          ) : route ? (
+            <section className="state-panel">
+              <p className="state-panel__eyebrow">auth required</p>
+              <h2>Доступ к странице ограничен</h2>
+              <p>
+                Раздел «{route.label}» доступен только авторизованным пользователям.
+                Войдите через форму в правом верхнем углу или перейдите к
+                списку игроков.
+              </p>
+              <p>
+                <button
+                  type="button"
+                  className="app-topbar__link app-topbar__link--active"
+                  onClick={() => {
+                    onNavigate("/");
+                  }}
+                >
+                  Открыть игроков
+                </button>
+              </p>
+            </section>
+          ) : (
+            <section className="not-found-panel">
+              <p className="not-found-panel__eyebrow">route not found</p>
+              <h2>Эта страница пока не собрана.</h2>
+              <p>Вернитесь на главную страницу, чтобы продолжить работу.</p>
               <button
                 type="button"
                 className="app-topbar__link app-topbar__link--active"
@@ -242,28 +283,46 @@ export function AppShellView({
                   onNavigate("/");
                 }}
               >
-                Открыть игроков
+                На главную
               </button>
-            </p>
-          </section>
-        ) : (
-          <section className="not-found-panel">
-            <p className="not-found-panel__eyebrow">route not found</p>
-            <h2>Эта страница пока не собрана.</h2>
-            <p>Вернитесь на главную страницу, чтобы продолжить работу.</p>
-            <button
-              type="button"
-              className="app-topbar__link app-topbar__link--active"
-              onClick={() => {
-                onNavigate("/");
-              }}
-            >
-              На главную
-            </button>
-          </section>
-        )}
-      </section>
-    </main>
+            </section>
+          )}
+        </section>
+
+        <SideDrawer
+          open={isMobileMenuOpen}
+          title="Основная навигация"
+          className="side-drawer--menu"
+          onClose={() => {
+            setIsMobileMenuOpen(false);
+          }}
+        >
+          <div className="side-drawer__links">
+            {visibleRoutes.map((appRoute) => {
+              const isActive = appRoute.path === activePathname;
+
+              return (
+                <button
+                  key={appRoute.path}
+                  type="button"
+                  className={
+                    isActive
+                      ? "app-topbar__link app-topbar__link--active"
+                      : "app-topbar__link"
+                  }
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onNavigate(appRoute.path);
+                  }}
+                >
+                  {appRoute.label}
+                </button>
+              );
+            })}
+          </div>
+        </SideDrawer>
+      </main>
+    </MobileMenuDrawerProvider>
   );
 }
 

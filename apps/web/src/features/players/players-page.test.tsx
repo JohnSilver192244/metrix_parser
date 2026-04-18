@@ -92,6 +92,38 @@ test("PlayersPageView renders player identification fields", () => {
   assert.match(markup, /<td>1<\/td>/);
 });
 
+test("PlayersPageView renders mobile filters drawer content when opened", () => {
+  const markup = renderToStaticMarkup(
+    <PlayersPageView
+      state={{
+        status: "ready",
+        divisions: [{ code: "MPO" }],
+        seasons: defaultSeasons,
+        total: 1,
+        players: [
+          {
+            playerId: "player-500",
+            playerName: "Pavel Orlov",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonPoints: 42,
+            competitionsCount: 7,
+          },
+        ],
+      }}
+      mobileFiltersOpen={true}
+      onMobileFiltersClose={() => {}}
+    />,
+  );
+
+  assert.match(markup, /Фильтры игроков/);
+  assert.match(markup, /role="dialog"/);
+  assert.match(markup, /aria-label="Закрыть панель Фильтры игроков"/);
+  assert.match(markup, /Поиск по имени/);
+});
+
 test("PlayersPageView renders player name as in-app link button when navigation is provided", () => {
   const markup = renderToStaticMarkup(
     <PlayersPageView

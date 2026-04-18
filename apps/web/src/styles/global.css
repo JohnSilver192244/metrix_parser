@@ -409,6 +409,31 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.page-header__icon-button {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: var(--surface-bg);
+  color: var(--app-text);
+  cursor: pointer;
+  box-shadow: var(--surface-shadow);
+}
+
+.page-header__icon-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.page-header__icon-button:hover {
+  background: var(--link-hover-bg);
 }
 
 .page-header h1 {
@@ -1622,9 +1647,100 @@ body {
   overflow: visible;
 }
 
+.players-page__filters {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .players-page__table-panel .data-table-wrap {
   overflow-x: auto;
   overflow-y: visible;
+}
+
+.side-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.side-drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.side-drawer__panel {
+  position: relative;
+  width: min(360px, 88vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 16px 20px;
+  background: var(--surface-overlay-strong);
+  border-left: 1px solid var(--surface-border);
+  box-shadow: var(--surface-shadow-pop);
+  overflow-y: auto;
+}
+
+.side-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.side-drawer__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.side-drawer__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: var(--surface-bg);
+  color: var(--app-text);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.side-drawer__content {
+  display: grid;
+  gap: 12px;
+}
+
+.side-drawer__links {
+  display: grid;
+  gap: 6px;
+}
+
+.side-drawer--menu .app-topbar__link {
+  width: 100%;
+  justify-content: flex-start;
+  border-radius: 12px;
+}
+
+.side-drawer .players-page__filters {
+  margin-top: 0;
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.side-drawer .competitions-page__filter {
+  min-width: 0;
 }
 
 .players-page__table-panel .data-table th,
@@ -2360,6 +2476,14 @@ body {
     min-height: 48px;
   }
 
+  .app-topbar__nav {
+    display: none;
+  }
+
+  .page-header__icon-button {
+    display: inline-flex;
+  }
+
   .app-topbar__link {
     padding: 6px 10px;
     font-size: 0.82rem;
@@ -2475,5 +2599,17 @@ body {
   .courses-page__filter,
   .results-page__filter {
     min-width: 0;
+  }
+
+  .players-page__filters {
+    display: none;
+  }
+
+  .side-drawer .players-page__filters {
+    display: flex;
+  }
+
+  .page-header__title-row {
+    align-items: flex-start;
   }
 }

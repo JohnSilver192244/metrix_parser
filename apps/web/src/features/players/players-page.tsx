@@ -7,6 +7,7 @@ import { buildPlayerPath } from "../../app/route-paths";
 import { PageHeader } from "../../shared/page-header";
 import { ActionToast } from "../../shared/action-toast";
 import { FloatingInfoTooltip } from "../../shared/floating-info-tooltip";
+import { SideDrawer } from "../../shared/side-drawer";
 import { listDivisions } from "../../shared/api/divisions";
 import {
   listPlayers,
@@ -61,6 +62,7 @@ export interface PlayersPageViewProps {
   state: PlayersPageState;
   onNavigate?: (pathname: string) => void;
   pageTitleAction?: React.ReactNode;
+  mobileFiltersOpen?: boolean;
   nameQuery?: string;
   divisionFilter?: string;
   rdgaFilter?: PlayersRdgaFilter;
@@ -89,6 +91,7 @@ export interface PlayersPageViewProps {
   onSeasonDivisionChange?: (playerId: string, value: string) => void;
   onDivisionSave?: (playerId: string) => void;
   onToastClose?: () => void;
+  onMobileFiltersClose?: () => void;
 }
 
 function formatCompetitionsCount(value: number | undefined): string {
@@ -304,10 +307,115 @@ function resolveAriaSort(
   return sort.direction === "asc" ? "ascending" : "descending";
 }
 
+function FiltersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M4 6h16M7 12h10M10 18h4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+interface PlayersFiltersSectionProps {
+  nameQuery: string;
+  divisionFilter: string;
+  rdgaFilter: PlayersRdgaFilter;
+  seasonFilter: string;
+  divisionOptions: string[];
+  seasons: Season[];
+  onNameQueryChange?: (value: string) => void;
+  onDivisionFilterChange?: (value: string) => void;
+  onRdgaFilterChange?: (value: PlayersRdgaFilter) => void;
+  onSeasonFilterChange?: (value: string) => void;
+}
+
+function PlayersFiltersSection({
+  nameQuery,
+  divisionFilter,
+  rdgaFilter,
+  seasonFilter,
+  divisionOptions,
+  seasons,
+  onNameQueryChange,
+  onDivisionFilterChange,
+  onRdgaFilterChange,
+  onSeasonFilterChange,
+}: PlayersFiltersSectionProps) {
+  return (
+    <section className="players-page__filters" aria-label="Фильтр игроков">
+      <label className="competitions-page__filter">
+        <span>Имя игрока</span>
+        <input
+          className="competitions-page__filter-control"
+          type="search"
+          value={nameQuery}
+          placeholder="Поиск по имени"
+          onChange={(event) => {
+            onNameQueryChange?.(event.target.value);
+          }}
+        />
+      </label>
+      <label className="competitions-page__filter">
+        <span>Дивизион</span>
+        <select
+          className="competitions-page__filter-control"
+          value={divisionFilter}
+          onChange={(event) => {
+            onDivisionFilterChange?.(event.target.value);
+          }}
+        >
+          <option value="">Все дивизионы</option>
+          {divisionOptions.map((divisionCode) => (
+            <option key={divisionCode} value={divisionCode}>
+              {divisionCode}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="competitions-page__filter">
+        <span>Сезон</span>
+        <select
+          className="competitions-page__filter-control"
+          value={seasonFilter}
+          onChange={(event) => {
+            onSeasonFilterChange?.(event.target.value);
+          }}
+        >
+          {seasons.map((season) => (
+            <option key={season.seasonCode} value={season.seasonCode}>
+              {season.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="competitions-page__filter">
+        <span>RDGA</span>
+        <select
+          className="competitions-page__filter-control"
+          value={rdgaFilter}
+          onChange={(event) => {
+            onRdgaFilterChange?.(event.target.value as PlayersRdgaFilter);
+          }}
+        >
+          <option value="all">Все</option>
+          <option value="rdga">Только RDGA</option>
+          <option value="non-rdga">Без RDGA</option>
+        </select>
+      </label>
+    </section>
+  );
+}
+
 export function PlayersPageView({
   state,
   onNavigate,
   pageTitleAction,
+  mobileFiltersOpen = false,
   nameQuery = "",
   divisionFilter = "",
   rdgaFilter = "all",
@@ -336,6 +444,7 @@ export function PlayersPageView({
   onSeasonDivisionChange,
   onDivisionSave,
   onToastClose,
+  onMobileFiltersClose,
 }: PlayersPageViewProps) {
   const divisions = state.status === "ready" ? state.divisions : [];
   const players = state.status === "ready" ? state.players : [];
@@ -444,67 +553,18 @@ export function PlayersPageView({
         </section>
       ) : (
         <>
-          <section className="competitions-page__filters" aria-label="Фильтр игроков">
-            <label className="competitions-page__filter">
-              <span>Имя игрока</span>
-              <input
-                className="competitions-page__filter-control"
-                type="search"
-                value={nameQuery}
-                placeholder="Поиск по имени"
-                onChange={(event) => {
-                  onNameQueryChange?.(event.target.value);
-                }}
-              />
-            </label>
-            <label className="competitions-page__filter">
-              <span>Дивизион</span>
-              <select
-                className="competitions-page__filter-control"
-                value={divisionFilter}
-                onChange={(event) => {
-                  onDivisionFilterChange?.(event.target.value);
-                }}
-              >
-                <option value="">Все дивизионы</option>
-                {divisionOptions.map((divisionCode) => (
-                  <option key={divisionCode} value={divisionCode}>
-                    {divisionCode}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="competitions-page__filter">
-              <span>Сезон</span>
-              <select
-                className="competitions-page__filter-control"
-                value={seasonFilter}
-                onChange={(event) => {
-                  onSeasonFilterChange?.(event.target.value);
-                }}
-              >
-                {seasons.map((season) => (
-                  <option key={season.seasonCode} value={season.seasonCode}>
-                    {season.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="competitions-page__filter">
-              <span>RDGA</span>
-              <select
-                className="competitions-page__filter-control"
-                value={rdgaFilter}
-                onChange={(event) => {
-                  onRdgaFilterChange?.(event.target.value as PlayersRdgaFilter);
-                }}
-              >
-                <option value="all">Все</option>
-                <option value="rdga">Только RDGA</option>
-                <option value="non-rdga">Без RDGA</option>
-              </select>
-            </label>
-          </section>
+          <PlayersFiltersSection
+            nameQuery={nameQuery}
+            divisionFilter={divisionFilter}
+            rdgaFilter={rdgaFilter}
+            seasonFilter={seasonFilter}
+            divisionOptions={divisionOptions}
+            seasons={seasons}
+            onNameQueryChange={onNameQueryChange}
+            onDivisionFilterChange={onDivisionFilterChange}
+            onRdgaFilterChange={onRdgaFilterChange}
+            onSeasonFilterChange={onSeasonFilterChange}
+          />
 
           {visiblePlayers.length === 0 ? (
             <section className="state-panel" aria-live="polite">
@@ -815,6 +875,27 @@ export function PlayersPageView({
               ) : null}
             </section>
           )}
+          <SideDrawer
+            open={mobileFiltersOpen}
+            title="Фильтры игроков"
+            className="side-drawer--filters"
+            onClose={() => {
+              onMobileFiltersClose?.();
+            }}
+          >
+            <PlayersFiltersSection
+              nameQuery={nameQuery}
+              divisionFilter={divisionFilter}
+              rdgaFilter={rdgaFilter}
+              seasonFilter={seasonFilter}
+              divisionOptions={divisionOptions}
+              seasons={seasons}
+              onNameQueryChange={onNameQueryChange}
+              onDivisionFilterChange={onDivisionFilterChange}
+              onRdgaFilterChange={onRdgaFilterChange}
+              onSeasonFilterChange={onSeasonFilterChange}
+            />
+          </SideDrawer>
         </>
       )}
 
@@ -863,6 +944,7 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
   );
   const [sort, setSort] = useState<PlayersSort>(DEFAULT_PLAYERS_SORT);
   const [currentPage, setCurrentPage] = useState(1);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [saveState, setSaveState] = useState<{
     status: "idle" | "saving" | "success" | "error";
     playerId: string | null;
@@ -884,6 +966,36 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
           },
     );
   }
+
+  const editToggleButton =
+    isAuthenticated && forceCanEdit === undefined ? (
+      <button
+        type="button"
+        className="update-card__submit settings-page__edit-toggle"
+        onClick={() => {
+          setIsEditModeEnabled((current) => !current);
+        }}
+      >
+        {isEditModeEnabled ? "Просмотр" : "Редактировать"}
+      </button>
+    ) : null;
+
+  const pageTitleAction = (
+    <>
+      <button
+        type="button"
+        className="page-header__icon-button page-header__icon-button--filters"
+        aria-label={mobileFiltersOpen ? "Закрыть фильтры" : "Открыть фильтры"}
+        aria-expanded={mobileFiltersOpen}
+        onClick={() => {
+          setMobileFiltersOpen((currentValue) => !currentValue);
+        }}
+      >
+        <FiltersIcon />
+      </button>
+      {editToggleButton}
+    </>
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -1061,19 +1173,8 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
       seasonFilter={seasonFilter}
       sort={sort}
       canEdit={forceCanEdit ?? (isAuthenticated && isEditModeEnabled)}
-      pageTitleAction={
-        isAuthenticated && forceCanEdit === undefined ? (
-          <button
-            type="button"
-            className="update-card__submit settings-page__edit-toggle"
-            onClick={() => {
-              setIsEditModeEnabled((current) => !current);
-            }}
-          >
-            {isEditModeEnabled ? "Просмотр" : "Редактировать"}
-          </button>
-        ) : null
-      }
+      pageTitleAction={pageTitleAction}
+      mobileFiltersOpen={mobileFiltersOpen}
       divisionDrafts={divisionDrafts}
       rdgaDrafts={rdgaDrafts}
       rdgaSinceDrafts={rdgaSinceDrafts}
@@ -1181,6 +1282,9 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
         void handleDivisionSave(playerId);
       }}
       onToastClose={resetSaveState}
+      onMobileFiltersClose={() => {
+        setMobileFiltersOpen(false);
+      }}
     />
   );
 }
