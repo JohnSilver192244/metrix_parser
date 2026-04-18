@@ -4,6 +4,9 @@ coverage
 .DS_Store
 .env
 .env.local
+.omx/
+.bmad/
+apps/**/.wrangler/
 apps/*/dist
 packages/*/dist
 supabase/.temp
