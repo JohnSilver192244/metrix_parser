@@ -84,6 +84,15 @@ export function resolveCompetitionResultSourceIds<T extends CompetitionHierarchy
     }
   }
 
+  // Preserve detail/list consistency for single-child wrappers such as
+  // record_type=5 tour shells that wrap one event which then owns the rounds.
+  if (directChildren.length === 1) {
+    const [onlyChild] = directChildren;
+    if (onlyChild) {
+      return resolveCompetitionResultSourceIds(onlyChild, childrenByParentId);
+    }
+  }
+
   return [competition.competitionId];
 }
 

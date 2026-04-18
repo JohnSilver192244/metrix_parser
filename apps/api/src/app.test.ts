@@ -4,6 +4,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import { gunzipSync } from "node:zlib";
 
+import {
+  buildCompetitionChildrenByParentId,
+  resolveCompetitionResultSourceIds,
+} from "@metrix-parser/shared-types";
+
 import { createApiRequestHandler } from "./app";
 import { HttpError } from "./lib/http-errors";
 import { createRouter, type RouteDefinition } from "./lib/router";
@@ -642,6 +647,33 @@ test("resolveCompetitionIdsWithResultsIncludingDescendants marks parents when ch
 
   assert.deepEqual(Array.from(ids).sort(), ["event", "round", "tour"]);
   assert.equal(ids.has("standalone"), false);
+});
+
+test("resolveCompetitionResultSourceIds follows a single-child wrapper chain down to rounds", () => {
+  const hierarchy = [
+    {
+      competitionId: "tour",
+      parentId: null,
+      recordType: "5",
+    },
+    {
+      competitionId: "event",
+      parentId: "tour",
+      recordType: "4",
+    },
+    {
+      competitionId: "round",
+      parentId: "event",
+      recordType: "1",
+    },
+  ];
+
+  const resultCompetitionIds = resolveCompetitionResultSourceIds(
+    hierarchy[0],
+    buildCompetitionChildrenByParentId(hierarchy),
+  );
+
+  assert.deepEqual(resultCompetitionIds, ["round"]);
 });
 
 test("GET /courses returns persisted parks via the API envelope", async () => {
