@@ -10,6 +10,10 @@ import {
 import { loadApiEnv } from "../config/env";
 import { recordSqlCall } from "./performance";
 
+type RuntimeGlobals = typeof globalThis & {
+  WebSocketPair?: unknown;
+};
+
 function ensureFetchGlobals() {
   if (typeof globalThis.fetch !== "function") {
     globalThis.fetch = undiciFetch as unknown as typeof globalThis.fetch;
@@ -38,7 +42,7 @@ const supabaseHttpAgent = new Agent({
 let cachedApiSupabaseClient: ReturnType<typeof createClient<any>> | null = null;
 
 export function canUseUndiciDispatcher(): boolean {
-  return typeof WebSocketPair === "undefined";
+  return typeof (globalThis as RuntimeGlobals).WebSocketPair === "undefined";
 }
 
 export function shouldRetryWithoutDispatcher(error: unknown): boolean {

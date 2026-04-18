@@ -6,19 +6,24 @@ import {
   shouldRetryWithoutDispatcher,
 } from "./supabase-admin";
 
+type RuntimeGlobals = typeof globalThis & {
+  WebSocketPair?: unknown;
+};
+
 test("canUseUndiciDispatcher disables dispatcher init in workerd-like runtimes", () => {
-  const previousWebSocketPair = globalThis.WebSocketPair;
+  const runtimeGlobals = globalThis as RuntimeGlobals;
+  const previousWebSocketPair = runtimeGlobals.WebSocketPair;
 
   try {
-    Object.assign(globalThis, {
+    Object.assign(runtimeGlobals, {
       WebSocketPair: class WebSocketPairMock {},
     });
     assert.equal(canUseUndiciDispatcher(), false);
   } finally {
     if (typeof previousWebSocketPair === "undefined") {
-      delete (globalThis as typeof globalThis & { WebSocketPair?: unknown }).WebSocketPair;
+      delete runtimeGlobals.WebSocketPair;
     } else {
-      Object.assign(globalThis, {
+      Object.assign(runtimeGlobals, {
         WebSocketPair: previousWebSocketPair,
       });
     }
