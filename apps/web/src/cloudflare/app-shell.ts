@@ -17,6 +17,14 @@ export interface CloudflareAppShellEnv extends CloudflareApiRuntimeEnv {
   ASSETS: AssetsBinding;
 }
 
+type CloudflareEnvBindings = {
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  DISCGOLFMETRIX_BASE_URL?: string;
+  DISCGOLFMETRIX_COUNTRY_CODE?: string;
+  DISCGOLFMETRIX_API_CODE?: string;
+};
+
 export interface ScheduledControllerLike {
   cron: string;
   scheduledTime: number;
@@ -53,22 +61,29 @@ function normalizeOptionalEnvValue(value: string | undefined): string | undefine
 export function resolveCloudflareAppShellEnv(
   env: CloudflareAppShellEnv,
 ): CloudflareAppShellEnv {
+  const bindings = env as CloudflareAppShellEnv & CloudflareEnvBindings;
+
   return {
     ...env,
     supabaseUrl:
       env.supabaseUrl ??
+      normalizeOptionalEnvValue(bindings.SUPABASE_URL) ??
       normalizeOptionalEnvValue(globalThis.__LOCAL_SUPABASE_URL__),
     supabaseServiceRoleKey:
       env.supabaseServiceRoleKey ??
+      normalizeOptionalEnvValue(bindings.SUPABASE_SERVICE_ROLE_KEY) ??
       normalizeOptionalEnvValue(globalThis.__LOCAL_SUPABASE_SERVICE_ROLE_KEY__),
     discGolfMetrixBaseUrl:
       env.discGolfMetrixBaseUrl ??
+      normalizeOptionalEnvValue(bindings.DISCGOLFMETRIX_BASE_URL) ??
       normalizeOptionalEnvValue(globalThis.__LOCAL_DISCGOLFMETRIX_BASE_URL__),
     discGolfMetrixCountryCode:
       env.discGolfMetrixCountryCode ??
+      normalizeOptionalEnvValue(bindings.DISCGOLFMETRIX_COUNTRY_CODE) ??
       normalizeOptionalEnvValue(globalThis.__LOCAL_DISCGOLFMETRIX_COUNTRY_CODE__),
     discGolfMetrixApiCode:
       env.discGolfMetrixApiCode ??
+      normalizeOptionalEnvValue(bindings.DISCGOLFMETRIX_API_CODE) ??
       normalizeOptionalEnvValue(globalThis.__LOCAL_DISCGOLFMETRIX_API_CODE__),
   };
 }

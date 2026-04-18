@@ -140,6 +140,28 @@ test("resolveCloudflareAppShellEnv falls back to build-time local env constants"
   }
 });
 
+test("resolveCloudflareAppShellEnv reads Cloudflare uppercase bindings", () => {
+  const resolved = resolveCloudflareAppShellEnv({
+    ASSETS: {
+      fetch: async () => new Response("assets"),
+    },
+    SUPABASE_URL: "https://supabase.uppercase.example",
+    SUPABASE_SERVICE_ROLE_KEY: "uppercase-service-role-key",
+    DISCGOLFMETRIX_BASE_URL: "https://discgolfmetrix.uppercase.example",
+    DISCGOLFMETRIX_COUNTRY_CODE: "FI",
+    DISCGOLFMETRIX_API_CODE: "uppercase-secret",
+  } as Parameters<typeof resolveCloudflareAppShellEnv>[0]);
+
+  assert.equal(resolved.supabaseUrl, "https://supabase.uppercase.example");
+  assert.equal(resolved.supabaseServiceRoleKey, "uppercase-service-role-key");
+  assert.equal(
+    resolved.discGolfMetrixBaseUrl,
+    "https://discgolfmetrix.uppercase.example",
+  );
+  assert.equal(resolved.discGolfMetrixCountryCode, "FI");
+  assert.equal(resolved.discGolfMetrixApiCode, "uppercase-secret");
+});
+
 test("Cloudflare app shell dispatches known scheduled cron jobs through the unified runtime", async () => {
   let receivedCron = "";
   const shell = createCloudflareAppShell(
