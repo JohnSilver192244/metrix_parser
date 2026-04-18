@@ -413,7 +413,7 @@ body {
 }
 
 .page-header__icon-button {
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 40px;
@@ -425,6 +425,10 @@ body {
   color: var(--app-text);
   cursor: pointer;
   box-shadow: var(--surface-shadow);
+}
+
+.page-header__icon-button--menu {
+  display: none;
 }
 
 .page-header__icon-button svg {
@@ -2497,6 +2501,10 @@ body {
   }
 
   .page-header__icon-button {
+    display: inline-flex;
+  }
+
+  .page-header__icon-button--menu {
     display: inline-flex;
   }
 

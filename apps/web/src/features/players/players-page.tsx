@@ -553,19 +553,6 @@ export function PlayersPageView({
         </section>
       ) : (
         <>
-          <PlayersFiltersSection
-            nameQuery={nameQuery}
-            divisionFilter={divisionFilter}
-            rdgaFilter={rdgaFilter}
-            seasonFilter={seasonFilter}
-            divisionOptions={divisionOptions}
-            seasons={seasons}
-            onNameQueryChange={onNameQueryChange}
-            onDivisionFilterChange={onDivisionFilterChange}
-            onRdgaFilterChange={onRdgaFilterChange}
-            onSeasonFilterChange={onSeasonFilterChange}
-          />
-
           {visiblePlayers.length === 0 ? (
             <section className="state-panel" aria-live="polite">
               <p className="state-panel__eyebrow">filtered</p>

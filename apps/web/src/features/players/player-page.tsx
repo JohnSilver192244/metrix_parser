@@ -487,15 +487,7 @@ export function PlayerPageView({
         description={`Metrix ID: ${player.playerId}`}
       />
 
-      {hasSeasonContext ? (
-        <PlayerResultsFiltersSection
-          seasonCode={seasonCode}
-          period={period}
-          seasons={seasons}
-          onSeasonCodeChange={onSeasonCodeChange}
-          onPeriodChange={onPeriodChange}
-        />
-      ) : (
+      {hasSeasonContext ? null : (
         <section className="state-panel" aria-live="polite">
           <p className="state-panel__eyebrow">empty</p>
           <h2>Нет активного сезона</h2>

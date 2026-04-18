@@ -867,37 +867,6 @@ export function CompetitionsPageView({
             </section>
           ) : null}
 
-          <CompetitionsFiltersSection
-            nameQuery={nameQuery}
-            periodFilter={periodFilter}
-            periodPresets={periodPresets}
-            courseFilter={courseFilter}
-            categoryFilter={categoryFilter}
-            withoutResultsOnly={withoutResultsOnly}
-            courseOptions={courseOptions}
-            sortedCategories={sortedCategories}
-            onNameQueryChange={(value) => {
-              setNameQuery(value);
-              onPageChange?.(1);
-            }}
-            onPeriodChange={(period) => {
-              setPeriodFilter(period);
-              onPageChange?.(1);
-            }}
-            onCourseFilterChange={(value) => {
-              setCourseFilter(value);
-              onPageChange?.(1);
-            }}
-            onCategoryFilterChange={(value) => {
-              setCategoryFilter(value);
-              onPageChange?.(1);
-            }}
-            onWithoutResultsOnlyChange={(value) => {
-              setWithoutResultsOnly(value);
-              onPageChange?.(1);
-            }}
-          />
-
           {visibleCompetitions.length === 0 ? (
             <section className="state-panel" aria-live="polite">
               <p className="state-panel__eyebrow">filtered</p>

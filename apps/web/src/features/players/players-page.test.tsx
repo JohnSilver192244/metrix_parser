@@ -63,8 +63,6 @@ test("PlayersPageView renders player identification fields", () => {
     />,
   );
 
-  assert.match(markup, /Поиск по имени/);
-  assert.match(markup, /type="search"/);
   assert.match(markup, /<table/);
   assert.match(markup, /Pavel → Orlov/);
   assert.match(markup, /data-table__external-link/);
@@ -80,9 +78,7 @@ test("PlayersPageView renders player identification fields", () => {
   assert.match(markup, /Очки сезона/);
   assert.match(markup, /Очки зачета/);
   assert.match(markup, /Соревнований/);
-  assert.match(markup, /Сохранить/);
   assert.match(markup, /MPO/);
-  assert.match(markup, /Сезон 2026/);
   assert.match(markup, /type="checkbox"/);
   assert.match(markup, /type="date"/);
   assert.match(markup, /Не выбран/);
@@ -121,7 +117,6 @@ test("PlayersPageView renders mobile filters drawer content when opened", () => 
   assert.match(markup, /Фильтры игроков/);
   assert.match(markup, /role="dialog"/);
   assert.match(markup, /aria-label="Закрыть панель Фильтры игроков"/);
-  assert.match(markup, /Поиск по имени/);
 });
 
 test("PlayersPageView renders player name as in-app link button when navigation is provided", () => {
@@ -239,9 +234,12 @@ test("PlayersPageView filters players by division and RDGA", () => {
       }}
       divisionFilter="MA2"
       rdgaFilter="non-rdga"
+      mobileFiltersOpen={true}
+      onMobileFiltersClose={() => {}}
     />,
   );
 
+  assert.match(markup, /Фильтр игроков/);
   assert.match(markup, /Все дивизионы/);
   assert.match(markup, /<option value="MA2" selected="">MA2<\/option>/);
   assert.match(markup, /Sergey Petrov/);

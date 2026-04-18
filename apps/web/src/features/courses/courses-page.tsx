@@ -4,6 +4,7 @@ import type { Course } from "@metrix-parser/shared-types";
 
 import { PageHeader } from "../../shared/page-header";
 import { FloatingInfoTooltip } from "../../shared/floating-info-tooltip";
+import { SideDrawer } from "../../shared/side-drawer";
 import {
   listCourses,
   resolveCoursesErrorMessage,
@@ -85,6 +86,7 @@ function renderRatingCell(course: Course, rating: number | null): React.ReactNod
 
 export interface CoursesPageViewProps {
   state: CoursesPageState;
+  mobileFiltersOpen?: boolean;
 }
 
 const coursesNameFilterStorageKey = "courses-page:name-filter";
@@ -107,7 +109,81 @@ function collectCourseFilterOptions(
   );
 }
 
-export function CoursesPageView({ state }: CoursesPageViewProps) {
+function FiltersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M4 6h16M7 12h10M10 18h4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+interface CoursesFiltersSectionProps {
+  nameFilter: string;
+  regionFilter: string;
+  nameOptions: string[];
+  regionOptions: string[];
+  onNameFilterChange?: (value: string) => void;
+  onRegionFilterChange?: (value: string) => void;
+}
+
+function CoursesFiltersSection({
+  nameFilter,
+  regionFilter,
+  nameOptions,
+  regionOptions,
+  onNameFilterChange,
+  onRegionFilterChange,
+}: CoursesFiltersSectionProps) {
+  return (
+    <section className="courses-page__filters" aria-label="Фильтры парков">
+      <label className="courses-page__filter">
+        <span>Название парка</span>
+        <select
+          className="courses-page__filter-control"
+          value={nameFilter}
+          onChange={(event) => {
+            onNameFilterChange?.(event.target.value);
+          }}
+        >
+          <option value="">Все парки</option>
+          {nameOptions.map((courseName) => (
+            <option key={courseName} value={courseName}>
+              {courseName}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="courses-page__filter">
+        <span>Регион</span>
+        <select
+          className="courses-page__filter-control"
+          value={regionFilter}
+          onChange={(event) => {
+            onRegionFilterChange?.(event.target.value);
+          }}
+        >
+          <option value="">Все регионы</option>
+          {regionOptions.map((regionName) => (
+            <option key={regionName} value={regionName}>
+              {regionName}
+            </option>
+          ))}
+        </select>
+      </label>
+    </section>
+  );
+}
+
+export function CoursesPageView({
+  state,
+  mobileFiltersOpen = false,
+}: CoursesPageViewProps) {
   const [nameFilter, setNameFilter] = useSessionStorageState(
     coursesNameFilterStorageKey,
     "",
@@ -116,6 +192,7 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
     coursesRegionFilterStorageKey,
     "",
   );
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(mobileFiltersOpen);
   const courses = state.status === "ready" ? state.courses : [];
   const total = state.status === "ready" ? state.total : 0;
   const nameOptions = useMemo(
@@ -140,6 +217,19 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
         return true;
       }),
     [courses, nameFilter, regionFilter],
+  );
+  const filtersAction = (
+    <button
+      type="button"
+      className="page-header__icon-button page-header__icon-button--filters"
+      aria-label={isMobileFiltersOpen ? "Закрыть фильтры" : "Открыть фильтры"}
+      aria-expanded={isMobileFiltersOpen}
+      onClick={() => {
+        setIsMobileFiltersOpen((currentValue) => !currentValue);
+      }}
+    >
+      <FiltersIcon />
+    </button>
   );
 
   if (state.status === "loading") {
@@ -183,6 +273,7 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
       <PageHeader
         titleId="courses-page-title"
         title="Список парков"
+        titleAction={filtersAction}
         description={
           total > 0
             ? `В системе доступно ${total} парков с уже рассчитанным coursePar.`
@@ -198,43 +289,6 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
         </section>
       ) : (
         <>
-          <section className="courses-page__filters" aria-label="Фильтры парков">
-            <label className="courses-page__filter">
-              <span>Название парка</span>
-              <select
-                className="courses-page__filter-control"
-                value={nameFilter}
-                onChange={(event) => {
-                  setNameFilter(event.target.value);
-                }}
-              >
-                <option value="">Все парки</option>
-                {nameOptions.map((courseName) => (
-                  <option key={courseName} value={courseName}>
-                    {courseName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="courses-page__filter">
-              <span>Регион</span>
-              <select
-                className="courses-page__filter-control"
-                value={regionFilter}
-                onChange={(event) => {
-                  setRegionFilter(event.target.value);
-                }}
-              >
-                <option value="">Все регионы</option>
-                {regionOptions.map((regionName) => (
-                  <option key={regionName} value={regionName}>
-                    {regionName}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </section>
-
           {visibleCourses.length === 0 ? (
             <section className="state-panel" aria-live="polite">
               <p className="state-panel__eyebrow">filtered</p>
@@ -281,6 +335,28 @@ export function CoursesPageView({ state }: CoursesPageViewProps) {
               </div>
             </section>
           )}
+
+          <SideDrawer
+            open={isMobileFiltersOpen}
+            title="Фильтры парков"
+            className="side-drawer--filters"
+            onClose={() => {
+              setIsMobileFiltersOpen(false);
+            }}
+          >
+            <CoursesFiltersSection
+              nameFilter={nameFilter}
+              regionFilter={regionFilter}
+              nameOptions={nameOptions}
+              regionOptions={regionOptions}
+              onNameFilterChange={(value) => {
+                setNameFilter(value);
+              }}
+              onRegionFilterChange={(value) => {
+                setRegionFilter(value);
+              }}
+            />
+          </SideDrawer>
         </>
       )}
     </section>

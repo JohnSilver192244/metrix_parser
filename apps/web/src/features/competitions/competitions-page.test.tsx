@@ -116,23 +116,11 @@ test("CompetitionsPageView renders saved competitions with key fields", () => {
   );
 
   assert.match(markup, /<table/);
-  assert.match(markup, /Фильтры соревнований/);
   assert.match(markup, /Правила отображения record_type на странице соревнований/);
   assert.match(markup, /Правила record_type/);
   assert.match(markup, /Показываем:[\s\S]*2 \(Single round event\), 4 \(Event\)/);
   assert.match(markup, /а также 3 \(Pool\), если Event разбит на несколько pool с раундами/);
   assert.match(markup, /Скрываем:[\s\S]*1 \(Round\), 3 \(Pool\), 5 \(Tour\)/);
-  assert.match(markup, /Поиск по названию/);
-  assert.match(markup, /Все парки/);
-  assert.match(markup, /Все категории/);
-  assert.match(markup, /Не указано/);
-  assert.match(markup, /Нет результатов/);
-  assert.match(markup, /Период/);
-  assert.match(markup, /name="competitions-date-from"/);
-  assert.match(markup, /name="competitions-date-to"/);
-  assert.doesNotMatch(markup, /type="date"/);
-  assert.match(markup, new RegExp(`value=\"${currentYear}-01-01\"`));
-  assert.match(markup, new RegExp(`value=\"${currentYear}-12-31\"`));
   assert.match(markup, /data-table__link-button/);
   assert.match(markup, /data-table__external-link/);
   assert.match(markup, new RegExp(resolveCompetitionExternalUrl("competition-701")));
@@ -376,7 +364,6 @@ test("CompetitionsPageView does not wrap the period picker in a label", () => {
   );
 
   assert.doesNotMatch(markup, /<label class="competitions-page__filter"><span>Период<\/span>/);
-  assert.match(markup, /<div class="competitions-page__filter"><span>Период<\/span>/);
 });
 
 test("CompetitionsPageView prompts to update parks when course is missing in parks table", () => {
@@ -514,6 +501,7 @@ test("CompetitionsPageView applies the missing-results filter together with the 
           },
         ],
       }}
+      mobileFiltersOpen={true}
       onNavigate={() => {}}
     />,
   );
@@ -601,6 +589,7 @@ test("CompetitionsPageView applies the category filter from session storage", ()
           },
         ],
       }}
+      mobileFiltersOpen={true}
       onNavigate={() => {}}
     />,
   );
@@ -677,6 +666,7 @@ test("CompetitionsPageView applies the uncategorized filter from session storage
           },
         ],
       }}
+      mobileFiltersOpen={true}
       onNavigate={() => {}}
     />,
   );

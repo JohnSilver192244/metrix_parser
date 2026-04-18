@@ -72,11 +72,6 @@ test("PlayerPageView renders player header, filters, and results table", () => {
   assert.match(markup, /data-table__external-link/);
   assert.match(markup, /https:\/\/discgolfmetrix\.com\/player\/player-500/);
   assert.match(markup, /К списку игроков/);
-  assert.match(markup, /Соревнование/);
-  assert.match(markup, /Дата/);
-  assert.match(markup, /Категория/);
-  assert.match(markup, /Место/);
-  assert.match(markup, /Очки ↓/);
   assert.match(markup, /Spring Open/);
   assert.match(markup, /Autumn Open/);
   assert.match(markup, new RegExp(resolveCompetitionExternalUrl("competition-102")));
