@@ -183,7 +183,7 @@ test("CompetitionsPageView renders visible pagination with 25 competitions per p
         categories: [],
         courses: [],
         courseNamesById: {},
-        competitions: competitions.slice(0, 25),
+        competitions,
       }}
       currentPage={1}
       onNavigate={() => {}}

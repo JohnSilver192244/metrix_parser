@@ -478,24 +478,24 @@ export function buildSeasonScoringCompetitionUnits(
 
 export function resolveSeasonPointsPlayersCount(
   competitionPlayersCount: number | null,
+  competitionResults: readonly CompetitionResultRecord[],
   rankedResultsCount: number,
 ): number {
-  if (Number.isInteger(rankedResultsCount) && rankedResultsCount > 0) {
-    return rankedResultsCount;
-  }
-
   const normalizedCompetitionPlayersCount =
     typeof competitionPlayersCount === "number" ? competitionPlayersCount : null;
-
-  if (
+  const uniqueDnfPlayersCount = new Set(
+    competitionResults
+      .filter((result) => result.dnf === true)
+      .map((result) => result.player_id),
+  ).size;
+  const normalizedOfficialParticipantsCount =
     normalizedCompetitionPlayersCount !== null &&
     Number.isInteger(normalizedCompetitionPlayersCount) &&
     normalizedCompetitionPlayersCount > 0
-  ) {
-    return normalizedCompetitionPlayersCount;
-  }
+      ? Math.max(0, normalizedCompetitionPlayersCount - uniqueDnfPlayersCount)
+      : 0;
 
-  return 0;
+  return Math.max(normalizedOfficialParticipantsCount, rankedResultsCount);
 }
 
 function createSupabaseSeasonStandingsWriteAdapter(): SeasonStandingsWriteAdapter {
@@ -784,6 +784,7 @@ export async function runSeasonPointsAccrual(
     );
     const participantsCount = resolveSeasonPointsPlayersCount(
       competition.players_count,
+      resultsForCompetition,
       rankedResults.length,
     );
     const hasExistingRows =

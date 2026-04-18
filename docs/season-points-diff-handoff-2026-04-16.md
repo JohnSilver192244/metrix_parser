@@ -150,7 +150,7 @@ Files:
 
 - `scripts/generate-season-points-migration.mjs`
 - `scripts/generate-season-points-migration.test.mjs`
-- `supabase/migrations/0027_refresh_season_points_matrix_2025_2026.sql`
+- `supabase/migrations/0028_refresh_season_points_matrix_2025_2026.sql`
 - `package.json`
 
 ### What was added
@@ -203,7 +203,7 @@ Product files on `main`:
 - `apps/worker/src/parsing/result-player.ts`
 - `scripts/generate-season-points-migration.mjs`
 - `scripts/generate-season-points-migration.test.mjs`
-- `supabase/migrations/0027_refresh_season_points_matrix_2025_2026.sql`
+- `supabase/migrations/0028_refresh_season_points_matrix_2025_2026.sql`
 - `package.json`
 - this handoff document
 

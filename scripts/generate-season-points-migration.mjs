@@ -1,0 +1,206 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export const DEFAULT_CSV_PATH = path.resolve(
+  __dirname,
+  "../docs/ДГ Россия 2026 - Таблица Баллов 2026 (1).csv",
+);
+export const DEFAULT_OUTPUT_PATH = path.resolve(
+  __dirname,
+  "../supabase/migrations/0028_refresh_season_points_matrix_2025_2026.sql",
+);
+
+const DEFAULT_SEASONS = [
+  {
+    seasonCode: "2025",
+    name: "Сезон РДГА 2025",
+    dateFrom: "2025-01-01",
+    dateTo: "2025-12-31",
+  },
+  {
+    seasonCode: "2026",
+    name: "Сезон РДГА 2026",
+    dateFrom: "2026-04-01",
+    dateTo: "2026-11-01",
+  },
+];
+
+function parseCsvRows(csvText) {
+  const rows = [];
+  let currentRow = [];
+  let current = "";
+  let insideQuotes = false;
+
+  for (let index = 0; index < csvText.length; index += 1) {
+    const char = csvText[index];
+
+    if (char === "\"") {
+      if (insideQuotes && csvText[index + 1] === "\"") {
+        current += "\"";
+        index += 1;
+        continue;
+      }
+
+      insideQuotes = !insideQuotes;
+      continue;
+    }
+
+    if (char === "," && !insideQuotes) {
+      currentRow.push(current);
+      current = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !insideQuotes) {
+      if (char === "\r" && csvText[index + 1] === "\n") {
+        index += 1;
+      }
+
+      currentRow.push(current);
+      if (currentRow.some((cell) => cell.trim().length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  currentRow.push(current);
+  if (currentRow.some((cell) => cell.trim().length > 0)) {
+    rows.push(currentRow);
+  }
+
+  return rows;
+}
+
+function normalizeInteger(value, label) {
+  const normalized = value.trim();
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`Failed to parse integer for ${label}: ${value}`);
+  }
+
+  return Number(normalized);
+}
+
+function normalizePoint(value, label) {
+  const normalized = value.trim().replace(",", ".");
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) {
+    throw new Error(`Failed to parse points for ${label}: ${value}`);
+  }
+
+  return Number(normalized);
+}
+
+export function parseSeasonPointsCsv(csvText) {
+  const lines = parseCsvRows(csvText);
+
+  if (lines.length < 2) {
+    throw new Error("Season points CSV must contain a header and at least one data row");
+  }
+
+  const header = lines[0];
+  if (header.length < 2) {
+    throw new Error("Season points CSV header must include players_count columns");
+  }
+
+  const playersCounts = header.slice(1).map((cell, index) =>
+    normalizeInteger(cell, `players_count header column ${index + 2}`),
+  );
+  const entries = [];
+
+  for (let rowIndex = 1; rowIndex < lines.length; rowIndex += 1) {
+    const row = lines[rowIndex];
+    if (row.length !== header.length) {
+      throw new Error(
+        `CSV row ${rowIndex + 1} width ${row.length} does not match header width ${header.length}`,
+      );
+    }
+
+    const placement = normalizeInteger(row[0] ?? "", `placement row ${rowIndex + 1}`);
+
+    for (let columnIndex = 1; columnIndex < row.length; columnIndex += 1) {
+      const playersCount = playersCounts[columnIndex - 1];
+      const rawValue = row[columnIndex] ?? "";
+      const normalizedValue = rawValue.trim();
+      const isInsideTriangle = placement <= playersCount;
+
+      if (!isInsideTriangle) {
+        if (normalizedValue.length > 0) {
+          throw new Error(
+            `Unexpected points outside triangular region at placement ${placement}, players_count ${playersCount}`,
+          );
+        }
+        continue;
+      }
+
+      if (normalizedValue.length === 0) {
+        throw new Error(
+          `Missing required points at placement ${placement}, players_count ${playersCount}`,
+        );
+      }
+
+      entries.push({
+        playersCount,
+        placement,
+        points: normalizePoint(
+          normalizedValue,
+          `placement ${placement}, players_count ${playersCount}`,
+        ),
+      });
+    }
+  }
+
+  return entries;
+}
+
+function formatPoint(value) {
+  return value.toFixed(2);
+}
+
+export function generateSeasonPointsMigrationSql(
+  entries,
+  seasons = DEFAULT_SEASONS,
+) {
+  const seasonValuesSql = seasons
+    .map(
+      (season) =>
+        `  ('${season.seasonCode}', '${season.name}', date '${season.dateFrom}', date '${season.dateTo}', 4, 4)`,
+    )
+    .join(",\n");
+  const seasonCodesSql = seasons.map((season) => `'${season.seasonCode}'`).join(", ");
+  const pointsValuesSql = seasons
+    .flatMap((season) =>
+      entries.map(
+        (entry) =>
+          `  ('${season.seasonCode}', ${entry.playersCount}, ${entry.placement}, ${formatPoint(entry.points)})`,
+      ),
+    )
+    .join(",\n");
+
+  return `-- Refresh season points matrix for seasons 2025 and 2026.\n-- Generated by scripts/generate-season-points-migration.mjs from docs/ДГ Россия 2026 - Таблица Баллов 2026 (1).csv.\n\ninsert into app_public.seasons (\n  season_code,\n  name,\n  date_from,\n  date_to,\n  best_leagues_count,\n  best_tournaments_count\n)\nvalues\n${seasonValuesSql}\non conflict (season_code) do update\nset\n  name = excluded.name,\n  date_from = excluded.date_from,\n  date_to = excluded.date_to,\n  best_leagues_count = excluded.best_leagues_count,\n  best_tournaments_count = excluded.best_tournaments_count,\n  updated_at = timezone('utc', now());\n\ndelete from app_public.season_standings\nwhere season_code in (${seasonCodesSql});\n\ndelete from app_public.season_points_table\nwhere season_code in (${seasonCodesSql});\n\ninsert into app_public.season_points_table (\n  season_code,\n  players_count,\n  placement,\n  points\n)\nvalues\n${pointsValuesSql};\n`;
+}
+
+export async function writeSeasonPointsMigration({
+  csvPath = DEFAULT_CSV_PATH,
+  outputPath = DEFAULT_OUTPUT_PATH,
+} = {}) {
+  const csvText = await fs.readFile(csvPath, "utf8");
+  const entries = parseSeasonPointsCsv(csvText);
+  const sql = generateSeasonPointsMigrationSql(entries);
+  await fs.writeFile(outputPath, sql, "utf8");
+  return { outputPath, entriesCount: entries.length, sql };
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  const result = await writeSeasonPointsMigration();
+  process.stdout.write(
+    `Wrote ${result.entriesCount} season points entries to ${result.outputPath}\n`,
+  );
+}

@@ -23,6 +23,11 @@ import {
   requireAuthenticatedUser,
   type AuthGuardDependencies,
 } from "../auth/runtime";
+import {
+  createSupabaseCompetitionHierarchyLoader,
+  loadCompetitionHierarchyContext,
+  type CompetitionHierarchyRow,
+} from "../competition-hierarchy";
 import { rankCompetitionResultsForSeasonPoints } from "../season-standings";
 
 const APP_PUBLIC_SCHEMA = "app_public";
@@ -182,12 +187,6 @@ export interface PlayerCompetitionOwnerProjectionRow {
   dnf: boolean;
 }
 
-interface CompetitionHierarchyRow {
-  competition_id: string;
-  parent_id: string | null;
-  record_type: string | null;
-}
-
 export interface PlayersRouteDependencies {
   listPlayers?: (filters?: PlayersListFilters) => Promise<Player[]>;
   getPlayer?: (playerId: string) => Promise<Player | null>;
@@ -209,39 +208,11 @@ export interface PlayerResultsFilters {
 async function loadCompetitionHierarchy(
   competitionIds: readonly string[],
 ): Promise<Map<string, CompetitionHierarchyRow>> {
-  if (competitionIds.length === 0) {
-    return new Map();
-  }
-
   const supabase = createApiSupabaseAdminClient();
-  const competitionsById = new Map<string, CompetitionHierarchyRow>();
-  let pendingCompetitionIds = [...new Set(competitionIds)];
-
-  while (pendingCompetitionIds.length > 0) {
-    const { data, error } = await supabase
-      .schema(APP_PUBLIC_SCHEMA)
-      .from("competitions")
-      .select("competition_id, parent_id, record_type")
-      .in("competition_id", pendingCompetitionIds);
-
-    if (error) {
-      throw new Error(`Failed to load competition hierarchy for player results: ${error.message}`);
-    }
-
-    const fetchedRows = (data ?? []) as CompetitionHierarchyRow[];
-    for (const row of fetchedRows) {
-      competitionsById.set(row.competition_id, row);
-    }
-
-    const parentIdsToLoad = fetchedRows
-      .map((row) => row.parent_id?.trim() ?? "")
-      .filter((parentId) => parentId.length > 0)
-      .filter((parentId) => !competitionsById.has(parentId));
-
-    pendingCompetitionIds = [...new Set(parentIdsToLoad)];
-  }
-
-  return competitionsById;
+  return loadCompetitionHierarchyContext(
+    competitionIds,
+    createSupabaseCompetitionHierarchyLoader(supabase, "player results"),
+  );
 }
 
 function resolveSeasonPointsCompetitionIdForPlayerResult(
@@ -636,14 +607,23 @@ async function alignPlayerResultsWithSeasonRanking(
     );
 
   return rows.map((row) => {
-    const placement =
+    const resolvedPlacement =
       placementByOwnerCompetitionAndPlayerId.get(`${row.competitionId}:${playerId}`) ?? null;
-    return {
-      ...row,
-      placement,
-      dnf: placement === null,
-    };
+    return alignPlayerResultPlacement(row, resolvedPlacement);
   });
+}
+
+export function alignPlayerResultPlacement(
+  row: PlayerCompetitionResult,
+  resolvedPlacement: number | null,
+): PlayerCompetitionResult {
+  const placement = resolvedPlacement ?? row.placement ?? null;
+
+  return {
+    ...row,
+    placement,
+    dnf: placement === null ? row.dnf : false,
+  };
 }
 
 function createSupabasePlayerReadAdapter(): PlayerReadAdapter {

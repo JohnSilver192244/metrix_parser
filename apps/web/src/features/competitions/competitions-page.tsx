@@ -11,7 +11,7 @@ import { buildCompetitionResultsPath } from "../../app/route-paths";
 import { PageHeader } from "../../shared/page-header";
 import { FloatingInfoTooltip } from "../../shared/floating-info-tooltip";
 import {
-  listCompetitionsPage,
+  listCompetitions,
   updateCompetitionCategory,
   resolveCompetitionsErrorMessage,
   resolveCompetitionsTotal,
@@ -440,7 +440,7 @@ export function CompetitionsPageView({
     ],
     [currentYear],
   );
-  const visibleCompetitions = useMemo(
+  const filteredCompetitions = useMemo(
     () => {
       const sortValuesByCompetitionId = new Map<string, CompetitionSortValues>(
         competitions.map((competition) => {
@@ -549,6 +549,17 @@ export function CompetitionsPageView({
       sort,
     ],
   );
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredCompetitions.length / COMPETITIONS_PAGE_SIZE),
+  );
+  const normalizedCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
+  const paginationPages = resolvePaginationPages(normalizedCurrentPage, totalPages);
+  const pageStartIndex = (normalizedCurrentPage - 1) * COMPETITIONS_PAGE_SIZE;
+  const visibleCompetitions = filteredCompetitions.slice(
+    pageStartIndex,
+    pageStartIndex + COMPETITIONS_PAGE_SIZE,
+  );
   const courseOptions = useMemo(
     () =>
       [
@@ -560,9 +571,6 @@ export function CompetitionsPageView({
       ].sort((left, right) => left.localeCompare(right)),
     [competitions, courseNamesById],
   );
-  const totalPages = Math.max(1, Math.ceil(total / COMPETITIONS_PAGE_SIZE));
-  const normalizedCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
-  const paginationPages = resolvePaginationPages(normalizedCurrentPage, totalPages);
   const toggleSort = (field: CompetitionsSortField) => {
     setSort((currentSort) => {
       if (currentSort.field === field) {
@@ -1028,7 +1036,7 @@ export function CompetitionsPageView({
                 </table>
               </div>
               <div className="competitions-page__pagination-summary" aria-live="polite">
-                Показано {visibleCompetitions.length} из {total} соревнований.
+                Показано {visibleCompetitions.length} из {filteredCompetitions.length} соревнований.
                 Страница {normalizedCurrentPage} из {totalPages}.
               </div>
               {totalPages > 1 ? (
@@ -1111,10 +1119,7 @@ export function CompetitionsPage({ onNavigate }: CompetitionsPageProps) {
     void (async () => {
       try {
         const [competitionsResult, coursesResult, categoriesResult] = await Promise.allSettled([
-          listCompetitionsPage({
-            limit: COMPETITIONS_PAGE_SIZE,
-            offset: (currentPage - 1) * COMPETITIONS_PAGE_SIZE,
-          }),
+          listCompetitions(),
           listCourses(),
           listTournamentCategories(),
         ]);
@@ -1168,7 +1173,7 @@ export function CompetitionsPage({ onNavigate }: CompetitionsPageProps) {
     return () => {
       isActive = false;
     };
-  }, [currentPage]);
+  }, []);
 
   return (
     <CompetitionsPageView

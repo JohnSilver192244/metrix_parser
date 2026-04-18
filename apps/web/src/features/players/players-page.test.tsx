@@ -72,6 +72,7 @@ test("PlayersPageView renders player identification fields", () => {
     markup,
     /https:\/\/discgolfmetrix\.com\/player\/player-500/,
   );
+  assert.match(markup, /Место/);
   assert.match(markup, /Игрок/);
   assert.match(markup, /Дивизион/);
   assert.match(markup, /RDGA/);
@@ -88,6 +89,7 @@ test("PlayersPageView renders player identification fields", () => {
   assert.match(markup, />125\.50</);
   assert.match(markup, />—</);
   assert.match(markup, />7</);
+  assert.match(markup, /<td>1<\/td>/);
 });
 
 test("PlayersPageView renders player name as in-app link button when navigation is provided", () => {
@@ -509,6 +511,63 @@ test("PlayersPageView renders visible pagination with 25 players per page", () =
   assert.match(secondPageMarkup, /Показано 5 из 30 игроков\. Страница 2 из 2\./);
   assert.match(secondPageMarkup, /Player 26/);
   assert.doesNotMatch(secondPageMarkup, /Player 25/);
+  assert.match(secondPageMarkup, /<td>26<\/td>/);
+});
+
+test("PlayersPageView recalculates visible places when division filter is applied", () => {
+  const markup = renderToStaticMarkup(
+    <PlayersPageView
+      state={{
+        status: "ready",
+        divisions: [{ code: "MPO" }, { code: "FA1" }],
+        seasons: defaultSeasons,
+        total: 3,
+        players: [
+          {
+            playerId: "player-1",
+            playerName: "Alpha",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonCreditPoints: 100,
+            competitionsCount: 4,
+          },
+          {
+            playerId: "player-2",
+            playerName: "Bravo",
+            division: "FA1",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "FA1",
+            seasonCreditPoints: 90,
+            competitionsCount: 4,
+          },
+          {
+            playerId: "player-3",
+            playerName: "Charlie",
+            division: "MPO",
+            rdga: true,
+            rdgaSince: "2026-01-15",
+            seasonDivision: "MPO",
+            seasonCreditPoints: 80,
+            competitionsCount: 4,
+          },
+        ],
+      }}
+      divisionFilter="MPO"
+      sort={{
+        field: "seasonCreditPoints",
+        direction: "desc",
+      }}
+    />,
+  );
+
+  assert.match(markup, /Alpha/);
+  assert.match(markup, /Charlie/);
+  assert.doesNotMatch(markup, /Bravo/);
+  assert.ok(markup.indexOf("<td>1</td>") < markup.indexOf("Alpha"));
+  assert.ok(markup.indexOf("<td>2</td>") < markup.indexOf("Charlie"));
 });
 
 test("PlayersPageView renders filtered empty state when search has no matches", () => {

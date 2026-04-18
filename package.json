@@ -19,6 +19,7 @@
     "monitor": "npm run monitor:omx",
     "monitor:omx": "node scripts/omx-dashboard.mjs",
     "dev:web": "npm run dev --workspace @metrix-parser/web",
+    "generate:season-points-migration": "node scripts/generate-season-points-migration.mjs",
     "perf:capture": "node scripts/perf-capture.mjs",
     "perf:compare": "node scripts/perf-compare.mjs"
   },

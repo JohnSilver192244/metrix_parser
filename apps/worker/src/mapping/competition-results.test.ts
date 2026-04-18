@@ -89,6 +89,83 @@ test("mapDiscGolfMetrixCompetitionResults treats string DNF flag '1' as DNF", ()
   });
 });
 
+test("mapDiscGolfMetrixCompetitionResults infers DNF from incomplete PlayerResults", () => {
+  const result = mapDiscGolfMetrixCompetitionResults([
+    {
+      ...regularCompetitionResultsFixture,
+      competitionId: "competition-107",
+      rawPayload: {
+        Competition: {
+          Tracks: [{ HoleNumber: 1 }, { HoleNumber: 2 }, { HoleNumber: 3 }],
+          Results: [
+            {
+              UserID: "player-7",
+              Name: "Roman Romanov",
+              Class: "MPO",
+              Sum: 56,
+              Diff: -4,
+              PlayerResults: [
+                { Result: 3 },
+                { Result: 4 },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  ]);
+
+  assert.equal(result.skippedCount, 0);
+  assert.equal(result.issues.length, 0);
+  assert.deepEqual(result.results[0], {
+    competitionId: "competition-107",
+    playerId: "player-7",
+    className: "MPO",
+    sum: 56,
+    diff: -4,
+    dnf: true,
+  });
+});
+
+test("mapDiscGolfMetrixCompetitionResults keeps completed PlayerResults ranked", () => {
+  const result = mapDiscGolfMetrixCompetitionResults([
+    {
+      ...regularCompetitionResultsFixture,
+      competitionId: "competition-108",
+      rawPayload: {
+        Competition: {
+          Tracks: [{ HoleNumber: 1 }, { HoleNumber: 2 }, { HoleNumber: 3 }],
+          Results: [
+            {
+              UserID: "player-8",
+              Name: "Kirill Kirillov",
+              Class: "MPO",
+              Sum: 51,
+              Diff: -9,
+              PlayerResults: [
+                { Result: 3 },
+                { Result: 3 },
+                { Result: 3 },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  ]);
+
+  assert.equal(result.skippedCount, 0);
+  assert.equal(result.issues.length, 0);
+  assert.deepEqual(result.results[0], {
+    competitionId: "competition-108",
+    playerId: "player-8",
+    className: "MPO",
+    sum: 51,
+    diff: -9,
+    dnf: false,
+  });
+});
+
 test("mapDiscGolfMetrixCompetitionResults accepts result records without class name", () => {
   const result = mapDiscGolfMetrixCompetitionResults([
     {

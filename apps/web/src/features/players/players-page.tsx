@@ -160,6 +160,10 @@ function formatPlacementValue(value: number | null | undefined): string {
   return String(value);
 }
 
+function formatPlayersTablePlacement(value: number): string {
+  return String(value);
+}
+
 function compareSeasonsByPeriod(left: Season, right: Season): number {
   const dateToDiff = right.dateTo.localeCompare(left.dateTo, "ru");
   if (dateToDiff !== 0) {
@@ -479,6 +483,7 @@ export function PlayersPageView({
                 <table className="data-table">
                   <thead>
                     <tr>
+                      <th scope="col">Место</th>
                       <th scope="col" aria-sort={resolveAriaSort(sort, "playerName")}>
                         <button
                           className="data-table__sort-button"
@@ -520,7 +525,7 @@ export function PlayersPageView({
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedVisiblePlayers.map((player) => {
+                    {paginatedVisiblePlayers.map((player, index) => {
                       const draftDivision =
                         divisionDrafts[player.playerId] ?? player.division ?? "";
                       const draftRdga =
@@ -551,6 +556,7 @@ export function PlayersPageView({
 
                       return (
                         <tr key={player.playerId}>
+                          <td>{formatPlayersTablePlacement(pageStartIndex + index + 1)}</td>
                           <td className="data-table__cell-primary">
                             <span className="data-table__primary-actions">
                               <a

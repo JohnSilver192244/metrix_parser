@@ -12,6 +12,11 @@ import { sendSuccess } from "../../lib/http";
 import { HttpError } from "../../lib/http-errors";
 import type { RouteDefinition } from "../../lib/router";
 import { createApiSupabaseAdminClient } from "../../lib/supabase-admin";
+import {
+  createSupabaseCompetitionHierarchyLoader,
+  loadCompetitionHierarchyContext,
+  type CompetitionHierarchyRow,
+} from "../competition-hierarchy";
 
 const APP_PUBLIC_SCHEMA = "app_public";
 const DEFAULT_RESULTS_LIMIT = 200;
@@ -76,12 +81,6 @@ interface SeasonStandingPointsRow {
   player_id: string;
   season_code: string | null;
   season_points: number | string | null;
-}
-
-interface CompetitionHierarchyRow {
-  competition_id: string;
-  parent_id: string | null;
-  record_type: string | null;
 }
 
 export interface ResultsRouteDependencies {
@@ -164,39 +163,11 @@ function buildOwnerCompetitionIdByCompetitionId(
 async function loadCompetitionHierarchy(
   competitionIds: readonly string[],
 ): Promise<Map<string, CompetitionHierarchyRow>> {
-  if (competitionIds.length === 0) {
-    return new Map();
-  }
-
   const supabase = createApiSupabaseAdminClient();
-  const competitionsById = new Map<string, CompetitionHierarchyRow>();
-  let pendingCompetitionIds = [...new Set(competitionIds)];
-
-  while (pendingCompetitionIds.length > 0) {
-    const { data, error } = await supabase
-      .schema(APP_PUBLIC_SCHEMA)
-      .from("competitions")
-      .select("competition_id, parent_id, record_type")
-      .in("competition_id", pendingCompetitionIds);
-
-    if (error) {
-      throw new Error(`Failed to load competition hierarchy for results list: ${error.message}`);
-    }
-
-    const fetchedRows = (data ?? []) as CompetitionHierarchyRow[];
-    for (const row of fetchedRows) {
-      competitionsById.set(row.competition_id, row);
-    }
-
-    const parentIdsToLoad = fetchedRows
-      .map((row) => row.parent_id?.trim() ?? "")
-      .filter((parentId) => parentId.length > 0)
-      .filter((parentId) => !competitionsById.has(parentId));
-
-    pendingCompetitionIds = [...new Set(parentIdsToLoad)];
-  }
-
-  return competitionsById;
+  return loadCompetitionHierarchyContext(
+    competitionIds,
+    createSupabaseCompetitionHierarchyLoader(supabase, "results list"),
+  );
 }
 
 export function resolveCanonicalSeasonCodeByCompetition(
