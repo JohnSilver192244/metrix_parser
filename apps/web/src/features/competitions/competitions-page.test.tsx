@@ -17,6 +17,7 @@ import {
 const currentYear = new Date().getFullYear();
 const competitionsCategoryFilterStorageKey =
   "competitions-page:category-filter";
+const competitionsPeriodFilterStorageKey = "competitions-page:period-filter";
 const competitionsWithoutResultsFilterStorageKey =
   "competitions-page:without-results-filter";
 const competitionsSortStorageKey = "competitions-page:sort";
@@ -183,7 +184,7 @@ test("CompetitionsPageView renders visible pagination with 25 competitions per p
         categories: [],
         courses: [],
         courseNamesById: {},
-        competitions: competitions.slice(0, 25),
+        competitions,
       }}
       currentPage={1}
       onNavigate={() => {}}
@@ -194,6 +195,75 @@ test("CompetitionsPageView renders visible pagination with 25 competitions per p
   assert.match(markup, /Показано 25 из 30 соревнований\. Страница 1 из 2\./);
   assert.match(markup, /Competition 025/);
   assert.doesNotMatch(markup, /Competition 026/);
+});
+
+test("CompetitionsPageView applies period filter across the full loaded dataset, not only the current page slice", () => {
+  const sessionStorage = createStorage();
+  const previousWindow = globalThis.window;
+
+  Object.defineProperty(globalThis, "window", {
+    value: { sessionStorage },
+    configurable: true,
+    writable: true,
+  });
+  sessionStorage.setItem(
+    competitionsPeriodFilterStorageKey,
+    JSON.stringify({
+      dateFrom: `${currentYear - 1}-01-01`,
+      dateTo: `${currentYear - 1}-12-31`,
+    }),
+  );
+
+  const currentYearCompetitions = Array.from({ length: 30 }, (_, index) => ({
+    competitionId: `competition-current-${index + 1}`,
+    competitionName: `Current Year ${index + 1}`,
+    competitionDate: `${currentYear}-05-10`,
+    courseId: null,
+    courseName: null,
+    categoryId: null,
+    recordType: "4",
+    playersCount: 20,
+    metrixId: null,
+  })) satisfies import("@metrix-parser/shared-types").Competition[];
+
+  const previousYearCompetition = {
+    competitionId: "competition-previous-year",
+    competitionName: "Previous Year Open",
+    competitionDate: `${currentYear - 1}-09-21`,
+    courseId: null,
+    courseName: null,
+    categoryId: null,
+    recordType: "4",
+    playersCount: 18,
+    metrixId: null,
+  } satisfies import("@metrix-parser/shared-types").Competition;
+
+  const markup = renderToStaticMarkup(
+    <CompetitionsPageView
+      state={{
+        status: "ready",
+        total: currentYearCompetitions.length + 1,
+        categories: [],
+        courses: [],
+        courseNamesById: {},
+        competitions: [...currentYearCompetitions, previousYearCompetition],
+      }}
+      currentPage={1}
+      onNavigate={() => {}}
+    />,
+  );
+
+  try {
+    assert.match(markup, /Previous Year Open/);
+    assert.doesNotMatch(markup, /По текущим фильтрам соревнований нет/);
+    assert.match(markup, /Показано 1 из 1 соревнований\. Страница 1 из 1\./);
+  } finally {
+    Object.defineProperty(globalThis, "window", {
+      value: previousWindow,
+      configurable: true,
+      writable: true,
+    });
+  }
 });
 
 test("CompetitionsPageView renders event titles with pool names when a pool exists", () => {
