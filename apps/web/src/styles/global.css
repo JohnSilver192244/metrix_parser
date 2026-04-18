@@ -1743,8 +1743,8 @@ body {
 
 .players-page__credit-tooltip-row {
   display: grid;
-  grid-template-columns: 3.5rem 7.5rem minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: 3.5rem 2.5rem 5rem minmax(0, 1fr);
+  column-gap: 8px;
   align-items: baseline;
   width: 100%;
 }
@@ -1755,7 +1755,8 @@ body {
   white-space: nowrap;
 }
 
-.players-page__credit-tooltip-row-meta {
+.players-page__credit-tooltip-row-placement,
+.players-page__credit-tooltip-row-points {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

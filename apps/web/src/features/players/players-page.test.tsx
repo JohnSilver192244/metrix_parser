@@ -375,8 +375,14 @@ test("PlayersPageView renders season credit tooltip rows as name, place, points"
   assert.match(markup, /players-page__credit-tooltip-list/);
   assert.match(markup, /Т1/);
   assert.match(markup, /Л1/);
-  assert.match(markup, /players-page__credit-tooltip-row-meta">1, 89\.90<\/span><span class="players-page__credit-tooltip-row-name">Alpha Cup/);
-  assert.match(markup, /players-page__credit-tooltip-row-meta">3, 42\.50<\/span><span class="players-page__credit-tooltip-row-name">Beta Cup/);
+  assert.match(
+    markup,
+    /players-page__credit-tooltip-row-placement">1<\/span><span class="players-page__credit-tooltip-row-points">89\.90<\/span><span class="players-page__credit-tooltip-row-name">Alpha Cup/,
+  );
+  assert.match(
+    markup,
+    /players-page__credit-tooltip-row-placement">3<\/span><span class="players-page__credit-tooltip-row-points">42\.50<\/span><span class="players-page__credit-tooltip-row-name">Beta Cup/,
+  );
   assert.doesNotMatch(markup, /Alpha Cup, 1, 89\.90/);
   assert.doesNotMatch(markup, /Beta Cup, 3, 42\.50/);
 });

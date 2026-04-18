@@ -235,8 +235,10 @@ function formatSeasonCreditCompetitionRows(
     return (
       <span key={competition.competitionId} className="players-page__credit-tooltip-row">
         <span className="players-page__credit-tooltip-row-label">{label}</span>
-        <span className="players-page__credit-tooltip-row-meta">
-          {formatPlacementValue(competition.placement)},{" "}
+        <span className="players-page__credit-tooltip-row-placement">
+          {formatPlacementValue(competition.placement)}
+        </span>
+        <span className="players-page__credit-tooltip-row-points">
           {formatSeasonPointsValue(competition.seasonPoints)}
         </span>
         <span className="players-page__credit-tooltip-row-name">
