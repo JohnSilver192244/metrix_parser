@@ -26,6 +26,7 @@ import {
   pickOwnerCompetitionResultRows,
 } from "./modules/players";
 import {
+  type CompetitionHierarchyRow,
   loadCompetitionHierarchyContext,
 } from "./modules/competition-hierarchy";
 import {
@@ -1787,7 +1788,7 @@ test("resolveSeasonPointsCompetitionIdForResult keeps pool as owner for multi-po
 });
 
 test("loadCompetitionHierarchyContext expands downward so multi-pool subset keeps pool ownership", async () => {
-  const loadedById = new Map([
+  const loadedById = new Map<string, CompetitionHierarchyRow>([
     [
       "round-long-1",
       {
@@ -1844,7 +1845,7 @@ test("loadCompetitionHierarchyContext expands downward so multi-pool subset keep
       async listByCompetitionIds(competitionIds) {
         return competitionIds
           .map((competitionId) => loadedById.get(competitionId))
-          .filter((row): row is { competition_id: string; parent_id: string | null; record_type: string | null } => row != null);
+          .filter((row): row is CompetitionHierarchyRow => row != null);
       },
       async listByParentIds(parentIds) {
         return [...loadedById.values()].filter((row) =>
@@ -1863,7 +1864,7 @@ test("loadCompetitionHierarchyContext expands downward so multi-pool subset keep
 });
 
 test("loadCompetitionHierarchyContext expands downward so single-pool subset resolves to event", async () => {
-  const loadedById = new Map([
+  const loadedById = new Map<string, CompetitionHierarchyRow>([
     [
       "round-1",
       {
@@ -1894,7 +1895,7 @@ test("loadCompetitionHierarchyContext expands downward so single-pool subset res
     async listByCompetitionIds(competitionIds) {
       return competitionIds
         .map((competitionId) => loadedById.get(competitionId))
-        .filter((row): row is { competition_id: string; parent_id: string | null; record_type: string | null } => row != null);
+        .filter((row): row is CompetitionHierarchyRow => row != null);
     },
     async listByParentIds(parentIds) {
       return [...loadedById.values()].filter((row) =>
