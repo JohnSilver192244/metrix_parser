@@ -124,6 +124,30 @@ test("repository creates a new competition when no existing record matches", asy
   assert.equal(adapter.snapshot()[0]?.competition_id, "101");
 });
 
+test("repository does not persist read-model-only competition fields", async () => {
+  const adapter = new InMemoryCompetitionsAdapter();
+  const repository = createCompetitionsRepository(adapter);
+
+  await repository.saveCompetition({
+    competition: createCompetition({
+      hasResults: true,
+      seasonPoints: 123.45,
+    }),
+    rawPayload: { competitionId: "101" },
+    sourceFetchedAt: "2026-03-21T12:00:00.000Z",
+  });
+
+  const storedRow = adapter.snapshot()[0] ?? {};
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(storedRow, "has_results"),
+    false,
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(storedRow, "season_points"),
+    false,
+  );
+});
+
 test("repository skips an existing competition when overwriteExisting is disabled", async () => {
   const adapter = new InMemoryCompetitionsAdapter([createStoredRow()]);
   const repository = createCompetitionsRepository(adapter);

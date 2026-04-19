@@ -94,7 +94,8 @@ export interface PersistableCompetitionRecord {
   sourceFetchedAt: string | null;
 }
 
-export interface StoredCompetitionRecord extends CompetitionDbRecord {
+export interface StoredCompetitionRecord
+  extends Omit<CompetitionDbRecord, "has_results" | "season_points"> {
   raw_payload: Record<string, unknown> | null;
   source_fetched_at: string | null;
 }
@@ -104,6 +105,8 @@ function toStoredCompetitionRecord(
 ): StoredCompetitionRecord {
   const {
     category_id: _ignoredCategoryId,
+    has_results: _ignoredHasResults,
+    season_points: _ignoredSeasonPoints,
     ...competitionDbRecord
   } = toCompetitionDbRecord(record.competition);
 
