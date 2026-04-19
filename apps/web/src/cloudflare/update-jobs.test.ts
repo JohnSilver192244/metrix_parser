@@ -299,7 +299,7 @@ test("touchAcceptedUpdate advances continuation jobs through multiple batches", 
     runOperationBatch: async (command, _env, cursor) => {
       batchCalls += 1;
 
-      if (cursor) {
+      if (cursor?.offset === 250) {
         return {
           result: createResult(command.operation),
         };
@@ -307,7 +307,9 @@ test("touchAcceptedUpdate advances continuation jobs through multiple batches", 
 
       return {
         result: createResult(command.operation),
-        nextCursor: { offset: 50 },
+        nextCursor: {
+          offset: (cursor?.offset ?? 0) + 50,
+        },
       };
     },
     createId: () => `lease-${nextId++}`,
@@ -321,7 +323,7 @@ test("touchAcceptedUpdate advances continuation jobs through multiple batches", 
   await Promise.all(waitUntilPromises);
 
   const persisted = await repository.getJob("job-100");
-  assert.equal(batchCalls, 2);
+  assert.equal(batchCalls, 6);
   assert.equal(persisted?.status, "completed");
   assert.equal(persisted?.continuationCursor, null);
   assert.equal(persisted?.processingLeaseToken, null);

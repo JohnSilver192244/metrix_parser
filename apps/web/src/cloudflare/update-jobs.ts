@@ -29,7 +29,7 @@ import {
 } from "../../../worker/src/persistence/update-jobs-repository";
 
 const UPDATE_JOB_POLL_PATH_PREFIX = "/updates/jobs";
-const SCHEDULED_MAX_BATCHES_PER_INVOCATION = 5;
+const SCHEDULED_MAX_BATCHES_PER_INVOCATION = 25;
 
 export const CLOUDFLARE_UPDATE_CRON_SPECS = [
   { cron: "0 1 * * *", operation: "competitions" as const },
