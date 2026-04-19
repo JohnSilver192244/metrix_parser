@@ -129,15 +129,22 @@ test("Cloudflare app shell forwards fetch execution context to the API handler",
 });
 
 test("resolveCloudflareAppShellEnv falls back to build-time local env constants", () => {
+  const localBuildEnv = globalThis as typeof globalThis & {
+    __LOCAL_SUPABASE_URL__?: string;
+    __LOCAL_SUPABASE_SERVICE_ROLE_KEY__?: string;
+    __LOCAL_DISCGOLFMETRIX_BASE_URL__?: string;
+    __LOCAL_DISCGOLFMETRIX_COUNTRY_CODE__?: string;
+    __LOCAL_DISCGOLFMETRIX_API_CODE__?: string;
+  };
   const previous = {
-    supabaseUrl: globalThis.__LOCAL_SUPABASE_URL__,
-    supabaseServiceRoleKey: globalThis.__LOCAL_SUPABASE_SERVICE_ROLE_KEY__,
-    discGolfMetrixBaseUrl: globalThis.__LOCAL_DISCGOLFMETRIX_BASE_URL__,
-    discGolfMetrixCountryCode: globalThis.__LOCAL_DISCGOLFMETRIX_COUNTRY_CODE__,
-    discGolfMetrixApiCode: globalThis.__LOCAL_DISCGOLFMETRIX_API_CODE__,
+    supabaseUrl: localBuildEnv.__LOCAL_SUPABASE_URL__,
+    supabaseServiceRoleKey: localBuildEnv.__LOCAL_SUPABASE_SERVICE_ROLE_KEY__,
+    discGolfMetrixBaseUrl: localBuildEnv.__LOCAL_DISCGOLFMETRIX_BASE_URL__,
+    discGolfMetrixCountryCode: localBuildEnv.__LOCAL_DISCGOLFMETRIX_COUNTRY_CODE__,
+    discGolfMetrixApiCode: localBuildEnv.__LOCAL_DISCGOLFMETRIX_API_CODE__,
   };
 
-  Object.assign(globalThis, {
+  Object.assign(localBuildEnv, {
     __LOCAL_SUPABASE_URL__: "https://supabase.example",
     __LOCAL_SUPABASE_SERVICE_ROLE_KEY__: "service-role-key",
     __LOCAL_DISCGOLFMETRIX_BASE_URL__: "https://discgolfmetrix.com",
@@ -158,7 +165,7 @@ test("resolveCloudflareAppShellEnv falls back to build-time local env constants"
     assert.equal(resolved.discGolfMetrixCountryCode, "RU");
     assert.equal(resolved.discGolfMetrixApiCode, "secret");
   } finally {
-    Object.assign(globalThis, {
+    Object.assign(localBuildEnv, {
       __LOCAL_SUPABASE_URL__: previous.supabaseUrl,
       __LOCAL_SUPABASE_SERVICE_ROLE_KEY__: previous.supabaseServiceRoleKey,
       __LOCAL_DISCGOLFMETRIX_BASE_URL__: previous.discGolfMetrixBaseUrl,

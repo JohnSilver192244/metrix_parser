@@ -25,6 +25,14 @@ type CloudflareEnvBindings = {
   DISCGOLFMETRIX_API_CODE?: string;
 };
 
+type LocalBuildEnv = {
+  __LOCAL_SUPABASE_URL__?: string;
+  __LOCAL_SUPABASE_SERVICE_ROLE_KEY__?: string;
+  __LOCAL_DISCGOLFMETRIX_BASE_URL__?: string;
+  __LOCAL_DISCGOLFMETRIX_COUNTRY_CODE__?: string;
+  __LOCAL_DISCGOLFMETRIX_API_CODE__?: string;
+};
+
 export interface ScheduledControllerLike {
   cron: string;
   scheduledTime: number;
@@ -63,29 +71,30 @@ export function resolveCloudflareAppShellEnv(
   env: CloudflareAppShellEnv,
 ): CloudflareAppShellEnv {
   const bindings = env as CloudflareAppShellEnv & CloudflareEnvBindings;
+  const localBuildEnv = globalThis as typeof globalThis & LocalBuildEnv;
 
   return {
     ...env,
     supabaseUrl:
       env.supabaseUrl ??
       normalizeOptionalEnvValue(bindings.SUPABASE_URL) ??
-      normalizeOptionalEnvValue(globalThis.__LOCAL_SUPABASE_URL__),
+      normalizeOptionalEnvValue(localBuildEnv.__LOCAL_SUPABASE_URL__),
     supabaseServiceRoleKey:
       env.supabaseServiceRoleKey ??
       normalizeOptionalEnvValue(bindings.SUPABASE_SERVICE_ROLE_KEY) ??
-      normalizeOptionalEnvValue(globalThis.__LOCAL_SUPABASE_SERVICE_ROLE_KEY__),
+      normalizeOptionalEnvValue(localBuildEnv.__LOCAL_SUPABASE_SERVICE_ROLE_KEY__),
     discGolfMetrixBaseUrl:
       env.discGolfMetrixBaseUrl ??
       normalizeOptionalEnvValue(bindings.DISCGOLFMETRIX_BASE_URL) ??
-      normalizeOptionalEnvValue(globalThis.__LOCAL_DISCGOLFMETRIX_BASE_URL__),
+      normalizeOptionalEnvValue(localBuildEnv.__LOCAL_DISCGOLFMETRIX_BASE_URL__),
     discGolfMetrixCountryCode:
       env.discGolfMetrixCountryCode ??
       normalizeOptionalEnvValue(bindings.DISCGOLFMETRIX_COUNTRY_CODE) ??
-      normalizeOptionalEnvValue(globalThis.__LOCAL_DISCGOLFMETRIX_COUNTRY_CODE__),
+      normalizeOptionalEnvValue(localBuildEnv.__LOCAL_DISCGOLFMETRIX_COUNTRY_CODE__),
     discGolfMetrixApiCode:
       env.discGolfMetrixApiCode ??
       normalizeOptionalEnvValue(bindings.DISCGOLFMETRIX_API_CODE) ??
-      normalizeOptionalEnvValue(globalThis.__LOCAL_DISCGOLFMETRIX_API_CODE__),
+      normalizeOptionalEnvValue(localBuildEnv.__LOCAL_DISCGOLFMETRIX_API_CODE__),
   };
 }
 

@@ -422,86 +422,99 @@ export function createUpdateJobsService(
     record: PersistedUpdateJobRecord,
     env: UpdateJobsRuntimeEnv,
   ): Promise<void> {
-    await useWithRepository(env, async (repository, executionEnv) => {
-      const leaseToken = createId("lease");
-      const claimedRecord = await repository.claimJob(record.jobId, leaseToken);
+    let currentRecord = record;
 
-      if (!claimedRecord) {
-        return;
-      }
+    for (let batchIndex = 0; batchIndex < SCHEDULED_MAX_BATCHES_PER_INVOCATION; batchIndex += 1) {
+      const nextRecord = (await useWithRepository(env, async (repository, executionEnv) => {
+        const leaseToken = createId("lease");
+        const claimedRecord = await repository.claimJob(currentRecord.jobId, leaseToken);
 
-      if (
-        claimedRecord.status !== "accepted" &&
-        !(claimedRecord.status === "running" && claimedRecord.continuationCursor)
-      ) {
-        await repository.updateClaimedJob(record.jobId, leaseToken, {
-          processingLeaseToken: null,
-        });
-        return;
-      }
+        if (!claimedRecord) {
+          return null;
+        }
 
-      const command: AcceptedUpdateCommand = {
-        operation: claimedRecord.operation,
-        period: claimedRecord.period,
-        overwriteExisting: claimedRecord.overwriteExisting,
-        userLogin: claimedRecord.userLogin ?? "",
-      };
+        if (
+          claimedRecord.status !== "accepted" &&
+          !(claimedRecord.status === "running" && claimedRecord.continuationCursor)
+        ) {
+          await repository.updateClaimedJob(currentRecord.jobId, leaseToken, {
+            processingLeaseToken: null,
+          });
+          return null;
+        }
 
-      const runningRecord =
-        claimedRecord.status === "running" && claimedRecord.startedAt
-          ? claimedRecord
-          : await repository.updateClaimedJob(record.jobId, leaseToken, {
+        const command: AcceptedUpdateCommand = {
+          operation: claimedRecord.operation,
+          period: claimedRecord.period,
+          overwriteExisting: claimedRecord.overwriteExisting,
+          userLogin: claimedRecord.userLogin ?? "",
+        };
+
+        const runningRecord =
+          claimedRecord.status === "running" && claimedRecord.startedAt
+            ? claimedRecord
+            : await repository.updateClaimedJob(currentRecord.jobId, leaseToken, {
+                status: "running",
+                startedAt: claimedRecord.startedAt ?? new Date().toISOString(),
+                message: `Фоновое обновление ${claimedRecord.operation} выполняется в unified Cloudflare runtime.`,
+              });
+
+        try {
+          const batch = await runBatch(
+            command,
+            executionEnv,
+            runningRecord.continuationCursor,
+          );
+          const mergedResult = mergeResults(runningRecord.result, batch.result);
+
+          if (batch.nextCursor) {
+            await repository.updateClaimedJob(currentRecord.jobId, leaseToken, {
               status: "running",
-              startedAt: claimedRecord.startedAt ?? new Date().toISOString(),
-              message: `Фоновое обновление ${claimedRecord.operation} выполняется в unified Cloudflare runtime.`,
+              continuationCursor: batch.nextCursor,
+              message:
+                "Batch завершён, для продолжения используется persisted resume cursor и следующий polling/status request.",
+              result: mergedResult,
+              processingLeaseToken: null,
             });
 
-      try {
-        const batch = await runBatch(
-          command,
-          executionEnv,
-          runningRecord.continuationCursor,
-        );
-        const mergedResult = mergeResults(runningRecord.result, batch.result);
+            return repository.getJob(currentRecord.jobId);
+          }
 
-        if (batch.nextCursor) {
-          await repository.updateClaimedJob(record.jobId, leaseToken, {
-            status: "running",
-            continuationCursor: batch.nextCursor,
-            message:
-              "Batch завершён, для продолжения используется persisted resume cursor и следующий polling/status request.",
+          await repository.updateClaimedJob(currentRecord.jobId, leaseToken, {
+            status: mergedResult.finalStatus,
+            continuationCursor: null,
+            message: mergedResult.message,
+            finishedAt: mergedResult.finishedAt,
             result: mergedResult,
             processingLeaseToken: null,
           });
-          return;
+          invalidateReadCache();
+          return null;
+        } catch {
+          const failure = forceFailedResult(
+            mergeResults(
+              runningRecord.result,
+              createUnexpectedFailure(record.operation, runningRecord.requestedAt),
+            ),
+          );
+          await repository.updateClaimedJob(currentRecord.jobId, leaseToken, {
+            status: "failed",
+            continuationCursor: null,
+            message: failure.message,
+            finishedAt: failure.finishedAt,
+            result: failure,
+            processingLeaseToken: null,
+          });
+          return null;
         }
+      })) as PersistedUpdateJobRecord | null;
 
-        await repository.updateClaimedJob(record.jobId, leaseToken, {
-          status: mergedResult.finalStatus,
-          continuationCursor: null,
-          message: mergedResult.message,
-          finishedAt: mergedResult.finishedAt,
-          result: mergedResult,
-          processingLeaseToken: null,
-        });
-        invalidateReadCache();
-      } catch {
-        const failure = forceFailedResult(
-          mergeResults(
-            runningRecord.result,
-            createUnexpectedFailure(record.operation, runningRecord.requestedAt),
-          ),
-        );
-        await repository.updateClaimedJob(record.jobId, leaseToken, {
-          status: "failed",
-          continuationCursor: null,
-          message: failure.message,
-          finishedAt: failure.finishedAt,
-          result: failure,
-          processingLeaseToken: null,
-        });
+      if (!nextRecord || nextRecord.status !== "running" || !nextRecord.continuationCursor) {
+        return;
       }
-    });
+
+      currentRecord = nextRecord;
+    }
   }
 
   async function ensureScheduledJob(
@@ -620,28 +633,13 @@ export function createUpdateJobsService(
         return false;
       }
 
-      let record = await ensureScheduledJob(
+      const record = await ensureScheduledJob(
         scheduledSpec.operation,
         controller.scheduledTime,
         env,
       );
 
-      for (
-        let batchIndex = 0;
-        batchIndex < SCHEDULED_MAX_BATCHES_PER_INVOCATION;
-        batchIndex += 1
-      ) {
-        await processPersistedJob(record, env);
-        const refreshed = (await useWithRepository(env, async (repository) =>
-          repository.getJob(record.jobId),
-        )) as PersistedUpdateJobRecord | null;
-
-        if (!refreshed || refreshed.status !== "running" || !refreshed.continuationCursor) {
-          break;
-        }
-
-        record = refreshed;
-      }
+      await processPersistedJob(record, env);
 
       return true;
     },
