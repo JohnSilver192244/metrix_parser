@@ -19,6 +19,7 @@ import {
   MobileMenuDrawerProvider,
 } from "../shared/mobile-menu-context";
 import { SideDrawer } from "../shared/side-drawer";
+import { LoadingStatePanel } from "../shared/loading-state-panel";
 
 interface HistoryLike {
   pushState(
@@ -241,11 +242,10 @@ export function AppShellView({
 
         <section className="app-content">
           {route && route.requiresAuth && auth.status === "loading" ? (
-            <section className="state-panel state-panel--pending" aria-live="polite">
-              <p className="state-panel__eyebrow">loading</p>
-              <h2>Проверяем доступ</h2>
-              <p>Смотрим, есть ли активная сессия для административного раздела.</p>
-            </section>
+            <LoadingStatePanel
+              label="Проверяем доступ к административному разделу"
+              rows={3}
+            />
           ) : route && canAccessRoute ? (
             <section key={route.path}>
               {route.render({ onNavigate })}

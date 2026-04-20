@@ -5,6 +5,7 @@ import type { Division } from "@metrix-parser/shared-types";
 import { useAuth } from "../auth/auth-context";
 import { ActionToast } from "../../shared/action-toast";
 import { PageHeader } from "../../shared/page-header";
+import { LoadingStatePanel } from "../../shared/loading-state-panel";
 import {
   createDivision,
   deleteDivision,
@@ -93,11 +94,7 @@ export function DivisionsPageView({
           title="Дивизионы"
           description="Загружаем справочник дивизионов через backend API."
         />
-        <section className="state-panel state-panel--pending" aria-live="polite">
-          <p className="state-panel__eyebrow">loading</p>
-          <h2>Подтягиваем дивизионы</h2>
-          <p>Подождите немного, список собирается с сервера.</p>
-        </section>
+        <LoadingStatePanel label="Подтягиваем дивизионы" rows={3} />
       </section>
     );
   }

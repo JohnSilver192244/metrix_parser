@@ -7,6 +7,7 @@ import type {
 
 import { useAuth } from "../auth/auth-context";
 import { PageHeader } from "../../shared/page-header";
+import { LoadingStatePanel } from "../../shared/loading-state-panel";
 import { ActionToast } from "../../shared/action-toast";
 import {
   createTournamentCategory,
@@ -196,11 +197,7 @@ export function TournamentCategoriesPageView({
           title="Категории турниров"
           description="Загружаем сохранённые категории турниров через backend API."
         />
-        <section className="state-panel state-panel--pending" aria-live="polite">
-          <p className="state-panel__eyebrow">loading</p>
-          <h2>Подтягиваем категории турниров</h2>
-          <p>Подождите немного, список собирается с серверного read-side.</p>
-        </section>
+        <LoadingStatePanel label="Подтягиваем категории турниров" rows={3} />
       </section>
     );
   }

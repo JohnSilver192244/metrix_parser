@@ -15,9 +15,11 @@ import {
   resolveCompetitionExternalUrl,
 } from "../competitions/competition-presenters";
 import { PageHeader } from "../../shared/page-header";
+import { LoadingStatePanel } from "../../shared/loading-state-panel";
 import { SideDrawer } from "../../shared/side-drawer";
 import {
   getPlayer,
+  listPlayers,
   listPlayerResults,
   resolvePlayerResultsTotal,
   resolvePlayersErrorMessage,
@@ -163,6 +165,7 @@ export interface PlayerPageViewProps {
   resultsState: PlayerResultsState;
   seasonCode: string;
   period: UpdatePeriod;
+  seasonCreditCompetitions?: NonNullable<Player["seasonCreditCompetitions"]>;
   mobileFiltersOpen?: boolean;
   onSeasonCodeChange?: (value: string) => void;
   onPeriodChange?: (period: UpdatePeriod) => void;
@@ -393,6 +396,7 @@ export function PlayerPageView({
   resultsState,
   seasonCode,
   period,
+  seasonCreditCompetitions = [],
   mobileFiltersOpen = false,
   onSeasonCodeChange,
   onPeriodChange,
@@ -423,11 +427,7 @@ export function PlayerPageView({
           description="Загружаем профиль игрока и его результаты."
         />
 
-        <section className="state-panel state-panel--pending" aria-live="polite">
-          <p className="state-panel__eyebrow">loading</p>
-          <h2>Подтягиваем данные игрока</h2>
-          <p>Подождите немного, загружаем профиль и историю выступлений.</p>
-        </section>
+        <LoadingStatePanel label="Подтягиваем данные игрока" rows={4} />
       </section>
     );
   }
@@ -474,12 +474,15 @@ export function PlayerPageView({
     resultsState.status === "ready"
       ? sortPlayerResultsRows(resultsState.rows, sort)
       : [];
-  const seasonCreditCompetitions = player.seasonCreditCompetitions ?? [];
+  const seasonCreditCompetitionsSource =
+    seasonCreditCompetitions.length > 0
+      ? seasonCreditCompetitions
+      : (player.seasonCreditCompetitions ?? []);
   const seasonCreditRows =
-    seasonCreditCompetitions.length === 0
+    seasonCreditCompetitionsSource.length === 0
       ? []
       : buildSeasonCreditCompetitionRows(
-          [...seasonCreditCompetitions].sort(
+          [...seasonCreditCompetitionsSource].sort(
             (left, right) => right.seasonPoints - left.seasonPoints,
           ),
         );
@@ -580,11 +583,7 @@ export function PlayerPageView({
       )}
 
       {!hasSeasonContext ? null : resultsState.status === "loading" ? (
-        <section className="state-panel state-panel--pending" aria-live="polite">
-          <p className="state-panel__eyebrow">loading</p>
-          <h2>Загружаем результаты игрока</h2>
-          <p>Собираем турниры, места и начисленные очки за выбранный период.</p>
-        </section>
+        <LoadingStatePanel label="Загружаем результаты игрока" rows={3} />
       ) : resultsState.status === "error" ? (
         <section className="state-panel state-panel--error" role="alert">
           <p className="state-panel__eyebrow">error</p>
@@ -827,6 +826,9 @@ export function PlayerPage({ playerId, onNavigate }: PlayerPageProps) {
     dateFrom: "",
     dateTo: "",
   });
+  const [seasonCreditCompetitions, setSeasonCreditCompetitions] = useState<
+    NonNullable<Player["seasonCreditCompetitions"]>
+  >([]);
 
   useEffect(() => {
     let isActive = true;
@@ -932,6 +934,37 @@ export function PlayerPage({ playerId, onNavigate }: PlayerPageProps) {
     };
   }, [headerState, period.dateFrom, period.dateTo, playerId, seasonCode]);
 
+  useEffect(() => {
+    if (headerState.status !== "ready" || !seasonCode) {
+      setSeasonCreditCompetitions([]);
+      return;
+    }
+
+    let isActive = true;
+
+    void (async () => {
+      try {
+        const playersEnvelope = await listPlayers({ seasonCode });
+        if (!isActive) {
+          return;
+        }
+
+        const currentPlayer = playersEnvelope.data.find((player) => player.playerId === playerId);
+        setSeasonCreditCompetitions(currentPlayer?.seasonCreditCompetitions ?? []);
+      } catch {
+        if (!isActive) {
+          return;
+        }
+
+        setSeasonCreditCompetitions([]);
+      }
+    })();
+
+    return () => {
+      isActive = false;
+    };
+  }, [headerState, playerId, seasonCode]);
+
   const seasonByCode = useMemo(() => {
     return headerState.status === "ready"
       ? new Map(headerState.seasons.map((season) => [season.seasonCode, season]))
@@ -944,6 +977,7 @@ export function PlayerPage({ playerId, onNavigate }: PlayerPageProps) {
       resultsState={resultsState}
       seasonCode={seasonCode}
       period={period}
+      seasonCreditCompetitions={seasonCreditCompetitions}
       onNavigate={onNavigate}
       onSeasonCodeChange={(nextSeasonCode) => {
         setSeasonCode(nextSeasonCode);

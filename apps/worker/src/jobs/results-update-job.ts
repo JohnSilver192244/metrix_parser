@@ -1,4 +1,5 @@
 import {
+  createUpdateIssue,
   createEmptyUpdateSummary,
   type UpdateFinalStatus,
   type UpdateOperationResult,
@@ -58,7 +59,51 @@ export interface ResultsUpdateJobResult extends UpdateOperationResult {
 }
 
 const RESULTS_FETCH_CONCURRENCY = 4;
-const MAX_COMPETITIONS_PER_RUN = 50;
+// Keep the first batch intentionally small so polling can advance quickly
+// and the UI does not look stalled on long first-wave processing.
+const MAX_COMPETITIONS_PER_RUN = 5;
+const MIN_COMPETITIONS_PER_RUN = 5;
+const HARD_MAX_COMPETITIONS_PER_RUN = 50;
+
+function normalizeMaxCompetitionsPerRun(
+  value: number | undefined,
+): { maxCompetitionsPerRun: number; issues: UpdateProcessingIssue[] } {
+  if (value === undefined) {
+    return {
+      maxCompetitionsPerRun: MAX_COMPETITIONS_PER_RUN,
+      issues: [],
+    };
+  }
+
+  const normalizedValue = Number.isFinite(value)
+    ? Math.trunc(value)
+    : MAX_COMPETITIONS_PER_RUN;
+  const boundedValue = Math.min(
+    Math.max(normalizedValue, MIN_COMPETITIONS_PER_RUN),
+    HARD_MAX_COMPETITIONS_PER_RUN,
+  );
+
+  if (boundedValue === value) {
+    return {
+      maxCompetitionsPerRun: boundedValue,
+      issues: [],
+    };
+  }
+
+  return {
+    maxCompetitionsPerRun: boundedValue,
+    issues: [
+      createUpdateIssue({
+        code: "results_batch_limit_adjusted",
+        message:
+          "Параметр maxCompetitionsPerRun скорректирован до безопасного диапазона 5..50.",
+        recoverable: true,
+        stage: "validation",
+        recordKey: "results:maxCompetitionsPerRun",
+      }),
+    ],
+  };
+}
 
 function extractCompetitionIdFromRecordKey(
   recordKey: string | undefined,
@@ -219,8 +264,11 @@ export async function runResultsUpdateJob(
             : null));
     const selectionResult = await readCompetitions(period);
     const selectionOffset = dependencies.selectionOffset ?? 0;
+    const maxCompetitionsPerRunResolution = normalizeMaxCompetitionsPerRun(
+      dependencies.maxCompetitionsPerRun,
+    );
     const maxCompetitionsPerRun =
-      dependencies.maxCompetitionsPerRun ?? MAX_COMPETITIONS_PER_RUN;
+      maxCompetitionsPerRunResolution.maxCompetitionsPerRun;
     const overflowCompetitionsCount = Math.max(
       selectionResult.competitions.length - (selectionOffset + maxCompetitionsPerRun),
       0,
@@ -262,7 +310,11 @@ export async function runResultsUpdateJob(
         requestedAt,
         finishedAt: new Date().toISOString(),
         summary,
-        issues: [...fetchedResult.issues],
+        issues: [
+          ...selectionResult.issues,
+          ...maxCompetitionsPerRunResolution.issues,
+          ...fetchedResult.issues,
+        ],
         period,
         selectedCompetitionsCount: boundedCompetitions.length,
         selectedCompetitionIds: boundedCompetitions.map(
@@ -327,6 +379,8 @@ export async function runResultsUpdateJob(
       finishedAt: new Date().toISOString(),
       summary,
       issues: [
+        ...selectionResult.issues,
+        ...maxCompetitionsPerRunResolution.issues,
         ...fetchedResult.issues,
         ...mappingResult.issues,
         ...persistenceResult.issues,

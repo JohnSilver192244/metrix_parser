@@ -5,6 +5,7 @@ import type { CompetitionClass, Division, Player, Season } from "@metrix-parser/
 import { useAuth } from "../auth/auth-context";
 import { buildPlayerPath } from "../../app/route-paths";
 import { PageHeader } from "../../shared/page-header";
+import { LoadingStatePanel } from "../../shared/loading-state-panel";
 import { ActionToast } from "../../shared/action-toast";
 import { FloatingInfoTooltip } from "../../shared/floating-info-tooltip";
 import { SideDrawer } from "../../shared/side-drawer";
@@ -505,11 +506,7 @@ export function PlayersPageView({
           description="Загружаем сохранённых игроков через backend API."
         />
 
-        <section className="state-panel state-panel--pending" aria-live="polite">
-          <p className="state-panel__eyebrow">loading</p>
-          <h2>Подтягиваем игроков и дивизионы</h2>
-          <p>Подождите немного, данные загружаются с серверного read-side и из справочника.</p>
-        </section>
+        <LoadingStatePanel label="Подтягиваем игроков и дивизионы" rows={4} />
       </section>
     );
   }

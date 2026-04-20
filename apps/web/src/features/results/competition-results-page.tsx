@@ -30,6 +30,7 @@ import {
   type CompetitionResultsSourcePlayer,
 } from "../../shared/navigation-context";
 import { buildPlayerPath } from "../../app/route-paths";
+import { LoadingStatePanel } from "../../shared/loading-state-panel";
 
 type CompetitionResultsPageState =
   | {
@@ -571,11 +572,7 @@ export function CompetitionResultsPageView({
         {breadcrumbs}
         {backButton}
 
-        <section className="state-panel state-panel--pending" aria-live="polite">
-          <p className="state-panel__eyebrow">loading</p>
-          <h2 id="competition-results-title">Подтягиваем результаты соревнования</h2>
-          <p>Подождите немного, подготавливаем карточку соревнования и итоговую таблицу.</p>
-        </section>
+        <LoadingStatePanel label="Подтягиваем результаты соревнования" rows={4} />
       </section>
     );
   }

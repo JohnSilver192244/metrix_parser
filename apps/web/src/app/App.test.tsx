@@ -122,6 +122,21 @@ test("AppShellView renders only the active route so page data loads on demand", 
   assert.doesNotMatch(markup, /Список игроков/);
 });
 
+test("AppShellView renders a visual loading skeleton while auth is resolving", () => {
+  const markup = renderWithAuth(
+    "/settings",
+    {
+      status: "loading",
+      user: null,
+    },
+    "light",
+  );
+
+  assert.match(markup, /aria-label="Проверяем доступ к административному разделу"/);
+  assert.match(markup, /loading-state__spinner/);
+  assert.doesNotMatch(markup, />Проверяем доступ</);
+});
+
 test("AppShellView resolves legacy /competitions path to competitions list", () => {
   const markup = renderWithAuth("/competitions");
 

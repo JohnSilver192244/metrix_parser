@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import type { CompetitionResult } from "@metrix-parser/shared-types";
 
 import { PageHeader } from "../../shared/page-header";
+import { LoadingStatePanel } from "../../shared/loading-state-panel";
 import {
   listResults,
   resolveResultsErrorMessage,
@@ -168,11 +169,7 @@ export function ResultsPageView({
           description="Загружаем сохранённые результаты через backend API."
         />
 
-        <section className="state-panel state-panel--pending" aria-live="polite">
-          <p className="state-panel__eyebrow">loading</p>
-          <h2>Подтягиваем результаты</h2>
-          <p>Подождите немного, данные загружаются с серверного read-side.</p>
-        </section>
+        <LoadingStatePanel label="Подтягиваем результаты" rows={3} />
       </section>
     );
   }

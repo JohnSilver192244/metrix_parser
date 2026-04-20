@@ -9,6 +9,7 @@ import {
 } from "../admin-updates/update-period-picker";
 import { buildCompetitionResultsPath } from "../../app/route-paths";
 import { PageHeader } from "../../shared/page-header";
+import { LoadingStatePanel } from "../../shared/loading-state-panel";
 import { FloatingInfoTooltip } from "../../shared/floating-info-tooltip";
 import { SideDrawer } from "../../shared/side-drawer";
 import {
@@ -773,11 +774,7 @@ export function CompetitionsPageView({
           description="Загружаем сохранённые соревнования через backend API."
         />
 
-        <section className="state-panel state-panel--pending" aria-live="polite">
-          <p className="state-panel__eyebrow">loading</p>
-          <h2>Подтягиваем соревнования</h2>
-          <p>Подождите немного, данные загружаются с серверного read-side.</p>
-        </section>
+        <LoadingStatePanel label="Подтягиваем соревнования" rows={4} />
       </section>
     );
   }

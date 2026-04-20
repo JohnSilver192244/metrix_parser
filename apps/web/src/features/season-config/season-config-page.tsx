@@ -8,6 +8,7 @@ import type {
 
 import { useAuth } from "../auth/auth-context";
 import { PageHeader } from "../../shared/page-header";
+import { LoadingStatePanel } from "../../shared/loading-state-panel";
 import {
   createSeasonPointsEntry,
   deleteSeasonPointsEntry,
@@ -295,11 +296,7 @@ export function SeasonConfigPageView({
           title="Сезоны и таблица очков"
           description="Загружаем конфигурацию сезонов и правила начисления очков."
         />
-        <section className="state-panel state-panel--pending" aria-live="polite">
-          <p className="state-panel__eyebrow">loading</p>
-          <h2>Подтягиваем конфигурацию сезона</h2>
-          <p>Собираем данные по сезонам и таблице начисления очков.</p>
-        </section>
+        <LoadingStatePanel label="Подтягиваем конфигурацию сезона" rows={4} />
       </section>
     );
   }

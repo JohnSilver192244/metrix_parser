@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import type { AppUser } from "@metrix-parser/shared-types";
 
 import { PageHeader } from "../../shared/page-header";
+import { LoadingStatePanel } from "../../shared/loading-state-panel";
 import {
   listUsers,
   resolveUsersErrorMessage,
@@ -43,11 +44,7 @@ export function UsersPageView({ state }: { state: UsersPageState }) {
           description="Подтягиваем список логинов, которым разрешён административный доступ."
         />
 
-        <section className="state-panel state-panel--pending" aria-live="polite">
-          <p className="state-panel__eyebrow">loading</p>
-          <h2>Загружаем пользователей</h2>
-          <p>Список формируется из таблицы app_public.app_users.</p>
-        </section>
+        <LoadingStatePanel label="Загружаем пользователей" rows={3} />
       </section>
     );
   }

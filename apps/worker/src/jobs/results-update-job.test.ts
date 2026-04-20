@@ -158,6 +158,217 @@ test("runResultsUpdateJob returns an empty successful summary when no competitio
   assert.equal(result.fetchedResults?.length, 0);
 });
 
+test("runResultsUpdateJob keeps the default batch small so progress can advance quickly", async () => {
+  const adapter = new InMemoryCompetitionResultsAdapter();
+  const repository = createCompetitionResultsRepository(adapter);
+  const result = await runResultsUpdateJob(
+    {
+      dateFrom: "2026-04-01",
+      dateTo: "2026-04-30",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      resultsRepository: repository,
+      readCompetitions: async () => ({
+        competitions: [
+          {
+            competitionId: "competition-101",
+            metrixId: "metrix-101",
+            competitionDate: "2026-04-10",
+          },
+          {
+            competitionId: "competition-102",
+            metrixId: "metrix-102",
+            competitionDate: "2026-04-11",
+          },
+          {
+            competitionId: "competition-103",
+            metrixId: "metrix-103",
+            competitionDate: "2026-04-12",
+          },
+          {
+            competitionId: "competition-104",
+            metrixId: "metrix-104",
+            competitionDate: "2026-04-13",
+          },
+          {
+            competitionId: "competition-105",
+            metrixId: "metrix-105",
+            competitionDate: "2026-04-14",
+          },
+        ],
+        skippedCount: 0,
+        issues: [],
+      }),
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            Competition: {
+              Results: [
+                {
+                  UserID: "player-1",
+                  Name: "Ivan",
+                  Class: "MPO",
+                  Sum: 54,
+                  Diff: -6,
+                  Place: 1,
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
+  assert.equal(result.selectedCompetitionsCount, 5);
+  assert.deepEqual(result.selectedCompetitionIds, [
+    "competition-101",
+    "competition-102",
+    "competition-103",
+    "competition-104",
+    "competition-105",
+  ]);
+  assert.equal(result.nextSelectionOffset, undefined);
+  assert.equal(result.fetchedResults?.length, 5);
+});
+
+test("runResultsUpdateJob returns continuation cursor when competitions exceed default batch size", async () => {
+  const adapter = new InMemoryCompetitionResultsAdapter();
+  const repository = createCompetitionResultsRepository(adapter);
+  const result = await runResultsUpdateJob(
+    {
+      dateFrom: "2026-04-01",
+      dateTo: "2026-04-30",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      resultsRepository: repository,
+      readCompetitions: async () => ({
+        competitions: [
+          {
+            competitionId: "competition-101",
+            metrixId: "metrix-101",
+            competitionDate: "2026-04-10",
+          },
+          {
+            competitionId: "competition-102",
+            metrixId: "metrix-102",
+            competitionDate: "2026-04-11",
+          },
+          {
+            competitionId: "competition-103",
+            metrixId: "metrix-103",
+            competitionDate: "2026-04-12",
+          },
+          {
+            competitionId: "competition-104",
+            metrixId: "metrix-104",
+            competitionDate: "2026-04-13",
+          },
+          {
+            competitionId: "competition-105",
+            metrixId: "metrix-105",
+            competitionDate: "2026-04-14",
+          },
+          {
+            competitionId: "competition-106",
+            metrixId: "metrix-106",
+            competitionDate: "2026-04-15",
+          },
+        ],
+        skippedCount: 0,
+        issues: [],
+      }),
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            Competition: {
+              Results: [
+                {
+                  UserID: "player-1",
+                  Name: "Ivan",
+                  Class: "MPO",
+                  Sum: 54,
+                  Diff: -6,
+                  Place: 1,
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
+  assert.equal(result.selectedCompetitionsCount, 5);
+  assert.deepEqual(result.selectedCompetitionIds, [
+    "competition-101",
+    "competition-102",
+    "competition-103",
+    "competition-104",
+    "competition-105",
+  ]);
+  assert.equal(result.nextSelectionOffset, 5);
+  assert.equal(result.fetchedResults?.length, 5);
+});
+
+test("runResultsUpdateJob clamps maxCompetitionsPerRun to safe range", async () => {
+  const adapter = new InMemoryCompetitionResultsAdapter();
+  const repository = createCompetitionResultsRepository(adapter);
+  const result = await runResultsUpdateJob(
+    {
+      dateFrom: "2026-04-01",
+      dateTo: "2026-04-30",
+    },
+    {
+      baseUrl: "https://discgolfmetrix.com",
+      countryCode: "RU",
+      apiCode: "secret-code",
+      resultsRepository: repository,
+      maxCompetitionsPerRun: 200,
+      readCompetitions: async () => ({
+        competitions: Array.from({ length: 60 }, (_, index) => ({
+          competitionId: `competition-${index + 1}`,
+          metrixId: `metrix-${index + 1}`,
+          competitionDate: "2026-04-10",
+        })),
+        skippedCount: 0,
+        issues: [],
+      }),
+      fetchImpl: async () =>
+        createMockResponse(
+          JSON.stringify({
+            Competition: {
+              Results: [
+                {
+                  UserID: "player-1",
+                  Name: "Ivan",
+                  Class: "MPO",
+                  Sum: 54,
+                  Diff: -6,
+                  Place: 1,
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    },
+  );
+
+  assert.equal(result.selectedCompetitionsCount, 50);
+  assert.equal(result.fetchedResults?.length, 50);
+  assert.equal(result.nextSelectionOffset, 50);
+  assert.ok(
+    result.issues.some((issue) => issue.code === "results_batch_limit_adjusted"),
+  );
+});
+
 test("runResultsUpdateJob fetches results for multiple competitions and isolates partial failures", async () => {
   const adapter = new InMemoryCompetitionResultsAdapter();
   const repository = createCompetitionResultsRepository(adapter);

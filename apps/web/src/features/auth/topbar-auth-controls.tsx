@@ -41,8 +41,13 @@ export function TopbarAuthControls() {
 
   if (status === "loading") {
     return (
-      <div className="topbar-auth topbar-auth--loading" aria-live="polite">
-        <p className="topbar-auth__status">Проверяем вход…</p>
+      <div
+        className="topbar-auth topbar-auth--loading"
+        aria-live="polite"
+        aria-label="Проверяем вход"
+        role="status"
+      >
+        <span className="topbar-auth__spinner" aria-hidden="true" />
       </div>
     );
   }
