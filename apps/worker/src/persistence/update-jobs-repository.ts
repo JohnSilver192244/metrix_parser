@@ -57,6 +57,55 @@ interface UpdateJobsRow {
   progress_payload: UpdateJobProgress | null;
 }
 
+function isMissingProgressPayloadColumnError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "42703" &&
+    "message" in error &&
+    typeof (error as { message?: string }).message === "string" &&
+    (error as { message: string }).message.includes("progress_payload")
+  );
+}
+
+function buildInsertPayload(
+  record: PersistedUpdateJobRecord,
+  includeProgressPayload: boolean,
+): Record<string, unknown> {
+  return {
+    job_id: record.jobId,
+    user_login: record.userLogin,
+    operation: record.operation,
+    status: record.status,
+    message: record.message,
+    requested_at: record.requestedAt,
+    started_at: record.startedAt,
+    finished_at: record.finishedAt,
+    period_date_from: record.period?.dateFrom ?? null,
+    period_date_to: record.period?.dateTo ?? null,
+    overwrite_existing: record.overwriteExisting,
+    poll_path: record.pollPath,
+    continuation_cursor: record.continuationCursor,
+    result_payload: record.result,
+    processing_lease_token: record.processingLeaseToken,
+    ...(includeProgressPayload ? { progress_payload: record.progress ?? null } : {}),
+  };
+}
+
+function buildUpdatePayload(
+  patch: Partial<PersistedUpdateJobRecord>,
+  includeProgressPayload: boolean,
+): Record<string, unknown> {
+  const rowPatch = toRowPatch(patch);
+
+  if (!includeProgressPayload) {
+    delete rowPatch.progress_payload;
+  }
+
+  return rowPatch;
+}
+
 function toPersistedRecord(row: UpdateJobsRow): PersistedUpdateJobRecord {
   return {
     jobId: row.job_id,
@@ -153,30 +202,20 @@ export function createUpdateJobsRepository() {
 
   return {
     async insertJob(record: PersistedUpdateJobRecord): Promise<void> {
-      const { error } = await supabase
+      let response = await supabase
         .schema(APP_PUBLIC_SCHEMA)
         .from("update_jobs")
-        .insert({
-          job_id: record.jobId,
-          user_login: record.userLogin,
-          operation: record.operation,
-          status: record.status,
-          message: record.message,
-          requested_at: record.requestedAt,
-          started_at: record.startedAt,
-          finished_at: record.finishedAt,
-          period_date_from: record.period?.dateFrom ?? null,
-          period_date_to: record.period?.dateTo ?? null,
-          overwrite_existing: record.overwriteExisting,
-          poll_path: record.pollPath,
-          continuation_cursor: record.continuationCursor,
-          result_payload: record.result,
-          processing_lease_token: record.processingLeaseToken,
-          progress_payload: record.progress ?? null,
-        } satisfies UpdateJobsRow);
+        .insert(buildInsertPayload(record, true));
 
-      if (error) {
-        throw new Error(`Не удалось создать запись update job: ${error.message}`);
+      if (response.error && isMissingProgressPayloadColumnError(response.error)) {
+        response = await supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("update_jobs")
+          .insert(buildInsertPayload(record, false));
+      }
+
+      if (response.error) {
+        throw new Error(`Не удалось создать запись update job: ${response.error.message}`);
       }
     },
 
@@ -218,19 +257,29 @@ export function createUpdateJobsRepository() {
       jobId: string,
       patch: Partial<PersistedUpdateJobRecord>,
     ): Promise<PersistedUpdateJobRecord> {
-      const { data, error } = await supabase
+      let response = await supabase
         .schema(APP_PUBLIC_SCHEMA)
         .from("update_jobs")
-        .update(toRowPatch(patch))
+        .update(buildUpdatePayload(patch, true))
         .eq("job_id", jobId)
         .select("*")
         .single();
 
-      if (error) {
-        throw new Error(`Не удалось обновить update job: ${error.message}`);
+      if (response.error && isMissingProgressPayloadColumnError(response.error)) {
+        response = await supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("update_jobs")
+          .update(buildUpdatePayload(patch, false))
+          .eq("job_id", jobId)
+          .select("*")
+          .single();
       }
 
-      return toPersistedRecord(data as UpdateJobsRow);
+      if (response.error) {
+        throw new Error(`Не удалось обновить update job: ${response.error.message}`);
+      }
+
+      return toPersistedRecord(response.data as UpdateJobsRow);
     },
 
     async updateClaimedJob(
@@ -238,20 +287,31 @@ export function createUpdateJobsRepository() {
       leaseToken: string,
       patch: Partial<PersistedUpdateJobRecord>,
     ): Promise<PersistedUpdateJobRecord> {
-      const { data, error } = await supabase
+      let response = await supabase
         .schema(APP_PUBLIC_SCHEMA)
         .from("update_jobs")
-        .update(toRowPatch(patch))
+        .update(buildUpdatePayload(patch, true))
         .eq("job_id", jobId)
         .eq("processing_lease_token", leaseToken)
         .select("*")
         .single();
 
-      if (error) {
-        throw new Error(`Не удалось обновить claimed update job: ${error.message}`);
+      if (response.error && isMissingProgressPayloadColumnError(response.error)) {
+        response = await supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("update_jobs")
+          .update(buildUpdatePayload(patch, false))
+          .eq("job_id", jobId)
+          .eq("processing_lease_token", leaseToken)
+          .select("*")
+          .single();
       }
 
-      return toPersistedRecord(data as UpdateJobsRow);
+      if (response.error) {
+        throw new Error(`Не удалось обновить claimed update job: ${response.error.message}`);
+      }
+
+      return toPersistedRecord(response.data as UpdateJobsRow);
     },
 
     async claimJob(

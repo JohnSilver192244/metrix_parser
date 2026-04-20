@@ -30,7 +30,7 @@ import {
   triggerUpdate,
 } from "../../shared/api/updates";
 import { UpdateActionCard } from "./update-action-card";
-import { UpdatePeriodPicker } from "./update-period-picker";
+import { createDefaultUpdatePeriod, UpdatePeriodPicker } from "./update-period-picker";
 import type { UpdateScenarioDefinition } from "./update-scenarios";
 import { updateScenarios } from "./update-scenarios";
 import { UpdateOperationStatus } from "./update-operation-status";
@@ -149,8 +149,7 @@ export function AdminUpdatesPage() {
     [],
   );
   const [period, setPeriod] = useState<UpdatePeriod>(() => ({
-    dateFrom: "",
-    dateTo: "",
+    ...createDefaultUpdatePeriod(),
   }));
   const [overwriteExisting, setOverwriteExisting] = useState(false);
   const [phase, setPhase] = useState<UpdateLifecyclePhase>("idle");
