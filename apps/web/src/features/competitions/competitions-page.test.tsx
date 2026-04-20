@@ -121,6 +121,9 @@ test("CompetitionsPageView renders saved competitions with key fields", () => {
   assert.match(markup, /Показываем:[\s\S]*2 \(Single round event\), 4 \(Event\)/);
   assert.match(markup, /а также 3 \(Pool\), если Event разбит на несколько pool с раундами/);
   assert.match(markup, /Скрываем:[\s\S]*1 \(Round\), 3 \(Pool\), 5 \(Tour\)/);
+  assert.match(markup, /Фильтры соревнований/);
+  assert.match(markup, /Поиск по названию/);
+  assert.match(markup, /Период/);
   assert.match(markup, /data-table__link-button/);
   assert.match(markup, /data-table__external-link/);
   assert.match(markup, new RegExp(resolveCompetitionExternalUrl("competition-701")));

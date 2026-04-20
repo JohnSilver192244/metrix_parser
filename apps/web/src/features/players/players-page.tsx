@@ -553,6 +553,18 @@ export function PlayersPageView({
         </section>
       ) : (
         <>
+          <PlayersFiltersSection
+            nameQuery={nameQuery}
+            divisionFilter={divisionFilter}
+            rdgaFilter={rdgaFilter}
+            seasonFilter={seasonFilter}
+            divisionOptions={divisionOptions}
+            seasons={seasons}
+            onNameQueryChange={onNameQueryChange}
+            onDivisionFilterChange={onDivisionFilterChange}
+            onRdgaFilterChange={onRdgaFilterChange}
+            onSeasonFilterChange={onSeasonFilterChange}
+          />
           {visiblePlayers.length === 0 ? (
             <section className="state-panel" aria-live="polite">
               <p className="state-panel__eyebrow">filtered</p>
@@ -568,10 +580,14 @@ export function PlayersPageView({
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th scope="col">
+                      <th scope="col" className="players-page__place-column">
                         <span className="sr-only">Место</span>
                       </th>
-                      <th scope="col" aria-sort={resolveAriaSort(sort, "playerName")}>
+                      <th
+                        scope="col"
+                        className="players-page__player-column"
+                        aria-sort={resolveAriaSort(sort, "playerName")}
+                      >
                         <button
                           className="data-table__sort-button"
                           type="button"
@@ -643,8 +659,10 @@ export function PlayersPageView({
 
                       return (
                         <tr key={player.playerId}>
-                          <td>{formatPlayersTablePlacement(pageStartIndex + index + 1)}</td>
-                          <td className="data-table__cell-primary">
+                          <td className="players-page__place-column">
+                            {formatPlayersTablePlacement(pageStartIndex + index + 1)}
+                          </td>
+                          <td className="data-table__cell-primary players-page__player-column">
                             <span className="data-table__primary-actions">
                               <a
                                 className="data-table__external-link"

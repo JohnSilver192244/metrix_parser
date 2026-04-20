@@ -20,6 +20,23 @@ test("PlayerPageView renders player header, filters, and results table", () => {
           playerId: "player-500",
           playerName: "Sergey &amp; Ivanov",
           division: "MPO",
+          seasonCreditPoints: 132.4,
+          seasonCreditCompetitions: [
+            {
+              competitionId: "competition-2",
+              competitionName: "Beta Cup",
+              placement: 3,
+              seasonPoints: 42.5,
+              competitionClass: "league",
+            },
+            {
+              competitionId: "competition-1",
+              competitionName: "Alpha Cup",
+              placement: 1,
+              seasonPoints: 89.9,
+              competitionClass: "tournament",
+            },
+          ],
         },
         seasons: [
           {
@@ -72,8 +89,17 @@ test("PlayerPageView renders player header, filters, and results table", () => {
   assert.match(markup, /data-table__external-link/);
   assert.match(markup, /https:\/\/discgolfmetrix\.com\/player\/player-500/);
   assert.match(markup, /К списку игроков/);
+  assert.match(markup, /Зачет сезона/);
+  assert.match(markup, /Фильтр сезона: Сезон 2026/);
+  assert.match(markup, /Значение/);
+  assert.match(markup, /Место/);
+  assert.match(markup, /Очки/);
+  assert.match(markup, /Соревнование/);
+  assert.match(markup, /Т1/);
+  assert.match(markup, /Л1/);
   assert.match(markup, /Spring Open/);
   assert.match(markup, /Autumn Open/);
+  assert.ok(markup.indexOf("Зачет сезона") < markup.indexOf("Spring Open"));
   assert.match(markup, new RegExp(resolveCompetitionExternalUrl("competition-102")));
   assert.match(markup, />A</);
   assert.match(markup, />2</);

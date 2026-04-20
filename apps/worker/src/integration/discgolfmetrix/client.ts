@@ -23,6 +23,42 @@ export interface DiscGolfMetrixClientDependencies {
   countryCode: string;
   apiCode: string;
   fetchImpl?: typeof fetch;
+  requestTimeoutMs?: number;
+}
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
+class DiscGolfMetrixRequestTimeoutError extends Error {
+  constructor(requestTimeoutMs: number) {
+    super(`DiscGolfMetrix request timed out after ${requestTimeoutMs}ms.`);
+    this.name = "DiscGolfMetrixRequestTimeoutError";
+  }
+}
+
+async function fetchWithTimeout(
+  fetchImpl: typeof fetch,
+  input: string,
+  init: RequestInit,
+  requestTimeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs);
+  const timeoutError = new DiscGolfMetrixRequestTimeoutError(requestTimeoutMs);
+
+  try {
+    return await fetchImpl(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw timeoutError;
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function buildCompetitionQueryParams(
@@ -116,7 +152,22 @@ export function createDiscGolfMetrixClient({
   countryCode,
   apiCode,
   fetchImpl = fetch,
+  requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
 }: DiscGolfMetrixClientDependencies) {
+  async function performRequest(sourceUrl: string): Promise<Response> {
+    return fetchWithTimeout(
+      fetchImpl,
+      sourceUrl,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      },
+      requestTimeoutMs,
+    );
+  }
+
   return {
     async fetchCompetitions(
       request: DiscGolfMetrixCompetitionsRequest,
@@ -126,17 +177,14 @@ export function createDiscGolfMetrixClient({
       let response: Response;
 
       try {
-        response = await fetchImpl(sourceUrl, {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
-        });
+        response = await performRequest(sourceUrl);
       } catch (error) {
         throw new DiscGolfMetrixClientError(
-          error instanceof Error
-            ? `DiscGolfMetrix request failed: ${error.message}`
-            : "DiscGolfMetrix request failed.",
+          error instanceof DiscGolfMetrixRequestTimeoutError
+            ? error.message
+            : error instanceof Error
+              ? `DiscGolfMetrix request failed: ${error.message}`
+              : "DiscGolfMetrix request failed.",
           "discgolfmetrix_network_error",
           { sourceUrl },
         );
@@ -199,17 +247,14 @@ export function createDiscGolfMetrixClient({
       let response: Response;
 
       try {
-        response = await fetchImpl(sourceUrl, {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
-        });
+        response = await performRequest(sourceUrl);
       } catch (error) {
         throw new DiscGolfMetrixClientError(
-          error instanceof Error
-            ? `DiscGolfMetrix request failed: ${error.message}`
-            : "DiscGolfMetrix request failed.",
+          error instanceof DiscGolfMetrixRequestTimeoutError
+            ? error.message
+            : error instanceof Error
+              ? `DiscGolfMetrix request failed: ${error.message}`
+              : "DiscGolfMetrix request failed.",
           "discgolfmetrix_network_error",
           { sourceUrl },
         );
@@ -273,17 +318,14 @@ export function createDiscGolfMetrixClient({
       let response: Response;
 
       try {
-        response = await fetchImpl(sourceUrl, {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
-        });
+        response = await performRequest(sourceUrl);
       } catch (error) {
         throw new DiscGolfMetrixClientError(
-          error instanceof Error
-            ? `DiscGolfMetrix request failed: ${error.message}`
-            : "DiscGolfMetrix request failed.",
+          error instanceof DiscGolfMetrixRequestTimeoutError
+            ? error.message
+            : error instanceof Error
+              ? `DiscGolfMetrix request failed: ${error.message}`
+              : "DiscGolfMetrix request failed.",
           "discgolfmetrix_network_error",
           { sourceUrl },
         );

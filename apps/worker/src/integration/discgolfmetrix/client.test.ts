@@ -282,3 +282,37 @@ test("client throws predictable parse errors for non-JSON DiscGolfMetrix payload
       error.message.includes("Response preview: <html><body>temporary upstream page</body></html>"),
   );
 });
+
+test("client times out slow DiscGolfMetrix requests", async () => {
+  const client = createDiscGolfMetrixClient({
+    baseUrl: "https://discgolfmetrix.com",
+    countryCode: "EE",
+    apiCode: "secret-code",
+    requestTimeoutMs: 1,
+    fetchImpl: async (_input, init) => {
+      await new Promise<void>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new Error("aborted"));
+        });
+      });
+
+      return createMockResponse("{}", {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+        },
+      });
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      client.fetchResults({
+        competitionId: "competition-101",
+      }),
+    (error: unknown) =>
+      error instanceof DiscGolfMetrixClientError &&
+      error.code === "discgolfmetrix_network_error" &&
+      error.message.includes("timed out"),
+  );
+});

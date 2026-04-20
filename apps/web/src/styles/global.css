@@ -427,6 +427,10 @@ body {
   box-shadow: var(--surface-shadow);
 }
 
+.page-header__icon-button--filters {
+  display: none;
+}
+
 .page-header__icon-button--menu {
   display: none;
 }
@@ -1347,6 +1351,26 @@ body {
   border-bottom: 2px solid var(--surface-border);
 }
 
+.player-page__season-credit-section {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.player-page__season-credit-header {
+  display: grid;
+  gap: 4px;
+}
+
+.player-page__season-credit-header h2,
+.player-page__season-credit-header p {
+  margin: 0;
+}
+
+.player-page__season-credit-header p {
+  color: var(--text-soft);
+}
+
 .data-table tbody tr {
   transition: background 100ms;
 }
@@ -1764,6 +1788,14 @@ body {
   padding-top: 6px;
   padding-bottom: 6px;
   vertical-align: middle;
+}
+
+.players-page__table-panel .data-table .players-page__place-column {
+  padding-right: 8px;
+}
+
+.players-page__table-panel .data-table .players-page__player-column {
+  padding-left: 8px;
 }
 
 .players-table__division-select {
@@ -2504,6 +2536,10 @@ body {
     display: inline-flex;
   }
 
+  .page-header__icon-button--filters {
+    display: inline-flex;
+  }
+
   .page-header__icon-button--menu {
     display: inline-flex;
   }
@@ -2629,7 +2665,17 @@ body {
     display: none;
   }
 
+  .competitions-page__filters,
+  .courses-page__filters {
+    display: none;
+  }
+
   .side-drawer .players-page__filters {
+    display: flex;
+  }
+
+  .side-drawer .competitions-page__filters,
+  .side-drawer .courses-page__filters {
     display: flex;
   }
 

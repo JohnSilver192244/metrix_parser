@@ -809,8 +809,39 @@ export function CompetitionsPageView({
         description={
           total > 0
             ? `В системе доступно ${total} соревнований для дальнейшей работы.`
-            : "Сохранённые соревнования появятся здесь после успешного обновления данных."
+          : "Сохранённые соревнования появятся здесь после успешного обновления данных."
         }
+      />
+
+      <CompetitionsFiltersSection
+        nameQuery={nameQuery}
+        periodFilter={periodFilter}
+        periodPresets={periodPresets}
+        courseFilter={courseFilter}
+        categoryFilter={categoryFilter}
+        withoutResultsOnly={withoutResultsOnly}
+        courseOptions={courseOptions}
+        sortedCategories={sortedCategories}
+        onNameQueryChange={(value) => {
+          setNameQuery(value);
+          onPageChange?.(1);
+        }}
+        onPeriodChange={(period) => {
+          setPeriodFilter(period);
+          onPageChange?.(1);
+        }}
+        onCourseFilterChange={(value) => {
+          setCourseFilter(value);
+          onPageChange?.(1);
+        }}
+        onCategoryFilterChange={(value) => {
+          setCategoryFilter(value);
+          onPageChange?.(1);
+        }}
+        onWithoutResultsOnlyChange={(value) => {
+          setWithoutResultsOnly(value);
+          onPageChange?.(1);
+        }}
       />
 
       {competitions.length === 0 ? (

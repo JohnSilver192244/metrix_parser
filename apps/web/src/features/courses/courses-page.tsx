@@ -281,6 +281,19 @@ export function CoursesPageView({
         }
       />
 
+      <CoursesFiltersSection
+        nameFilter={nameFilter}
+        regionFilter={regionFilter}
+        nameOptions={nameOptions}
+        regionOptions={regionOptions}
+        onNameFilterChange={(value) => {
+          setNameFilter(value);
+        }}
+        onRegionFilterChange={(value) => {
+          setRegionFilter(value);
+        }}
+      />
+
       {courses.length === 0 ? (
         <section className="state-panel" aria-live="polite">
           <p className="state-panel__eyebrow">empty</p>

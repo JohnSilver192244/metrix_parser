@@ -78,6 +78,9 @@ test("PlayersPageView renders player identification fields", () => {
   assert.match(markup, /Очки сезона/);
   assert.match(markup, /Очки зачета/);
   assert.match(markup, /Соревнований/);
+  assert.match(markup, /Фильтр игроков/);
+  assert.match(markup, /Имя игрока/);
+  assert.match(markup, /Сезон/);
   assert.match(markup, /MPO/);
   assert.match(markup, /type="checkbox"/);
   assert.match(markup, /type="date"/);
@@ -85,7 +88,7 @@ test("PlayersPageView renders player identification fields", () => {
   assert.match(markup, />125\.50</);
   assert.match(markup, />—</);
   assert.match(markup, />7</);
-  assert.match(markup, /<td>1<\/td>/);
+  assert.match(markup, /<td class="players-page__place-column">1<\/td>/);
 });
 
 test("PlayersPageView renders mobile filters drawer content when opened", () => {

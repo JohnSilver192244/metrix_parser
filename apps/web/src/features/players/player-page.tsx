@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import type {
+  CompetitionClass,
   Player,
   PlayerCompetitionResult,
   Season,
@@ -194,6 +195,10 @@ function formatPlacement(value: number | null, dnf: boolean): string {
   return String(value);
 }
 
+function formatSeasonCreditPlacementValue(value: number | null): string {
+  return value == null ? "—" : String(value);
+}
+
 function formatPoints(value: number | null): string {
   return value == null ? "—" : value.toFixed(2);
 }
@@ -204,6 +209,41 @@ function resolvePlayerName(player: Player): string {
 
 function resolvePlayerExternalUrl(playerId: string): string {
   return new URL(`/player/${playerId}`, discGolfMetrixBaseUrl).toString();
+}
+
+interface SeasonCreditCompetitionRow {
+  competitionId: string;
+  label: string;
+  placement: string;
+  points: string;
+  competitionName: string;
+}
+
+function resolveSeasonCreditCompetitionPrefix(
+  competitionClass: CompetitionClass | null | undefined,
+): string {
+  return competitionClass === "league" ? "Л" : "Т";
+}
+
+function buildSeasonCreditCompetitionRows(
+  competitions: ReadonlyArray<NonNullable<Player["seasonCreditCompetitions"]>[number]>,
+): SeasonCreditCompetitionRow[] {
+  const classCounters: Record<CompetitionClass, number> = {
+    league: 0,
+    tournament: 0,
+  };
+
+  return competitions.map((competition) => {
+    const competitionClass = competition.competitionClass ?? "tournament";
+    classCounters[competitionClass] += 1;
+    return {
+      competitionId: competition.competitionId,
+      label: `${resolveSeasonCreditCompetitionPrefix(competition.competitionClass)}${classCounters[competitionClass]}`,
+      placement: formatSeasonCreditPlacementValue(competition.placement),
+      points: formatPoints(competition.seasonPoints),
+      competitionName: decodeHtmlEntities(competition.competitionName),
+    };
+  });
 }
 
 function compareOptionalNumber(
@@ -429,10 +469,20 @@ export function PlayerPageView({
   const { player, seasons } = headerState;
   const playerName = resolvePlayerName(player);
   const playerExternalUrl = resolvePlayerExternalUrl(player.playerId);
+  const selectedSeason = seasons.find((season) => season.seasonCode === seasonCode);
   const orderedRows =
     resultsState.status === "ready"
       ? sortPlayerResultsRows(resultsState.rows, sort)
       : [];
+  const seasonCreditCompetitions = player.seasonCreditCompetitions ?? [];
+  const seasonCreditRows =
+    seasonCreditCompetitions.length === 0
+      ? []
+      : buildSeasonCreditCompetitionRows(
+          [...seasonCreditCompetitions].sort(
+            (left, right) => right.seasonPoints - left.seasonPoints,
+          ),
+        );
   const hasSeasonContext =
     seasonCode.length > 0 && period.dateFrom.length > 0 && period.dateTo.length > 0;
   const filtersAction = hasSeasonContext ? (
@@ -486,6 +536,40 @@ export function PlayerPageView({
         }
         description={`Metrix ID: ${player.playerId}`}
       />
+
+      {hasSeasonContext && seasonCreditRows.length > 0 ? (
+        <section className="player-page__season-credit-section" aria-label="Зачет сезона">
+          <div className="player-page__season-credit-header">
+            <p className="state-panel__eyebrow">season</p>
+            <h2>Зачет сезона</h2>
+            <p>Фильтр сезона: {selectedSeason?.name ?? seasonCode}</p>
+          </div>
+          <section className="data-table-panel" aria-label="Сезонный зачет игрока">
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Значение</th>
+                    <th scope="col">Место</th>
+                    <th scope="col">Очки</th>
+                    <th scope="col">Соревнование</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {seasonCreditRows.map((row) => (
+                    <tr key={row.competitionId}>
+                      <td className="data-table__cell-primary">{row.label}</td>
+                      <td>{row.placement}</td>
+                      <td>{row.points}</td>
+                      <td>{row.competitionName}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      ) : null}
 
       {hasSeasonContext ? null : (
         <section className="state-panel" aria-live="polite">
