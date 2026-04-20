@@ -70,7 +70,7 @@ test("PlayersPageView renders player identification fields", () => {
     markup,
     /https:\/\/discgolfmetrix\.com\/player\/player-500/,
   );
-  assert.match(markup, /Место/);
+  assert.match(markup, /<span class="sr-only">Место<\/span>/);
   assert.match(markup, /Игрок/);
   assert.match(markup, /Дивизион/);
   assert.match(markup, /RDGA/);

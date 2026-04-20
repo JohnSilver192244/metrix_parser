@@ -568,7 +568,9 @@ export function PlayersPageView({
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th scope="col">Место</th>
+                      <th scope="col">
+                        <span className="sr-only">Место</span>
+                      </th>
                       <th scope="col" aria-sort={resolveAriaSort(sort, "playerName")}>
                         <button
                           className="data-table__sort-button"

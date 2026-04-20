@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type {
+  UpdateJobProgress,
   UpdateOperationResult,
   UpdatePeriod,
 } from "@metrix-parser/shared-types";
@@ -130,6 +131,7 @@ class InMemoryUpdateJobsRepository {
         ? ({ ...record.continuationCursor } as PersistedUpdateJobCursor)
         : null,
       result: record.result ? JSON.parse(JSON.stringify(record.result)) : null,
+      progress: record.progress ? { ...record.progress } : null,
     };
   }
 
@@ -212,6 +214,7 @@ function createRecord(
     continuationCursor: overrides.continuationCursor ?? null,
     result: overrides.result ?? null,
     processingLeaseToken: overrides.processingLeaseToken ?? null,
+    progress: overrides.progress ?? null,
   };
 }
 

@@ -35,6 +35,30 @@ import type { UpdateScenarioDefinition } from "./update-scenarios";
 import { updateScenarios } from "./update-scenarios";
 import { UpdateOperationStatus } from "./update-operation-status";
 
+function getProgressPhaseLabel(phase: string): string {
+  if (phase === "queued") {
+    return "В очереди";
+  }
+
+  if (phase === "running") {
+    return "Обработка";
+  }
+
+  if (phase === "continuing") {
+    return "Продолжение";
+  }
+
+  if (phase === "finalizing") {
+    return "Завершение";
+  }
+
+  if (phase === "failed") {
+    return "Ошибка";
+  }
+
+  return "Этап";
+}
+
 const updateSkipConditions = [
   "Соревнования не импортируются, если запись не из РФ. Такие записи отфильтровываются и не попадают в импорт.",
   "Соревнования пропускаются, если у записи нет competitionId, competitionName, competitionDate или courseId.",
@@ -77,6 +101,14 @@ function PendingStatus({
         {job?.message ??
           "Команда отправлена в backend API. После получения accepted-job ответа страница переключится на polling статуса."}
       </p>
+      {job && "progress" in job && job.progress ? (
+        <p>
+          Этап: {getProgressPhaseLabel(job.progress.phase)}
+          {typeof job.progress.batchIndex === "number" ? `, batch ${job.progress.batchIndex}` : ""}
+          {typeof job.progress.cursorOffset === "number" ? `, offset ${job.progress.cursorOffset}` : ""}
+          {job.progress.updatedAt ? `, ${new Date(job.progress.updatedAt).toLocaleString("ru-RU")}` : ""}
+        </p>
+      ) : null}
       <p>
         Период: {period.dateFrom} - {period.dateTo}
       </p>

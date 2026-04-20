@@ -171,6 +171,30 @@ export function DivisionsPageView({
           <h2>Пока нет дивизионов</h2>
           <p>Добавьте первый дивизион для игроков.</p>
         </section>
+      ) : !canEdit ? (
+        <section className="data-table-panel" aria-label="Дивизионы">
+          <div className="data-table-wrap">
+            <table className="data-table tournament-categories-page__table">
+              <colgroup>
+                <col style={{ width: DIVISIONS_COLUMN_WIDTHS.code }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">Код</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <span className="players-table__readonly-value">
+                      {visibleDivisions.map((division) => division.code).join(", ")}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       ) : (
         <section className="data-table-panel" aria-label="Дивизионы">
           <div className="data-table-wrap">

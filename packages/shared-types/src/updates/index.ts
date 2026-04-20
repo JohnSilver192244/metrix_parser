@@ -6,6 +6,12 @@ export type UpdateRecordAction = "created" | "updated" | "skipped";
 export type UpdateEntityIdentity = "competition" | "course" | "player" | "result";
 export type UpdateIdempotencyStrategy = "single-field" | "fallback-fields" | "composite-key";
 export type UpdateProcessingStage = "transport" | "validation" | "matching" | "persistence";
+export type UpdateJobProgressPhase =
+  | "queued"
+  | "running"
+  | "continuing"
+  | "finalizing"
+  | "failed";
 export type UpdateJobState =
   | "accepted"
   | "running"
@@ -63,6 +69,14 @@ export interface UpdateIdentityRule {
   description: string;
 }
 
+export interface UpdateJobProgress {
+  phase: UpdateJobProgressPhase;
+  message: string;
+  batchIndex?: number;
+  cursorOffset?: number;
+  updatedAt: string;
+}
+
 export interface UpdateOperationResult {
   operation: UpdateOperation;
   finalStatus: UpdateFinalStatus;
@@ -86,6 +100,7 @@ export interface AcceptedUpdateOperation {
   requestedAt: string;
   period?: UpdatePeriod;
   pollPath: string;
+  progress?: UpdateJobProgress;
 }
 
 export interface RunningUpdateJobStatus {
@@ -98,6 +113,7 @@ export interface RunningUpdateJobStatus {
   startedAt: string;
   period?: UpdatePeriod;
   pollPath: string;
+  progress?: UpdateJobProgress;
 }
 
 export interface FinishedUpdateJobStatus {
@@ -112,6 +128,7 @@ export interface FinishedUpdateJobStatus {
   period?: UpdatePeriod;
   pollPath: string;
   result: UpdateOperationResult;
+  progress?: UpdateJobProgress;
 }
 
 export type UpdateJobStatusResponse =

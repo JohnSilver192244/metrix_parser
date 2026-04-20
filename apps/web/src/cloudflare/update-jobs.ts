@@ -3,6 +3,7 @@ import {
   createUpdateIssue,
   resolveUpdateFinalStatus,
   type AcceptedUpdateOperation,
+  type UpdateJobProgress,
   type UpdateDiagnostics,
   type UpdateDiagnosticsSection,
   type UpdateJobStatusResponse,
@@ -30,6 +31,12 @@ import {
 
 const UPDATE_JOB_POLL_PATH_PREFIX = "/updates/jobs";
 const SCHEDULED_MAX_BATCHES_PER_INVOCATION = 25;
+const OPERATION_PROGRESS_TITLES: Record<UpdateOperation, string> = {
+  competitions: "Соревнования",
+  courses: "Парки",
+  players: "Игроки и результаты",
+  results: "Результаты",
+};
 
 export const CLOUDFLARE_UPDATE_CRON_SPECS = [
   { cron: "0 1 * * *", operation: "competitions" as const },
@@ -112,6 +119,52 @@ function createJobId(prefix = "update-job"): string {
   return globalThis.crypto?.randomUUID?.() ?? `${prefix}-${Date.now()}`;
 }
 
+function createJobProgress(
+  phase: UpdateJobProgress["phase"],
+  message: string,
+  batchIndex?: number,
+  cursorOffset?: number,
+): UpdateJobProgress {
+  return {
+    phase,
+    message,
+    batchIndex,
+    cursorOffset,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function describeBatchProgress(
+  operation: UpdateOperation,
+  phase: UpdateJobProgress["phase"],
+  batchIndex: number,
+  cursorOffset?: number,
+): string {
+  const title = OPERATION_PROGRESS_TITLES[operation];
+
+  if (phase === "queued") {
+    return `${title}: операция принята в очередь.`;
+  }
+
+  if (phase === "running") {
+    const offsetSuffix =
+      typeof cursorOffset === "number" ? `, смещение ${cursorOffset}` : "";
+    return `${title}: обрабатываем batch ${batchIndex}${offsetSuffix}.`;
+  }
+
+  if (phase === "continuing") {
+    const offsetSuffix =
+      typeof cursorOffset === "number" ? ` со смещения ${cursorOffset}` : "";
+    return `${title}: batch ${batchIndex} завершён, продолжаем${offsetSuffix}.`;
+  }
+
+  if (phase === "finalizing") {
+    return `${title}: завершаем обновление после batch ${batchIndex}.`;
+  }
+
+  return `${title}: обновление завершилось с ошибкой.`;
+}
+
 function requireExecutionEnv(env: UpdateJobsRuntimeEnv): ResolvedUpdateJobsRuntimeEnv {
   if (
     !env.supabaseUrl ||
@@ -157,6 +210,7 @@ function toAcceptedResponse(record: PersistedUpdateJobRecord): AcceptedUpdateOpe
     requestedAt: record.requestedAt,
     period: record.period,
     pollPath: record.pollPath,
+    progress: record.progress ?? undefined,
   };
 }
 
@@ -169,6 +223,7 @@ function toStatusResponse(record: PersistedUpdateJobRecord): UpdateJobStatusResp
     requestedAt: record.requestedAt,
     period: record.period,
     pollPath: record.pollPath,
+    progress: record.progress ?? undefined,
   };
 
   if (record.status === "accepted") {
@@ -192,6 +247,7 @@ function toStatusResponse(record: PersistedUpdateJobRecord): UpdateJobStatusResp
     startedAt: record.startedAt ?? record.requestedAt,
     finishedAt: record.finishedAt ?? record.requestedAt,
     result: record.result ?? createUnexpectedFailure(record.operation, record.requestedAt),
+    progress: record.progress ?? undefined,
   };
 }
 
@@ -459,42 +515,81 @@ export function createUpdateJobsService(
                 message: `Фоновое обновление ${claimedRecord.operation} выполняется в unified Cloudflare runtime.`,
               });
 
+        const nextBatchIndex = (runningRecord.progress?.batchIndex ?? 0) + 1;
+        const runningProgress = createJobProgress(
+          "running",
+          describeBatchProgress(
+            claimedRecord.operation,
+            "running",
+            nextBatchIndex,
+            runningRecord.continuationCursor?.offset,
+          ),
+          nextBatchIndex,
+          runningRecord.continuationCursor?.offset,
+        );
+        const activeRecord = await repository.updateClaimedJob(currentRecord.jobId, leaseToken, {
+          message: runningProgress.message,
+          progress: runningProgress,
+        });
+
         try {
           const batch = await runBatch(
             command,
             executionEnv,
-            runningRecord.continuationCursor,
+            activeRecord.continuationCursor,
           );
-          const mergedResult = mergeResults(runningRecord.result, batch.result);
+          const mergedResult = mergeResults(activeRecord.result, batch.result);
 
           if (batch.nextCursor) {
+            const continuationProgress = createJobProgress(
+              "continuing",
+              describeBatchProgress(
+                claimedRecord.operation,
+                "continuing",
+                nextBatchIndex,
+                batch.nextCursor.offset,
+              ),
+              nextBatchIndex,
+              batch.nextCursor.offset,
+            );
             await repository.updateClaimedJob(currentRecord.jobId, leaseToken, {
               status: "running",
               continuationCursor: batch.nextCursor,
-              message:
-                "Batch завершён, для продолжения используется persisted resume cursor и следующий polling/status request.",
+              message: continuationProgress.message,
               result: mergedResult,
+              progress: continuationProgress,
               processingLeaseToken: null,
             });
 
             return repository.getJob(currentRecord.jobId);
           }
 
+          const finalizingProgress = createJobProgress(
+            "finalizing",
+            describeBatchProgress(claimedRecord.operation, "finalizing", nextBatchIndex),
+            nextBatchIndex,
+          );
           await repository.updateClaimedJob(currentRecord.jobId, leaseToken, {
             status: mergedResult.finalStatus,
             continuationCursor: null,
             message: mergedResult.message,
             finishedAt: mergedResult.finishedAt,
             result: mergedResult,
+            progress: finalizingProgress,
             processingLeaseToken: null,
           });
           invalidateReadCache();
           return null;
         } catch {
+          const failedProgress = createJobProgress(
+            "failed",
+            describeBatchProgress(claimedRecord.operation, "failed", nextBatchIndex),
+            nextBatchIndex,
+          );
           const failure = forceFailedResult(
             mergeResults(
-              runningRecord.result,
-              createUnexpectedFailure(record.operation, runningRecord.requestedAt),
+              activeRecord.result,
+              createUnexpectedFailure(record.operation, activeRecord.requestedAt),
             ),
           );
           await repository.updateClaimedJob(currentRecord.jobId, leaseToken, {
@@ -503,6 +598,7 @@ export function createUpdateJobsService(
             message: failure.message,
             finishedAt: failure.finishedAt,
             result: failure,
+            progress: failedProgress,
             processingLeaseToken: null,
           });
           return null;
@@ -547,6 +643,10 @@ export function createUpdateJobsService(
         continuationCursor: null,
         result: null,
         processingLeaseToken: null,
+        progress: createJobProgress(
+          "queued",
+          describeBatchProgress(operation, "queued", 0),
+        ),
       };
 
       await repository.insertJob(record);
@@ -578,6 +678,10 @@ export function createUpdateJobsService(
         continuationCursor: null,
         result: null,
         processingLeaseToken: null,
+        progress: createJobProgress(
+          "queued",
+          describeBatchProgress(command.operation, "queued", 0),
+        ),
       };
 
       await useWithRepository(env, async (repository) => {

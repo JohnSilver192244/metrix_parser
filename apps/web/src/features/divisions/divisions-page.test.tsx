@@ -37,8 +37,9 @@ test("DivisionsPageView renders readonly mode for guests", () => {
   );
 
   assert.match(markup, /Войдите в систему, чтобы добавлять, редактировать и удалять дивизионы/);
-  assert.match(markup, />FPO</);
-  assert.match(markup, />MPO</);
+  assert.match(markup, /FPO, MPO/);
+  assert.doesNotMatch(markup, />FPO</);
+  assert.doesNotMatch(markup, />MPO</);
   assert.doesNotMatch(markup, /Добавить дивизион/);
   assert.doesNotMatch(markup, /Сохранить/);
   assert.doesNotMatch(markup, /Удалить/);

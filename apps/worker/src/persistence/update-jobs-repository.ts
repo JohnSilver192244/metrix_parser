@@ -1,4 +1,8 @@
-import type { UpdateOperationResult, UpdatePeriod } from "@metrix-parser/shared-types";
+import type {
+  UpdateJobProgress,
+  UpdateOperationResult,
+  UpdatePeriod,
+} from "@metrix-parser/shared-types";
 
 import { createWorkerSupabaseAdminClient } from "../lib/supabase-admin";
 
@@ -31,6 +35,7 @@ export interface PersistedUpdateJobRecord {
   continuationCursor: PersistedUpdateJobCursor | null;
   result: UpdateOperationResult | null;
   processingLeaseToken: string | null;
+  progress?: UpdateJobProgress | null;
 }
 
 interface UpdateJobsRow {
@@ -49,6 +54,7 @@ interface UpdateJobsRow {
   continuation_cursor: PersistedUpdateJobCursor | null;
   result_payload: UpdateOperationResult | null;
   processing_lease_token: string | null;
+  progress_payload: UpdateJobProgress | null;
 }
 
 function toPersistedRecord(row: UpdateJobsRow): PersistedUpdateJobRecord {
@@ -73,6 +79,7 @@ function toPersistedRecord(row: UpdateJobsRow): PersistedUpdateJobRecord {
     continuationCursor: row.continuation_cursor,
     result: row.result_payload,
     processingLeaseToken: row.processing_lease_token,
+    progress: row.progress_payload ?? null,
   };
 }
 
@@ -134,6 +141,10 @@ function toRowPatch(
     rowPatch.processing_lease_token = patch.processingLeaseToken ?? null;
   }
 
+  if ("progress" in patch) {
+    rowPatch.progress_payload = patch.progress ?? null;
+  }
+
   return rowPatch;
 }
 
@@ -161,6 +172,7 @@ export function createUpdateJobsRepository() {
           continuation_cursor: record.continuationCursor,
           result_payload: record.result,
           processing_lease_token: record.processingLeaseToken,
+          progress_payload: record.progress ?? null,
         } satisfies UpdateJobsRow);
 
       if (error) {
