@@ -169,7 +169,7 @@ export function AdminUpdatesPage() {
     : isAssigningCategories
       ? "Категории пересчитываются"
     : !hasSelectedPeriod
-      ? "Сначала выберите диапазон дат (максимум 14 дней)"
+      ? "Сначала выберите диапазон дат"
       : null;
 
   async function handleScenarioSubmit(scenario: UpdateScenarioDefinition) {
@@ -378,7 +378,7 @@ export function AdminUpdatesPage() {
             <p>Выберите период и запустите нужные операции обновления.</p>
           </div>
           <div className="update-launcher__controls">
-            <UpdatePeriodPicker value={period} onChange={setPeriod} maxRangeDays={14} />
+            <UpdatePeriodPicker value={period} onChange={setPeriod} />
             <label className="update-launcher__checkbox">
               <input
                 type="checkbox"

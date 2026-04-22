@@ -1241,7 +1241,7 @@ body {
   top: calc(100% + 8px);
   left: 0;
   z-index: 10;
-  width: min(380px, calc(100vw - 32px));
+  width: min(620px, calc(100vw - 32px));
   display: grid;
   gap: 14px;
   padding: 16px;
@@ -1251,9 +1251,16 @@ body {
   box-shadow: var(--surface-shadow-elevated);
 }
 
+.period-picker__body {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
 .period-picker__presets {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 6px;
 }
 
@@ -1282,6 +1289,7 @@ body {
 .period-picker__preset {
   background: var(--accent-soft);
   color: var(--accent-strong);
+  text-align: left;
 }
 
 .period-picker__preset:hover {
@@ -1371,6 +1379,8 @@ body {
 .period-picker__footer {
   display: grid;
   gap: 10px;
+  border-top: 1px solid var(--surface-border);
+  padding-top: 12px;
 }
 
 .period-picker__hint {
@@ -2768,6 +2778,16 @@ body {
   .period-picker__trigger,
   .period-picker__popover {
     width: 100%;
+  }
+
+  .period-picker__body {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .period-picker__presets {
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 
   .update-card__summary-grid {

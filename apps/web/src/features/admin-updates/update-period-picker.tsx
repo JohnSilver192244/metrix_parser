@@ -423,78 +423,80 @@ export function UpdatePeriodPicker({
           aria-modal="false"
           aria-label={`Выбор периода: ${label}`}
         >
-          <div className="period-picker__presets">
-            {presets.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                className="period-picker__preset"
-                onClick={() => {
-                  applyPreset(preset);
-                }}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="period-picker__calendar">
-            <div className="period-picker__calendar-header">
-              <button
-                type="button"
-                className="period-picker__nav"
-                aria-label="Предыдущий месяц"
-                onClick={() => {
-                  setViewDate((current) => addUtcMonths(current, -1));
-                }}
-              >
-                ←
-              </button>
-              <strong>{formatMonthLabel(viewDate)}</strong>
-              <button
-                type="button"
-                className="period-picker__nav"
-                aria-label="Следующий месяц"
-                onClick={() => {
-                  setViewDate((current) => addUtcMonths(current, 1));
-                }}
-              >
-                →
-              </button>
-            </div>
-
-            <div className="period-picker__weekday-row">
-              {WEEKDAY_LABELS.map((label) => (
-                <span key={label}>{label}</span>
+          <div className="period-picker__body">
+            <div className="period-picker__presets">
+              {presets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className="period-picker__preset"
+                  onClick={() => {
+                    applyPreset(preset);
+                  }}
+                >
+                  {preset.label}
+                </button>
               ))}
             </div>
 
-            <div className="period-picker__days">
-              {monthDays.map((day, index) => {
-                if (!day) {
-                  return <span key={`empty-${index}`} className="period-picker__day period-picker__day--empty" />;
-                }
+            <div className="period-picker__calendar">
+              <div className="period-picker__calendar-header">
+                <button
+                  type="button"
+                  className="period-picker__nav"
+                  aria-label="Предыдущий месяц"
+                  onClick={() => {
+                    setViewDate((current) => addUtcMonths(current, -1));
+                  }}
+                >
+                  ←
+                </button>
+                <strong>{formatMonthLabel(viewDate)}</strong>
+                <button
+                  type="button"
+                  className="period-picker__nav"
+                  aria-label="Следующий месяц"
+                  onClick={() => {
+                    setViewDate((current) => addUtcMonths(current, 1));
+                  }}
+                >
+                  →
+                </button>
+              </div>
 
-                const inRange = isDateSelected(day);
-                const isBoundary = isRangeBoundary(day);
-                const isDisabled = isDayDisabled(day);
+              <div className="period-picker__weekday-row">
+                {WEEKDAY_LABELS.map((label) => (
+                  <span key={label}>{label}</span>
+                ))}
+              </div>
 
-                return (
-                  <button
-                    key={formatDateForApi(day)}
-                    type="button"
-                    className={`period-picker__day${inRange ? " period-picker__day--selected" : ""}${isBoundary ? " period-picker__day--boundary" : ""}${isDisabled ? " period-picker__day--disabled" : ""}`}
-                    disabled={isDisabled}
-                    aria-pressed={inRange}
-                    aria-label={`${formatDateLabel(formatDateForApi(day))}${isDisabled ? " (недоступно)" : ""}`}
-                    onClick={() => {
-                      handleDaySelect(day);
-                    }}
-                  >
-                    {day.getUTCDate()}
-                  </button>
-                );
-              })}
+              <div className="period-picker__days">
+                {monthDays.map((day, index) => {
+                  if (!day) {
+                    return <span key={`empty-${index}`} className="period-picker__day period-picker__day--empty" />;
+                  }
+
+                  const inRange = isDateSelected(day);
+                  const isBoundary = isRangeBoundary(day);
+                  const isDisabled = isDayDisabled(day);
+
+                  return (
+                    <button
+                      key={formatDateForApi(day)}
+                      type="button"
+                      className={`period-picker__day${inRange ? " period-picker__day--selected" : ""}${isBoundary ? " period-picker__day--boundary" : ""}${isDisabled ? " period-picker__day--disabled" : ""}`}
+                      disabled={isDisabled}
+                      aria-pressed={inRange}
+                      aria-label={`${formatDateLabel(formatDateForApi(day))}${isDisabled ? " (недоступно)" : ""}`}
+                      onClick={() => {
+                        handleDaySelect(day);
+                      }}
+                    >
+                      {day.getUTCDate()}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
