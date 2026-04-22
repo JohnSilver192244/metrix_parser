@@ -63,6 +63,7 @@ export interface PlayersPageViewProps {
   state: PlayersPageState;
   onNavigate?: (pathname: string) => void;
   pageTitleAction?: React.ReactNode;
+  showDownloadButton?: boolean;
   canDownloadCsv?: boolean;
   mobileFiltersOpen?: boolean;
   nameQuery?: string;
@@ -176,6 +177,10 @@ function formatPlayersTablePlacement(value: number): string {
   return String(value);
 }
 
+function resolvePlayerDivisionForExport(player: Player): string {
+  return normalizeDivisionValue(player.seasonDivision ?? "") ?? player.division ?? "";
+}
+
 function hasSeasonCreditPoints(player: Player): player is Player & { seasonCreditPoints: number } {
   return (
     typeof player.seasonCreditPoints === "number" &&
@@ -226,7 +231,7 @@ export function buildPlayersSeasonExportCsv(players: Player[]): string {
     formatSeasonPointsValue(player.seasonCreditPoints),
     formatSeasonPointsValue(player.seasonPoints),
     player.rdga === true ? "да" : "нет",
-    player.seasonDivision ?? "",
+    resolvePlayerDivisionForExport(player),
   ]);
 
   return [csvHeader, ...csvRows]
@@ -389,10 +394,13 @@ interface PlayersFiltersSectionProps {
   seasonFilter: string;
   divisionOptions: string[];
   seasons: Season[];
+  showDownloadButton?: boolean;
+  canDownloadCsv?: boolean;
   onNameQueryChange?: (value: string) => void;
   onDivisionFilterChange?: (value: string) => void;
   onRdgaFilterChange?: (value: PlayersRdgaFilter) => void;
   onSeasonFilterChange?: (value: string) => void;
+  onDownloadCsv?: () => void;
 }
 
 function PlayersFiltersSection({
@@ -402,10 +410,13 @@ function PlayersFiltersSection({
   seasonFilter,
   divisionOptions,
   seasons,
+  showDownloadButton = false,
+  canDownloadCsv = false,
   onNameQueryChange,
   onDivisionFilterChange,
   onRdgaFilterChange,
   onSeasonFilterChange,
+  onDownloadCsv,
 }: PlayersFiltersSectionProps) {
   return (
     <section className="players-page__filters" aria-label="Фильтр игроков">
@@ -468,6 +479,20 @@ function PlayersFiltersSection({
           <option value="non-rdga">Без RDGA</option>
         </select>
       </label>
+      {showDownloadButton ? (
+        <div className="players-page__filters-action">
+          <button
+            type="button"
+            className="update-card__submit players-table__save-button"
+            disabled={!canDownloadCsv}
+            onClick={() => {
+              onDownloadCsv?.();
+            }}
+          >
+            Скачать
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -476,6 +501,7 @@ export function PlayersPageView({
   state,
   onNavigate,
   pageTitleAction,
+  showDownloadButton = false,
   canDownloadCsv = false,
   mobileFiltersOpen = false,
   nameQuery = "",
@@ -619,10 +645,13 @@ export function PlayersPageView({
             seasonFilter={seasonFilter}
             divisionOptions={divisionOptions}
             seasons={seasons}
+            showDownloadButton={showDownloadButton}
+            canDownloadCsv={canDownloadCsv}
             onNameQueryChange={onNameQueryChange}
             onDivisionFilterChange={onDivisionFilterChange}
             onRdgaFilterChange={onRdgaFilterChange}
             onSeasonFilterChange={onSeasonFilterChange}
+            onDownloadCsv={onDownloadCsv}
           />
           {visiblePlayers.length === 0 ? (
             <section className="state-panel" aria-live="polite">
@@ -635,18 +664,6 @@ export function PlayersPageView({
               className="data-table-panel players-page__table-panel"
               aria-label="Сохранённые игроки"
             >
-              <div className="players-page__table-actions">
-                <button
-                  type="button"
-                  className="update-card__submit players-table__save-button"
-                  disabled={!canDownloadCsv}
-                  onClick={() => {
-                    onDownloadCsv?.();
-                  }}
-                >
-                  Скачать
-                </button>
-              </div>
               <div className="data-table-wrap">
                 <table className="data-table">
                   <thead>
@@ -968,10 +985,13 @@ export function PlayersPageView({
               seasonFilter={seasonFilter}
               divisionOptions={divisionOptions}
               seasons={seasons}
+              showDownloadButton={showDownloadButton}
+              canDownloadCsv={canDownloadCsv}
               onNameQueryChange={onNameQueryChange}
               onDivisionFilterChange={onDivisionFilterChange}
               onRdgaFilterChange={onRdgaFilterChange}
               onSeasonFilterChange={onSeasonFilterChange}
+              onDownloadCsv={onDownloadCsv}
             />
           </SideDrawer>
         </>
@@ -1273,6 +1293,7 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
       seasonFilter={seasonFilter}
       sort={sort}
       canEdit={forceCanEdit ?? (isAuthenticated && isEditModeEnabled)}
+      showDownloadButton={isAuthenticated}
       canDownloadCsv={canDownloadCsv}
       pageTitleAction={pageTitleAction}
       mobileFiltersOpen={mobileFiltersOpen}

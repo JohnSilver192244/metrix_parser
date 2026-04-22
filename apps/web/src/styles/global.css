@@ -1826,17 +1826,20 @@ body {
   overflow: visible;
 }
 
-.players-page__table-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 10px;
-}
-
 .players-page__filters {
   margin-top: 16px;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.players-page__filters-action {
+  display: flex;
+  align-items: flex-end;
+}
+
+.players-page__filters-action .players-table__save-button {
+  min-height: 40px;
 }
 
 .players-page__table-panel .data-table-wrap {
@@ -1930,6 +1933,14 @@ body {
   margin-top: 0;
   flex-direction: column;
   flex-wrap: nowrap;
+}
+
+.side-drawer .players-page__filters-action {
+  align-items: stretch;
+}
+
+.side-drawer .players-page__filters-action .players-table__save-button {
+  width: 100%;
 }
 
 .side-drawer .competitions-page__filters {

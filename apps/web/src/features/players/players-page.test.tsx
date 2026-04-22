@@ -64,6 +64,8 @@ test("PlayersPageView renders player identification fields", () => {
       }}
       seasonFilter="2026"
       canEdit={true}
+      showDownloadButton={true}
+      canDownloadCsv={true}
     />,
   );
 
@@ -118,6 +120,8 @@ test("PlayersPageView renders mobile filters drawer content when opened", () => 
         ],
       }}
       mobileFiltersOpen={true}
+      showDownloadButton={true}
+      canDownloadCsv={true}
       onMobileFiltersClose={() => {}}
     />,
   );
@@ -125,6 +129,7 @@ test("PlayersPageView renders mobile filters drawer content when opened", () => 
   assert.match(markup, /Фильтры игроков/);
   assert.match(markup, /role="dialog"/);
   assert.match(markup, /aria-label="Закрыть панель Фильтры игроков"/);
+  assert.match(markup, />Скачать</);
 });
 
 test("PlayersPageView renders player name as in-app link button when navigation is provided", () => {
@@ -680,6 +685,7 @@ test("PlayersPageView disables editing for guests", () => {
   assert.doesNotMatch(markup, /players-table__division-select/);
   assert.doesNotMatch(markup, /type="checkbox"/);
   assert.doesNotMatch(markup, /Сохранить/);
+  assert.doesNotMatch(markup, />Скачать</);
   assert.match(markup, /<span class="players-table__readonly-value">MPO<\/span>/);
   assert.match(markup, /<span class="players-table__readonly-value">✓<\/span>/);
   assert.match(markup, /2026-01-15/);
@@ -763,7 +769,7 @@ test("buildPlayersSeasonExportCsv exports only players with season credit points
       division: "MPO",
       rdga: true,
       rdgaSince: "2026-01-01",
-      seasonDivision: "MA1",
+      seasonDivision: null,
       seasonCreditPoints: 100,
       seasonPoints: 80,
       competitionsCount: 3,
@@ -799,6 +805,6 @@ test("buildPlayersSeasonExportCsv exports only players with season credit points
   );
   assert.equal(lines.length, 3);
   assert.equal(lines[1], "1;\"Alpha; \"\"Quoted\"\"\";120.20;121.50;нет;FPO");
-  assert.equal(lines[2], "2;Bravo;100.00;80.00;да;MA1");
+  assert.equal(lines[2], "2;Bravo;100.00;80.00;да;MPO");
   assert.ok(!csv.includes("No Credit"));
 });
