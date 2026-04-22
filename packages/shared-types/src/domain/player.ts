@@ -63,9 +63,5 @@ export function toPlayerDbRecord(player: Player): PlayerDbRecord {
     rdga: player.rdga,
     rdga_since: player.rdgaSince,
     season_division: player.seasonDivision,
-    season_points: player.seasonPoints,
-    season_credit_points: player.seasonCreditPoints,
-    competitions_count: player.competitionsCount,
-    season_credit_competitions: player.seasonCreditCompetitions,
   };
 }

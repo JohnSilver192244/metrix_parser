@@ -94,6 +94,7 @@ export interface AcceptedUpdateCommand {
   period?: UpdatePeriod;
   overwriteExisting: boolean;
   userLogin: string;
+  jobId?: string;
 }
 
 export interface UpdatesRouteDependencies extends UpdatesExecutionDependencies {

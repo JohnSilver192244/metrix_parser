@@ -44,11 +44,49 @@ export interface ReconcileResultsCompetitionCommentsInput {
   competitionIds: readonly string[];
   fetchFailureCompetitionIds?: readonly string[];
   saveFailureCommentsByCompetitionId?: ReadonlyMap<string, string>;
+  jobId?: string;
 }
 
 interface ReconcileCommentState {
   currentComment: string | null;
   nextComment: string | null;
+}
+
+interface LoadCompetitionGraphMetrics {
+  parentReloadsCount: number;
+  findCallsCount: number;
+}
+
+function logCompetitionCommentsTiming(input: {
+  jobId: string;
+  operation: string;
+  durationMs: number;
+  competitionIdsSize: number;
+  parentReloadsCount?: number;
+  commentUpdatesCount?: number;
+  findCallsCount?: number;
+  error?: unknown;
+}): void {
+  const payload = {
+    jobId: input.jobId,
+    operation: input.operation,
+    durationMs: input.durationMs,
+    competitionIdsSize: input.competitionIdsSize,
+    parentReloadsCount: input.parentReloadsCount ?? 0,
+    commentUpdatesCount: input.commentUpdatesCount ?? 0,
+    findCallsCount: input.findCallsCount ?? 0,
+  };
+
+  if (input.error) {
+    console.error("[competition-comments-repository]", {
+      ...payload,
+      error:
+        input.error instanceof Error ? input.error.message : String(input.error),
+    });
+    return;
+  }
+
+  console.info("[competition-comments-repository]", payload);
 }
 
 function normalizeCompetitionId(value: string | null | undefined): string | null {
@@ -143,8 +181,12 @@ function resolveSmallPoolOwnerIds(
 async function loadCompetitionGraph(
   adapter: CompetitionCommentsPersistenceAdapter,
   competitionIds: readonly string[],
-): Promise<Map<string, CompetitionCommentRow>> {
+  jobId: string,
+): Promise<{ rowsByCompetitionId: Map<string, CompetitionCommentRow>; metrics: LoadCompetitionGraphMetrics }> {
   const rowsByCompetitionId = new Map<string, CompetitionCommentRow>();
+  let parentReloadsCount = 0;
+  let findCallsCount = 0;
+  const startedAtMs = Date.now();
   const pendingCompetitionIds = new Set(
     competitionIds
       .map((competitionId) => normalizeCompetitionId(competitionId))
@@ -155,7 +197,18 @@ async function loadCompetitionGraph(
     const idsToLoad = [...pendingCompetitionIds];
     pendingCompetitionIds.clear();
 
+    const findStartedAtMs = Date.now();
     const loadedRows = await adapter.findByCompetitionIds(idsToLoad);
+    findCallsCount += 1;
+    logCompetitionCommentsTiming({
+      jobId,
+      operation: "findByCompetitionIds",
+      durationMs: Date.now() - findStartedAtMs,
+      competitionIdsSize: idsToLoad.length,
+      parentReloadsCount,
+      findCallsCount,
+    });
+
     for (const row of loadedRows) {
       rowsByCompetitionId.set(row.competition_id, row);
     }
@@ -169,11 +222,27 @@ async function loadCompetitionGraph(
       const parentId = normalizeCompetitionId(loadedRow.parent_id);
       if (parentId && !rowsByCompetitionId.has(parentId)) {
         pendingCompetitionIds.add(parentId);
+        parentReloadsCount += 1;
       }
     }
   }
 
-  return rowsByCompetitionId;
+  logCompetitionCommentsTiming({
+    jobId,
+    operation: "loadCompetitionGraph",
+    durationMs: Date.now() - startedAtMs,
+    competitionIdsSize: competitionIds.length,
+    parentReloadsCount,
+    findCallsCount,
+  });
+
+  return {
+    rowsByCompetitionId,
+    metrics: {
+      parentReloadsCount,
+      findCallsCount,
+    },
+  };
 }
 
 export function createCompetitionCommentsRepository(
@@ -181,11 +250,28 @@ export function createCompetitionCommentsRepository(
 ): CompetitionCommentsRepository {
   return {
     loadCompetitionGraph(competitionIds) {
-      return loadCompetitionGraph(adapter, competitionIds);
+      return loadCompetitionGraph(adapter, competitionIds, "unknown").then(
+        ({ rowsByCompetitionId }) => rowsByCompetitionId,
+      );
     },
     async reconcileResultsComments(input) {
-      const rowsByCompetitionId = await loadCompetitionGraph(adapter, input.competitionIds);
+      const jobId = input.jobId ?? "unknown";
+      const reconcileStartedAtMs = Date.now();
+      const { rowsByCompetitionId, metrics } = await loadCompetitionGraph(
+        adapter,
+        input.competitionIds,
+        jobId,
+      );
       if (rowsByCompetitionId.size === 0) {
+        logCompetitionCommentsTiming({
+          jobId,
+          operation: "reconcileResultsComments",
+          durationMs: Date.now() - reconcileStartedAtMs,
+          competitionIdsSize: input.competitionIds.length,
+          parentReloadsCount: metrics.parentReloadsCount,
+          commentUpdatesCount: 0,
+          findCallsCount: metrics.findCallsCount,
+        });
         return;
       }
 
@@ -235,6 +321,7 @@ export function createCompetitionCommentsRepository(
         assignComment(ownerId, comment);
       }
 
+      let commentUpdatesCount = 0;
       for (const [ownerId, state] of statesByOwnerId) {
         const shouldClearComment =
           state.nextComment === null && isWorkerManagedComment(state.currentComment);
@@ -242,14 +329,46 @@ export function createCompetitionCommentsRepository(
           state.nextComment !== null && state.nextComment !== state.currentComment;
 
         if (shouldClearComment) {
+          const updateStartedAtMs = Date.now();
           await adapter.updateComment(ownerId, null);
+          commentUpdatesCount += 1;
+          logCompetitionCommentsTiming({
+            jobId,
+            operation: "updateComment",
+            durationMs: Date.now() - updateStartedAtMs,
+            competitionIdsSize: 1,
+            parentReloadsCount: metrics.parentReloadsCount,
+            commentUpdatesCount,
+            findCallsCount: metrics.findCallsCount,
+          });
           continue;
         }
 
         if (shouldUpdateComment) {
+          const updateStartedAtMs = Date.now();
           await adapter.updateComment(ownerId, state.nextComment);
+          commentUpdatesCount += 1;
+          logCompetitionCommentsTiming({
+            jobId,
+            operation: "updateComment",
+            durationMs: Date.now() - updateStartedAtMs,
+            competitionIdsSize: 1,
+            parentReloadsCount: metrics.parentReloadsCount,
+            commentUpdatesCount,
+            findCallsCount: metrics.findCallsCount,
+          });
         }
       }
+
+      logCompetitionCommentsTiming({
+        jobId,
+        operation: "reconcileResultsComments",
+        durationMs: Date.now() - reconcileStartedAtMs,
+        competitionIdsSize: input.competitionIds.length,
+        parentReloadsCount: metrics.parentReloadsCount,
+        commentUpdatesCount,
+        findCallsCount: metrics.findCallsCount,
+      });
     },
   };
 }

@@ -90,6 +90,40 @@ class InMemoryPlayersAdapter implements PlayersPersistenceAdapter {
   }
 }
 
+class FaultyPlayersAdapter extends InMemoryPlayersAdapter {
+  public upsertCallCount = 0;
+  public findByPlayerIdCallCount = 0;
+  public insertCallCount = 0;
+  public updateCallCount = 0;
+
+  constructor(
+    private readonly upsertError: Error,
+    initialRows: PlayerRow[] = [],
+  ) {
+    super(initialRows);
+  }
+
+  override async findByPlayerId(playerId: string): Promise<PlayerRow | null> {
+    this.findByPlayerIdCallCount += 1;
+    return super.findByPlayerId(playerId);
+  }
+
+  override async insert(record: StoredPlayerRecord): Promise<PlayerRow> {
+    this.insertCallCount += 1;
+    return super.insert(record);
+  }
+
+  override async update(id: number, record: StoredPlayerRecord): Promise<PlayerRow> {
+    this.updateCallCount += 1;
+    return super.update(id, record);
+  }
+
+  override async upsert(records: StoredPlayerRecord[]): Promise<PlayerRow[]> {
+    this.upsertCallCount += 1;
+    throw this.upsertError;
+  }
+}
+
 test("repository creates a new player when no existing record matches", async () => {
   const adapter = new InMemoryPlayersAdapter();
   const repository = createPlayersRepository(adapter);
@@ -298,4 +332,78 @@ test("repository batch-upserts players while preserving user-managed fields", as
   assert.equal(adapter.snapshot()[0]?.rdga, true);
   assert.equal(adapter.snapshot()[0]?.rdga_since, "2026-01-15");
   assert.equal(adapter.snapshot()[0]?.season_division, "MPO");
+});
+
+test("repository excludes non-schema player fields from bulk upsert payload", async () => {
+  const adapter = new InMemoryPlayersAdapter();
+  const repository = createPlayersRepository(adapter);
+
+  await repository.savePlayers(
+    [
+      {
+        player: createPlayer({
+          playerId: "player-10",
+          playerName: "Schema Safe",
+          seasonPoints: 12.5,
+          seasonCreditPoints: 15,
+          competitionsCount: 7,
+          seasonCreditCompetitions: [
+            {
+              competitionId: "comp-1",
+              competitionName: "Comp 1",
+              placement: 1,
+              seasonPoints: 12.5,
+            },
+          ],
+        }),
+        rawPayload: { playerId: "player-10", playerName: "Schema Safe" },
+        sourceFetchedAt: "2026-03-22T12:15:00.000Z",
+      },
+    ],
+    { overwriteExisting: true },
+  );
+
+  const stored = adapter.snapshot()[0] as unknown as Record<string, unknown>;
+  assert.equal(Object.hasOwn(stored, "competitions_count"), false);
+  assert.equal(Object.hasOwn(stored, "season_credit_points"), false);
+  assert.equal(Object.hasOwn(stored, "season_credit_competitions"), false);
+  assert.equal(Object.hasOwn(stored, "season_points"), false);
+});
+
+test("repository reports schema mismatch and skips per-record fallback for players bulk upsert", async () => {
+  const adapter = new FaultyPlayersAdapter(
+    new Error(
+      "Failed to upsert players: Could not find the 'competitions_count' column of 'players' in the schema cache",
+    ),
+  );
+  const repository = createPlayersRepository(adapter);
+
+  const result = await repository.savePlayers(
+    [
+      {
+        player: createPlayer({ playerId: "player-1", playerName: "Ivan Ivanov" }),
+        rawPayload: { playerId: "player-1", playerName: "Ivan Ivanov" },
+        sourceFetchedAt: "2026-03-22T12:10:00.000Z",
+      },
+      {
+        player: createPlayer({ playerId: "player-2", playerName: "Petr Petrov" }),
+        rawPayload: { playerId: "player-2", playerName: "Petr Petrov" },
+        sourceFetchedAt: "2026-03-22T12:15:00.000Z",
+      },
+    ],
+    { overwriteExisting: true },
+  );
+
+  assert.equal(adapter.upsertCallCount, 1);
+  assert.equal(adapter.findByPlayerIdCallCount, 0);
+  assert.equal(adapter.insertCallCount, 0);
+  assert.equal(adapter.updateCallCount, 0);
+  assert.equal(result.issues[0]?.code, "players_upsert_schema_mismatch");
+  assert.deepEqual(result.summary, {
+    found: 2,
+    created: 0,
+    updated: 0,
+    skipped: 2,
+    errors: 2,
+  });
 });

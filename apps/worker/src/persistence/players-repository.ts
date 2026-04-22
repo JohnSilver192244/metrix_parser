@@ -3,7 +3,6 @@ import {
   createEmptyUpdateSummary,
   createUpdateIssue,
   resolveRecordAction,
-  toPlayerDbRecord,
   type Player,
   type PlayerDbRecord,
   type UpdateProcessingIssue,
@@ -42,7 +41,7 @@ export interface PlayersRepository {
   ): Promise<UpdateRecordResult>;
   savePlayers(
     records: PersistablePlayerRecord[],
-    options?: { overwriteExisting?: boolean },
+    options?: { overwriteExisting?: boolean; jobId?: string },
   ): Promise<{
     summary: ReturnType<typeof createEmptyUpdateSummary>;
     issues: UpdateProcessingIssue[];
@@ -54,29 +53,123 @@ function createPlayerIssue(
   message: string,
   stage: UpdateProcessingIssue["stage"],
   recordKey: string,
+  recoverable = true,
 ): UpdateProcessingIssue {
   return createUpdateIssue({
     code,
     message,
-    recoverable: true,
+    recoverable,
     stage,
     recordKey,
   });
 }
 
-function toStoredPlayerRecord(record: PersistablePlayerRecord): StoredPlayerRecord {
-  const {
-    division: _ignoredDivision,
-    rdga: _ignoredRdga,
-    rdgaSince: _ignoredRdgaSince,
-    seasonDivision: _ignoredSeasonDivision,
-    ...playerDbRecord
-  } = toPlayerDbRecord(record.player);
+const PLAYERS_WRITE_ALLOWLIST: ReadonlySet<keyof StoredPlayerRecord> = new Set([
+  "player_id",
+  "player_name",
+  "division",
+  "rdga",
+  "rdga_since",
+  "season_division",
+  "raw_payload",
+  "source_fetched_at",
+]);
 
-  return {
-    ...playerDbRecord,
+function toStoredPlayerRecord(record: PersistablePlayerRecord): StoredPlayerRecord {
+  const candidate: PlayerDbRecord = {
+    player_id: record.player.playerId,
+    player_name: record.player.playerName,
+    division: record.player.division,
+    rdga: record.player.rdga,
+    rdga_since: record.player.rdgaSince,
+    season_division: record.player.seasonDivision,
+    season_points: record.player.seasonPoints,
+    season_credit_points: record.player.seasonCreditPoints,
+    competitions_count: record.player.competitionsCount,
+    season_credit_competitions: record.player.seasonCreditCompetitions,
+  };
+
+  const storedRecord: StoredPlayerRecord = {
+    player_id: candidate.player_id,
+    player_name: candidate.player_name,
     raw_payload: record.rawPayload,
     source_fetched_at: record.sourceFetchedAt,
+  };
+
+  if (candidate.division !== undefined) {
+    storedRecord.division = candidate.division;
+  }
+  if (candidate.rdga !== undefined) {
+    storedRecord.rdga = candidate.rdga;
+  }
+  if (candidate.rdga_since !== undefined) {
+    storedRecord.rdga_since = candidate.rdga_since;
+  }
+  if (candidate.season_division !== undefined) {
+    storedRecord.season_division = candidate.season_division;
+  }
+
+  return sanitizeStoredPlayerRecord(storedRecord);
+}
+
+function sanitizeStoredPlayerRecord(record: StoredPlayerRecord): StoredPlayerRecord {
+  const sanitized: StoredPlayerRecord = {
+    player_id: record.player_id,
+    player_name: record.player_name,
+    raw_payload: record.raw_payload,
+    source_fetched_at: record.source_fetched_at,
+  };
+  const mutableSanitized = sanitized as unknown as Record<string, unknown>;
+
+  for (const [key, value] of Object.entries(record)) {
+    if (
+      PLAYERS_WRITE_ALLOWLIST.has(key as keyof StoredPlayerRecord) &&
+      value !== undefined
+    ) {
+      mutableSanitized[key] = value;
+    }
+  }
+
+  return sanitized;
+}
+
+function isPlayersSchemaMismatchError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes("schema cache") &&
+    normalized.includes("players") &&
+    normalized.includes("column")
+  );
+}
+
+function isTransientPersistenceError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+
+  return [
+    "timeout",
+    "timed out",
+    "econnreset",
+    "econnrefused",
+    "ehostunreach",
+    "enotfound",
+    "fetch failed",
+    "network",
+    "temporary failure",
+  ].some((marker) => normalized.includes(marker));
+}
+
+function markBatchPersistenceFailure(
+  summary: ReturnType<typeof createEmptyUpdateSummary>,
+  recordsCount: number,
+) {
+  return {
+    ...summary,
+    found: summary.found + recordsCount,
+    skipped: summary.skipped + recordsCount,
+    errors: summary.errors + recordsCount,
   };
 }
 
@@ -84,6 +177,36 @@ function normalizeRecordResult(recordResult: UpdateRecordResult): UpdateRecordRe
   return recordResult.issue && recordResult.action !== "skipped"
     ? { ...recordResult, action: "skipped" as const }
     : recordResult;
+}
+
+function logPlayersRepositoryTiming(input: {
+  jobId: string;
+  operation: string;
+  durationMs: number;
+  validRecords: number;
+  recordsToUpsert: number;
+  fallbackUsed: boolean;
+  error?: unknown;
+}): void {
+  const payload = {
+    jobId: input.jobId,
+    operation: input.operation,
+    durationMs: input.durationMs,
+    validRecords: input.validRecords,
+    recordsToUpsert: input.recordsToUpsert,
+    fallbackUsed: input.fallbackUsed,
+  };
+
+  if (input.error) {
+    console.error("[players-repository]", {
+      ...payload,
+      error:
+        input.error instanceof Error ? input.error.message : String(input.error),
+    });
+    return;
+  }
+
+  console.info("[players-repository]", payload);
 }
 
 export function createPlayersRepository(
@@ -157,9 +280,11 @@ export function createPlayersRepository(
   return {
     savePlayer,
     async savePlayers(records, options = {}) {
+      const jobId = options.jobId ?? "unknown";
       let summary = createEmptyUpdateSummary();
       const issues: UpdateProcessingIssue[] = [];
       const validRecords: PersistablePlayerRecord[] = [];
+      let recordsToUpsertCount = 0;
 
       for (const record of records) {
         const normalized = normalizeRecordResult(await savePlayerValidation(record));
@@ -176,13 +301,31 @@ export function createPlayersRepository(
         validRecords.push(record);
       }
 
+      logPlayersRepositoryTiming({
+        jobId,
+        operation: "savePlayers.validation",
+        durationMs: 0,
+        validRecords: validRecords.length,
+        recordsToUpsert: 0,
+        fallbackUsed: false,
+      });
+
       if (validRecords.length === 0) {
         return { summary, issues };
       }
 
       try {
         const playerIds = [...new Set(validRecords.map((record) => record.player.playerId))];
+        const findStartedAtMs = Date.now();
         const existingRows = await adapter.findByPlayerIds(playerIds);
+        logPlayersRepositoryTiming({
+          jobId,
+          operation: "findByPlayerIds",
+          durationMs: Date.now() - findStartedAtMs,
+          validRecords: validRecords.length,
+          recordsToUpsert: 0,
+          fallbackUsed: false,
+        });
         const existingRowsByPlayerId = new Map(
           existingRows.map((row) => [row.player_id, row] as const),
         );
@@ -191,8 +334,10 @@ export function createPlayersRepository(
             options.overwriteExisting === true ||
             !existingRowsByPlayerId.has(record.player.playerId),
         );
+        recordsToUpsertCount = recordsToUpsert.length;
 
         if (recordsToUpsert.length > 0) {
+          const upsertStartedAtMs = Date.now();
           await adapter.upsert(
             recordsToUpsert.map((record) => {
               const existingRow = existingRowsByPlayerId.get(record.player.playerId);
@@ -209,6 +354,14 @@ export function createPlayersRepository(
                 : dbRecord;
             }),
           );
+          logPlayersRepositoryTiming({
+            jobId,
+            operation: "upsert",
+            durationMs: Date.now() - upsertStartedAtMs,
+            validRecords: validRecords.length,
+            recordsToUpsert: recordsToUpsertCount,
+            fallbackUsed: false,
+          });
         }
 
         for (const record of validRecords) {
@@ -222,7 +375,68 @@ export function createPlayersRepository(
         }
 
         return { summary, issues };
-      } catch {
+      } catch (error) {
+        if (isPlayersSchemaMismatchError(error)) {
+          logPlayersRepositoryTiming({
+            jobId,
+            operation: "players_upsert_schema_mismatch",
+            durationMs: 0,
+            validRecords: validRecords.length,
+            recordsToUpsert: recordsToUpsertCount,
+            fallbackUsed: false,
+            error,
+          });
+
+          issues.push(
+            createPlayerIssue(
+              "players_upsert_schema_mismatch",
+              "Bulk upsert players failed because write payload does not match app_public.players schema.",
+              "persistence",
+              "players:bulk",
+              false,
+            ),
+          );
+
+          summary = markBatchPersistenceFailure(summary, validRecords.length);
+          return { summary, issues };
+        }
+
+        if (!isTransientPersistenceError(error)) {
+          logPlayersRepositoryTiming({
+            jobId,
+            operation: "bulk.upsert.non_transient.failed",
+            durationMs: 0,
+            validRecords: validRecords.length,
+            recordsToUpsert: recordsToUpsertCount,
+            fallbackUsed: false,
+            error,
+          });
+
+          issues.push(
+            createPlayerIssue(
+              "players_bulk_upsert_failed",
+              "Bulk upsert players failed with a non-transient error. Batch was stopped without per-record fallback.",
+              "persistence",
+              "players:bulk",
+              false,
+            ),
+          );
+
+          summary = markBatchPersistenceFailure(summary, validRecords.length);
+          return { summary, issues };
+        }
+
+        logPlayersRepositoryTiming({
+          jobId,
+          operation: "bulk.upsert.failed",
+          durationMs: 0,
+          validRecords: validRecords.length,
+          recordsToUpsert: recordsToUpsertCount,
+          fallbackUsed: true,
+          error,
+        });
+
+        const fallbackStartedAtMs = Date.now();
         for (const record of validRecords) {
           const normalized = normalizeRecordResult(await savePlayer(record, options));
           summary = accumulateUpdateSummary(summary, normalized);
@@ -231,6 +445,14 @@ export function createPlayersRepository(
             issues.push(normalized.issue);
           }
         }
+        logPlayersRepositoryTiming({
+          jobId,
+          operation: "fallback.perRecord",
+          durationMs: Date.now() - fallbackStartedAtMs,
+          validRecords: validRecords.length,
+          recordsToUpsert: recordsToUpsertCount,
+          fallbackUsed: true,
+        });
 
         return { summary, issues };
       }

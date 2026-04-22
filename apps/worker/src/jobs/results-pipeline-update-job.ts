@@ -48,6 +48,7 @@ export interface ResultsPipelineUpdateJobDependencies
   playersRepository?: PlayersRepository;
   resultsRepository?: CompetitionResultsRepository;
   competitionCommentsRepository?: CompetitionCommentsRepository;
+  jobId?: string;
 }
 
 export interface ResultsPipelineUpdateJobResult extends UpdateOperationResult {
@@ -59,6 +60,44 @@ export interface ResultsPipelineUpdateJobResult extends UpdateOperationResult {
   mappedResults?: CompetitionResult[];
   extractedResults?: ExtractedCompetitionResultEntry[];
   nextSelectionOffset?: number;
+}
+
+interface PipelineTimingSnapshot {
+  selectedCompetitionsCount: number;
+  fetchedResultsCount: number;
+  playersCount: number;
+  resultsCount: number;
+}
+
+function createPipelineTimingSnapshot(
+  fetchResult: ResultsUpdateJobResult | null,
+  fetchedResults: readonly DiscGolfMetrixResultsResponse[],
+  playerMappingResult: { players: Player[] } | null,
+  resultMappingResult: { results: CompetitionResult[] } | null,
+): PipelineTimingSnapshot {
+  return {
+    selectedCompetitionsCount: fetchResult?.selectedCompetitionsCount ?? 0,
+    fetchedResultsCount: fetchedResults.length,
+    playersCount: playerMappingResult?.players.length ?? 0,
+    resultsCount: resultMappingResult?.results.length ?? 0,
+  };
+}
+
+function logResultsPipelineTiming(input: {
+  jobId: string;
+  operation: string;
+  durationMs: number;
+  snapshot: PipelineTimingSnapshot;
+}): void {
+  console.info("[results-pipeline-update-job]", {
+    jobId: input.jobId,
+    operation: input.operation,
+    selectedCompetitionsCount: input.snapshot.selectedCompetitionsCount,
+    fetchedResultsLength: input.snapshot.fetchedResultsCount,
+    playersCount: input.snapshot.playersCount,
+    resultsCount: input.snapshot.resultsCount,
+    durationMs: input.durationMs,
+  });
 }
 
 function createPersistablePlayerRecords(
@@ -192,6 +231,16 @@ export async function runResultsPipelineUpdateJob(
   period: UpdatePeriod,
   dependencies: ResultsPipelineUpdateJobDependencies,
 ): Promise<ResultsPipelineUpdateJobResult> {
+  const jobId = dependencies.jobId ?? "unknown";
+  const startedAtMs = Date.now();
+  let stepStartedAtMs = startedAtMs;
+  logResultsPipelineTiming({
+    jobId,
+    operation: "job.enter",
+    durationMs: 0,
+    snapshot: createPipelineTimingSnapshot(null, [], null, null),
+  });
+
   const fetchResult = await runResultsUpdateJob(period, {
     ...dependencies,
     persistResults: false,
@@ -199,9 +248,44 @@ export async function runResultsPipelineUpdateJob(
   });
   const fetchedResults = fetchResult.fetchedResults ?? [];
   const requestedAt = fetchResult.requestedAt;
+  const afterFetchAtMs = Date.now();
+  logResultsPipelineTiming({
+    jobId,
+    operation: "after.runResultsUpdateJob.persistResults.false",
+    durationMs: afterFetchAtMs - stepStartedAtMs,
+    snapshot: createPipelineTimingSnapshot(fetchResult, fetchedResults, null, null),
+  });
+  stepStartedAtMs = afterFetchAtMs;
 
   const playerMappingResult = mapDiscGolfMetrixPlayersFromResults(fetchedResults);
+  const afterMapPlayersAtMs = Date.now();
+  logResultsPipelineTiming({
+    jobId,
+    operation: "after.mapDiscGolfMetrixPlayersFromResults",
+    durationMs: afterMapPlayersAtMs - stepStartedAtMs,
+    snapshot: createPipelineTimingSnapshot(
+      fetchResult,
+      fetchedResults,
+      playerMappingResult,
+      null,
+    ),
+  });
+  stepStartedAtMs = afterMapPlayersAtMs;
+
   const resultMappingResult = mapDiscGolfMetrixCompetitionResults(fetchedResults);
+  const afterMapResultsAtMs = Date.now();
+  logResultsPipelineTiming({
+    jobId,
+    operation: "after.mapDiscGolfMetrixCompetitionResults",
+    durationMs: afterMapResultsAtMs - stepStartedAtMs,
+    snapshot: createPipelineTimingSnapshot(
+      fetchResult,
+      fetchedResults,
+      playerMappingResult,
+      resultMappingResult,
+    ),
+  });
+  stepStartedAtMs = afterMapResultsAtMs;
 
   const supabase =
     dependencies.playersRepository || dependencies.resultsRepository
@@ -229,15 +313,48 @@ export async function runResultsPipelineUpdateJob(
 
   const playerPersistenceResult = await playersRepository.savePlayers(
     createPersistablePlayerRecords(playerMappingResult, fetchedResults),
-    { overwriteExisting: dependencies.overwriteExisting },
+    {
+      overwriteExisting: dependencies.overwriteExisting,
+      jobId,
+    },
   );
+  const afterSavePlayersAtMs = Date.now();
+  logResultsPipelineTiming({
+    jobId,
+    operation: "after.playersRepository.savePlayers",
+    durationMs: afterSavePlayersAtMs - stepStartedAtMs,
+    snapshot: createPipelineTimingSnapshot(
+      fetchResult,
+      fetchedResults,
+      playerMappingResult,
+      resultMappingResult,
+    ),
+  });
+  stepStartedAtMs = afterSavePlayersAtMs;
+
   const resultPersistenceResult = await resultsRepository.saveCompetitionResults(
     createPersistableCompetitionResultRecords(
       resultMappingResult.extractedResults,
       fetchedResults,
     ),
-    { overwriteExisting: dependencies.overwriteExisting },
+    {
+      overwriteExisting: dependencies.overwriteExisting,
+      jobId,
+    },
   );
+  const afterSaveResultsAtMs = Date.now();
+  logResultsPipelineTiming({
+    jobId,
+    operation: "after.resultsRepository.saveCompetitionResults",
+    durationMs: afterSaveResultsAtMs - stepStartedAtMs,
+    snapshot: createPipelineTimingSnapshot(
+      fetchResult,
+      fetchedResults,
+      playerMappingResult,
+      resultMappingResult,
+    ),
+  });
+  stepStartedAtMs = afterSaveResultsAtMs;
 
   const transportSummary = {
     ...(fetchResult.summary ?? createEmptyUpdateSummary()),
@@ -271,6 +388,20 @@ export async function runResultsPipelineUpdateJob(
     errors: transportSummary.errors + playerSummary.errors + resultSummary.errors,
   };
 
+  const beforeReconcileAtMs = Date.now();
+  logResultsPipelineTiming({
+    jobId,
+    operation: "before.reconcileResultsComments",
+    durationMs: beforeReconcileAtMs - stepStartedAtMs,
+    snapshot: createPipelineTimingSnapshot(
+      fetchResult,
+      fetchedResults,
+      playerMappingResult,
+      resultMappingResult,
+    ),
+  });
+  stepStartedAtMs = beforeReconcileAtMs;
+
   if (competitionCommentsRepository) {
     await competitionCommentsRepository.reconcileResultsComments({
       competitionIds: fetchResult.selectedCompetitionIds ?? [],
@@ -281,8 +412,35 @@ export async function runResultsPipelineUpdateJob(
         ...resultMappingResult.issues,
         ...resultPersistenceResult.issues,
       ]),
+      jobId,
     });
   }
+  const afterReconcileAtMs = Date.now();
+  logResultsPipelineTiming({
+    jobId,
+    operation: "after.reconcileResultsComments",
+    durationMs: afterReconcileAtMs - stepStartedAtMs,
+    snapshot: createPipelineTimingSnapshot(
+      fetchResult,
+      fetchedResults,
+      playerMappingResult,
+      resultMappingResult,
+    ),
+  });
+  stepStartedAtMs = afterReconcileAtMs;
+
+  const beforeReturnAtMs = Date.now();
+  logResultsPipelineTiming({
+    jobId,
+    operation: "before.return",
+    durationMs: beforeReturnAtMs - stepStartedAtMs,
+    snapshot: createPipelineTimingSnapshot(
+      fetchResult,
+      fetchedResults,
+      playerMappingResult,
+      resultMappingResult,
+    ),
+  });
 
   return {
     operation: "results",

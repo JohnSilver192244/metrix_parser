@@ -49,7 +49,7 @@ export interface CompetitionResultsRepository {
   ): Promise<UpdateRecordResult>;
   saveCompetitionResults(
     records: PersistableCompetitionResultRecord[],
-    options?: { overwriteExisting?: boolean },
+    options?: { overwriteExisting?: boolean; jobId?: string },
   ): Promise<{
     summary: ReturnType<typeof createEmptyUpdateSummary>;
     issues: UpdateProcessingIssue[];
@@ -92,6 +92,36 @@ function normalizeRecordResult(recordResult: UpdateRecordResult): UpdateRecordRe
 
 function buildResultIdentityKey(result: CompetitionResult): string {
   return `${result.competitionId}::${result.playerId}`;
+}
+
+function logCompetitionResultsRepositoryTiming(input: {
+  jobId: string;
+  operation: string;
+  durationMs: number;
+  validRecords: number;
+  recordsToUpsert: number;
+  fallbackUsed: boolean;
+  error?: unknown;
+}): void {
+  const payload = {
+    jobId: input.jobId,
+    operation: input.operation,
+    durationMs: input.durationMs,
+    validRecords: input.validRecords,
+    recordsToUpsert: input.recordsToUpsert,
+    fallbackUsed: input.fallbackUsed,
+  };
+
+  if (input.error) {
+    console.error("[competition-results-repository]", {
+      ...payload,
+      error:
+        input.error instanceof Error ? input.error.message : String(input.error),
+    });
+    return;
+  }
+
+  console.info("[competition-results-repository]", payload);
 }
 
 export function createCompetitionResultsRepository(
@@ -163,9 +193,11 @@ export function createCompetitionResultsRepository(
   return {
     saveCompetitionResult,
     async saveCompetitionResults(records, options = {}) {
+      const jobId = options.jobId ?? "unknown";
       let summary = createEmptyUpdateSummary();
       const issues: UpdateProcessingIssue[] = [];
       const validRecords: PersistableCompetitionResultRecord[] = [];
+      let recordsToUpsertCount = 0;
 
       for (const record of records) {
         const normalized = normalizeRecordResult(await saveCompetitionResultValidation(record));
@@ -182,6 +214,15 @@ export function createCompetitionResultsRepository(
         validRecords.push(record);
       }
 
+      logCompetitionResultsRepositoryTiming({
+        jobId,
+        operation: "saveCompetitionResults.validation",
+        durationMs: 0,
+        validRecords: validRecords.length,
+        recordsToUpsert: 0,
+        fallbackUsed: false,
+      });
+
       if (validRecords.length === 0) {
         return { summary, issues };
       }
@@ -190,7 +231,16 @@ export function createCompetitionResultsRepository(
         const competitionIds = [
           ...new Set(validRecords.map((record) => record.result.competitionId)),
         ];
+        const findStartedAtMs = Date.now();
         const existingRows = await adapter.findByCompetitionIds(competitionIds);
+        logCompetitionResultsRepositoryTiming({
+          jobId,
+          operation: "findByCompetitionIds",
+          durationMs: Date.now() - findStartedAtMs,
+          validRecords: validRecords.length,
+          recordsToUpsert: 0,
+          fallbackUsed: false,
+        });
         const existingRowsByIdentity = new Map<string, CompetitionResultRow>(
           existingRows.map((row) => [
             `${row.competition_id}::${row.player_id}`,
@@ -206,11 +256,21 @@ export function createCompetitionResultsRepository(
             !existingRowsByIdentity.has(identityKey)
           );
         });
+        recordsToUpsertCount = recordsToUpsert.length;
 
         if (recordsToUpsert.length > 0) {
+          const upsertStartedAtMs = Date.now();
           await adapter.upsert(
             recordsToUpsert.map((record) => toStoredCompetitionResultRecord(record)),
           );
+          logCompetitionResultsRepositoryTiming({
+            jobId,
+            operation: "upsert",
+            durationMs: Date.now() - upsertStartedAtMs,
+            validRecords: validRecords.length,
+            recordsToUpsert: recordsToUpsertCount,
+            fallbackUsed: false,
+          });
         }
 
         for (const record of validRecords) {
@@ -226,7 +286,18 @@ export function createCompetitionResultsRepository(
         }
 
         return { summary, issues };
-      } catch {
+      } catch (error) {
+        logCompetitionResultsRepositoryTiming({
+          jobId,
+          operation: "bulk.upsert.failed",
+          durationMs: 0,
+          validRecords: validRecords.length,
+          recordsToUpsert: recordsToUpsertCount,
+          fallbackUsed: true,
+          error,
+        });
+
+        const fallbackStartedAtMs = Date.now();
         for (const record of validRecords) {
           const normalized = normalizeRecordResult(
             await saveCompetitionResult(record, options),
@@ -237,6 +308,14 @@ export function createCompetitionResultsRepository(
             issues.push(normalized.issue);
           }
         }
+        logCompetitionResultsRepositoryTiming({
+          jobId,
+          operation: "fallback.perRecord",
+          durationMs: Date.now() - fallbackStartedAtMs,
+          validRecords: validRecords.length,
+          recordsToUpsert: recordsToUpsertCount,
+          fallbackUsed: true,
+        });
 
         return { summary, issues };
       }

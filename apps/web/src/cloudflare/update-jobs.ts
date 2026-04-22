@@ -111,6 +111,25 @@ interface UpdateJobsServiceDependencies {
   createId?: (prefix?: string) => string;
 }
 
+function logUpdateJobTransition(input: {
+  jobId: string;
+  operation: string;
+  status?: PersistedUpdateJobRecord["status"];
+  progressPhase?: UpdateJobProgress["phase"];
+  continuationCursor?: PersistedUpdateJobCursor | null;
+  requestedAt?: string;
+}): void {
+  console.info("[update-jobs-transition]", {
+    jobId: input.jobId,
+    operation: input.operation,
+    status: input.status ?? null,
+    progressPhase: input.progressPhase ?? null,
+    continuationCursor: input.continuationCursor ?? null,
+    requestedAt: input.requestedAt ?? null,
+    loggedAt: new Date().toISOString(),
+  });
+}
+
 function createPollPath(jobId: string): string {
   return `${UPDATE_JOB_POLL_PATH_PREFIX}/${jobId}`;
 }
@@ -395,6 +414,7 @@ async function executeRuntimeOperationBatch(
       apiCode: env.discGolfMetrixApiCode,
       overwriteExisting: command.overwriteExisting,
       selectionOffset: cursor?.offset ?? 0,
+      jobId: command.jobId,
     });
 
     return {
@@ -412,6 +432,7 @@ async function executeRuntimeOperationBatch(
     apiCode: env.discGolfMetrixApiCode,
     overwriteExisting: command.overwriteExisting,
     selectionOffset: cursor?.offset ?? 0,
+    jobId: command.jobId,
   });
 
   return {
@@ -504,6 +525,7 @@ export function createUpdateJobsService(
           period: claimedRecord.period,
           overwriteExisting: claimedRecord.overwriteExisting,
           userLogin: claimedRecord.userLogin ?? "",
+          jobId: claimedRecord.jobId,
         };
 
         const runningRecord =
@@ -514,6 +536,12 @@ export function createUpdateJobsService(
                 startedAt: claimedRecord.startedAt ?? new Date().toISOString(),
                 message: `Фоновое обновление ${claimedRecord.operation} выполняется в unified Cloudflare runtime.`,
               });
+        logUpdateJobTransition({
+          jobId: runningRecord.jobId,
+          operation: runningRecord.operation,
+          status: runningRecord.status,
+          requestedAt: runningRecord.requestedAt,
+        });
 
         const nextBatchIndex = (runningRecord.progress?.batchIndex ?? 0) + 1;
         const runningProgress = createJobProgress(
@@ -530,6 +558,14 @@ export function createUpdateJobsService(
         const activeRecord = await repository.updateClaimedJob(currentRecord.jobId, leaseToken, {
           message: runningProgress.message,
           progress: runningProgress,
+        });
+        logUpdateJobTransition({
+          jobId: activeRecord.jobId,
+          operation: activeRecord.operation,
+          status: activeRecord.status,
+          progressPhase: runningProgress.phase,
+          continuationCursor: activeRecord.continuationCursor,
+          requestedAt: activeRecord.requestedAt,
         });
 
         try {
@@ -560,6 +596,14 @@ export function createUpdateJobsService(
               progress: continuationProgress,
               processingLeaseToken: null,
             });
+            logUpdateJobTransition({
+              jobId: currentRecord.jobId,
+              operation: claimedRecord.operation,
+              status: "running",
+              progressPhase: continuationProgress.phase,
+              continuationCursor: batch.nextCursor,
+              requestedAt: claimedRecord.requestedAt,
+            });
 
             return repository.getJob(currentRecord.jobId);
           }
@@ -577,6 +621,14 @@ export function createUpdateJobsService(
             result: mergedResult,
             progress: finalizingProgress,
             processingLeaseToken: null,
+          });
+          logUpdateJobTransition({
+            jobId: currentRecord.jobId,
+            operation: claimedRecord.operation,
+            status: mergedResult.finalStatus,
+            progressPhase: finalizingProgress.phase,
+            continuationCursor: null,
+            requestedAt: claimedRecord.requestedAt,
           });
           invalidateReadCache();
           return null;
