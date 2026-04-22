@@ -4,7 +4,11 @@ import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { mergeUpdatedPlayer, PlayersPageView } from "./players-page";
+import {
+  buildPlayersSeasonExportCsv,
+  mergeUpdatedPlayer,
+  PlayersPageView,
+} from "./players-page";
 
 const defaultSeasons = [
   {
@@ -89,6 +93,7 @@ test("PlayersPageView renders player identification fields", () => {
   assert.match(markup, />—</);
   assert.match(markup, />7</);
   assert.match(markup, /<td class="players-page__place-column">1<\/td>/);
+  assert.match(markup, />Скачать</);
 });
 
 test("PlayersPageView renders mobile filters drawer content when opened", () => {
@@ -748,4 +753,52 @@ test("mergeUpdatedPlayer keeps read-side season metrics when update response is 
   assert.equal(merged.seasonCreditPoints, 95.5);
   assert.equal(merged.competitionsCount, 4);
   assert.equal(merged.seasonCreditCompetitions?.length, 1);
+});
+
+test("buildPlayersSeasonExportCsv exports only players with season credit points", () => {
+  const csv = buildPlayersSeasonExportCsv([
+    {
+      playerId: "player-1",
+      playerName: "Bravo",
+      division: "MPO",
+      rdga: true,
+      rdgaSince: "2026-01-01",
+      seasonDivision: "MA1",
+      seasonCreditPoints: 100,
+      seasonPoints: 80,
+      competitionsCount: 3,
+    },
+    {
+      playerId: "player-2",
+      playerName: "Alpha; \"Quoted\"",
+      division: "FA1",
+      rdga: false,
+      rdgaSince: null,
+      seasonDivision: "FPO",
+      seasonCreditPoints: 120.2,
+      seasonPoints: 121.5,
+      competitionsCount: 3,
+    },
+    {
+      playerId: "player-3",
+      playerName: "No Credit",
+      division: "MPO",
+      rdga: true,
+      rdgaSince: null,
+      seasonDivision: null,
+      seasonCreditPoints: null,
+      seasonPoints: 55,
+      competitionsCount: 1,
+    },
+  ]);
+
+  const lines = csv.split("\n");
+  assert.equal(
+    lines[0],
+    "Место;Игрок;Очки зачета;Очки сезона;Рдга;Дивизион",
+  );
+  assert.equal(lines.length, 3);
+  assert.equal(lines[1], "1;\"Alpha; \"\"Quoted\"\"\";120.20;121.50;нет;FPO");
+  assert.equal(lines[2], "2;Bravo;100.00;80.00;да;MA1");
+  assert.ok(!csv.includes("No Credit"));
 });

@@ -63,6 +63,7 @@ export interface PlayersPageViewProps {
   state: PlayersPageState;
   onNavigate?: (pathname: string) => void;
   pageTitleAction?: React.ReactNode;
+  canDownloadCsv?: boolean;
   mobileFiltersOpen?: boolean;
   nameQuery?: string;
   divisionFilter?: string;
@@ -91,6 +92,7 @@ export interface PlayersPageViewProps {
   onRdgaSinceChange?: (playerId: string, value: string) => void;
   onSeasonDivisionChange?: (playerId: string, value: string) => void;
   onDivisionSave?: (playerId: string) => void;
+  onDownloadCsv?: () => void;
   onToastClose?: () => void;
   onMobileFiltersClose?: () => void;
 }
@@ -172,6 +174,64 @@ function formatPlacementValue(value: number | null | undefined): string {
 
 function formatPlayersTablePlacement(value: number): string {
   return String(value);
+}
+
+function hasSeasonCreditPoints(player: Player): player is Player & { seasonCreditPoints: number } {
+  return (
+    typeof player.seasonCreditPoints === "number" &&
+    Number.isFinite(player.seasonCreditPoints)
+  );
+}
+
+function formatCsvField(value: string): string {
+  if (value.includes("\"") || value.includes(";") || value.includes("\n")) {
+    return `"${value.replaceAll("\"", "\"\"")}"`;
+  }
+
+  return value;
+}
+
+export function buildPlayersSeasonExportCsv(players: Player[]): string {
+  const csvHeader = [
+    "Место",
+    "Игрок",
+    "Очки зачета",
+    "Очки сезона",
+    "Рдга",
+    "Дивизион",
+  ];
+  const playersForExport = [...players]
+    .filter(hasSeasonCreditPoints)
+    .sort((left, right) => {
+      const creditDiff = right.seasonCreditPoints - left.seasonCreditPoints;
+      if (creditDiff !== 0) {
+        return creditDiff;
+      }
+
+      const seasonDiff =
+        (right.seasonPoints ?? Number.NEGATIVE_INFINITY) -
+        (left.seasonPoints ?? Number.NEGATIVE_INFINITY);
+      if (seasonDiff !== 0) {
+        return seasonDiff;
+      }
+
+      return decodeHtmlEntities(left.playerName).localeCompare(
+        decodeHtmlEntities(right.playerName),
+        "ru",
+      );
+    });
+  const csvRows = playersForExport.map((player, index) => [
+    String(index + 1),
+    decodeHtmlEntities(player.playerName),
+    formatSeasonPointsValue(player.seasonCreditPoints),
+    formatSeasonPointsValue(player.seasonPoints),
+    player.rdga === true ? "да" : "нет",
+    player.seasonDivision ?? "",
+  ]);
+
+  return [csvHeader, ...csvRows]
+    .map((row) => row.map((cell) => formatCsvField(cell)).join(";"))
+    .join("\n");
 }
 
 function compareSeasonsByPeriod(left: Season, right: Season): number {
@@ -416,6 +476,7 @@ export function PlayersPageView({
   state,
   onNavigate,
   pageTitleAction,
+  canDownloadCsv = false,
   mobileFiltersOpen = false,
   nameQuery = "",
   divisionFilter = "",
@@ -444,6 +505,7 @@ export function PlayersPageView({
   onRdgaSinceChange,
   onSeasonDivisionChange,
   onDivisionSave,
+  onDownloadCsv,
   onToastClose,
   onMobileFiltersClose,
 }: PlayersPageViewProps) {
@@ -573,6 +635,18 @@ export function PlayersPageView({
               className="data-table-panel players-page__table-panel"
               aria-label="Сохранённые игроки"
             >
+              <div className="players-page__table-actions">
+                <button
+                  type="button"
+                  className="update-card__submit players-table__save-button"
+                  disabled={!canDownloadCsv}
+                  onClick={() => {
+                    onDownloadCsv?.();
+                  }}
+                >
+                  Скачать
+                </button>
+              </div>
               <div className="data-table-wrap">
                 <table className="data-table">
                   <thead>
@@ -958,6 +1032,8 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
     playerId: null,
     message: null,
   });
+  const canDownloadCsv =
+    state.status === "ready" && state.players.some(hasSeasonCreditPoints);
 
   function resetSaveState() {
     setSaveState((currentState) =>
@@ -969,6 +1045,26 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
             message: null,
           },
     );
+  }
+
+  function handleDownloadCsv() {
+    if (state.status !== "ready") {
+      return;
+    }
+
+    const csvBody = buildPlayersSeasonExportCsv(state.players);
+    const csvWithBom = `\uFEFF${csvBody}`;
+    const blob = new Blob([csvWithBom], { type: "text/csv;charset=utf-8;" });
+    const fileName = `players-${seasonFilter || "season"}.csv`;
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = fileName;
+    link.style.display = "none";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(downloadUrl);
   }
 
   const editToggleButton =
@@ -1177,6 +1273,7 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
       seasonFilter={seasonFilter}
       sort={sort}
       canEdit={forceCanEdit ?? (isAuthenticated && isEditModeEnabled)}
+      canDownloadCsv={canDownloadCsv}
       pageTitleAction={pageTitleAction}
       mobileFiltersOpen={mobileFiltersOpen}
       divisionDrafts={divisionDrafts}
@@ -1285,6 +1382,7 @@ export function PlayersPage({ onNavigate, forceCanEdit }: PlayersPageProps) {
       onDivisionSave={(playerId) => {
         void handleDivisionSave(playerId);
       }}
+      onDownloadCsv={handleDownloadCsv}
       onToastClose={resetSaveState}
       onMobileFiltersClose={() => {
         setMobileFiltersOpen(false);

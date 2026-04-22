@@ -1826,6 +1826,12 @@ body {
   overflow: visible;
 }
 
+.players-page__table-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
 .players-page__filters {
   margin-top: 16px;
   display: flex;
