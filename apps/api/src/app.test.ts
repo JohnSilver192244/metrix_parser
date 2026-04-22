@@ -3530,6 +3530,67 @@ test("POST /tournament-categories creates category for authenticated user", asyn
   });
 });
 
+test("POST /tournament-categories accepts coefficient values with one decimal place", async () => {
+  let receivedPayload:
+    | {
+        name: string;
+        description: string;
+        competitionClass: "league" | "tournament";
+        segmentsCount: number;
+        ratingGte: number;
+        ratingLt: number;
+        coefficient: number;
+      }
+    | undefined;
+
+  const response = await invokeRequest(
+    "/tournament-categories",
+    {
+      method: "POST",
+      headers: {
+        authorization: "Bearer session-100",
+      },
+      body: JSON.stringify({
+        name: "Категория 2.2",
+        description: "Проверка коэффициента.",
+        competitionClass: "tournament",
+        segmentsCount: 18,
+        ratingGte: 70,
+        ratingLt: 80,
+        coefficient: 2.2,
+      }),
+    },
+    {
+      tournamentCategories: {
+        createTournamentCategory: async (payload) => {
+          receivedPayload = payload;
+
+          return {
+            categoryId: "category-201",
+            ...payload,
+          };
+        },
+      },
+      auth: {
+        requireAuthenticatedUser: async () => ({
+          login: "admin",
+        }),
+      },
+    },
+  );
+
+  assert.equal(response.statusCode, 201);
+  assert.deepEqual(receivedPayload, {
+    name: "Категория 2.2",
+    description: "Проверка коэффициента.",
+    competitionClass: "tournament",
+    segmentsCount: 18,
+    ratingGte: 70,
+    ratingLt: 80,
+    coefficient: 2.2,
+  });
+});
+
 test("DELETE /tournament-categories removes category for authenticated user", async () => {
   let receivedCategoryId: string | undefined;
 

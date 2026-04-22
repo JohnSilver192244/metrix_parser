@@ -202,9 +202,9 @@ function normalizeNonNegativeNumber(value: unknown, fieldName: string): number {
 
 function normalizeTwoDecimalNumber(value: unknown, fieldName: string): number {
   const normalizedValue = normalizeNonNegativeNumber(value, fieldName);
-  const scaledValue = normalizedValue * 100;
+  const roundedValue = Math.round(normalizedValue * 100) / 100;
 
-  if (Math.abs(Math.round(scaledValue) - scaledValue) > Number.EPSILON * 100) {
+  if (Math.abs(normalizedValue - roundedValue) > 1e-9) {
     throw new HttpError(
       400,
       `invalid_${fieldName}`,

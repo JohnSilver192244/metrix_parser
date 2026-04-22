@@ -52,7 +52,7 @@ function toDraft(category: TournamentCategory): CategoryDraft {
 }
 
 function parseDraftNumber(value: string): number {
-  return Number(value.trim().replace(",", "."));
+  return Number(value.trim().replaceAll(",", "."));
 }
 
 export function normalizeDraft(draft: CategoryDraft): CreateTournamentCategoryRequest {
@@ -97,7 +97,7 @@ export function normalizeDraft(draft: CategoryDraft): CreateTournamentCategoryRe
   }
 
   const roundedCoefficient = Math.round(coefficient * 100) / 100;
-  if (Math.abs(roundedCoefficient - coefficient) > 1e-9) {
+  if (Math.abs(coefficient - roundedCoefficient) > 1e-9) {
     throw new Error("Коэффициент должен содержать не более двух знаков после запятой.");
   }
 
