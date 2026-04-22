@@ -51,14 +51,18 @@ function toDraft(category: TournamentCategory): CategoryDraft {
   };
 }
 
-function normalizeDraft(draft: CategoryDraft): CreateTournamentCategoryRequest {
+function parseDraftNumber(value: string): number {
+  return Number(value.trim().replace(",", "."));
+}
+
+export function normalizeDraft(draft: CategoryDraft): CreateTournamentCategoryRequest {
   const name = draft.name.trim();
   const description = draft.description.trim();
   const competitionClass = draft.competitionClass.trim();
   const segmentsCount = Number(draft.segmentsCount);
-  const ratingGte = Number(draft.ratingGte);
-  const ratingLt = Number(draft.ratingLt);
-  const coefficient = Number(draft.coefficient);
+  const ratingGte = parseDraftNumber(draft.ratingGte);
+  const ratingLt = parseDraftNumber(draft.ratingLt);
+  const coefficient = parseDraftNumber(draft.coefficient);
 
   if (name.length === 0) {
     throw new Error("Укажите название категории.");
@@ -92,7 +96,8 @@ function normalizeDraft(draft: CategoryDraft): CreateTournamentCategoryRequest {
     throw new Error("Коэффициент должен быть неотрицательным числом.");
   }
 
-  if (Math.round(coefficient * 100) !== coefficient * 100) {
+  const roundedCoefficient = Math.round(coefficient * 100) / 100;
+  if (Math.abs(roundedCoefficient - coefficient) > 1e-9) {
     throw new Error("Коэффициент должен содержать не более двух знаков после запятой.");
   }
 

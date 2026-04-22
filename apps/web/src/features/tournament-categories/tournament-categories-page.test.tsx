@@ -4,7 +4,7 @@ import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { TournamentCategoriesPageView } from "./tournament-categories-page";
+import { normalizeDraft, TournamentCategoriesPageView } from "./tournament-categories-page";
 
 test("TournamentCategoriesPageView renders the empty state when there is no data", () => {
   const markup = renderToStaticMarkup(
@@ -117,4 +117,27 @@ test("TournamentCategoriesPageView renders create form and editable inputs for a
   assert.match(markup, /<span aria-hidden="true">×<\/span>/);
   assert.doesNotMatch(markup, />Сохранить<\/button>/);
   assert.doesNotMatch(markup, />Удалить<\/button>/);
+});
+
+test("normalizeDraft accepts decimal commas in coefficient and rating fields", () => {
+  assert.deepEqual(
+    normalizeDraft({
+      name: "Новая категория",
+      description: "Описание",
+      competitionClass: "tournament",
+      segmentsCount: "18",
+      ratingGte: "70,5",
+      ratingLt: "84,3",
+      coefficient: "1,1",
+    }),
+    {
+      name: "Новая категория",
+      description: "Описание",
+      competitionClass: "tournament",
+      segmentsCount: 18,
+      ratingGte: 70.5,
+      ratingLt: 84.3,
+      coefficient: 1.1,
+    },
+  );
 });
