@@ -1270,6 +1270,7 @@ export function aggregateSeasonStandingsByPlayer(
         scoredRows,
         seasonCreditConfig.bestLeaguesCount,
         seasonCreditConfig.bestTournamentsCount,
+        seasonCreditConfig.bestChampionshipsCount,
       );
       seasonCreditPointsByPlayerId.set(
         playerId,
@@ -1307,6 +1308,7 @@ export function aggregateSeasonStandingsByPlayer(
 interface SeasonCreditAggregationConfig {
   bestLeaguesCount: number;
   bestTournamentsCount: number;
+  bestChampionshipsCount: number;
   competitionClassByCategoryId: Map<string, CompetitionClass>;
 }
 
@@ -1331,9 +1333,17 @@ function pickSeasonCreditRows(
   rows: SeasonStandingScoredRow[],
   bestLeaguesCount: number,
   bestTournamentsCount: number,
+  bestChampionshipsCount: number,
 ): SeasonStandingScoredRow[] {
+  const normalizedBestLeaguesCount = normalizeTopCount(bestLeaguesCount);
+  const normalizedBestTournamentsCount = normalizeTopCount(bestTournamentsCount);
+  const normalizedBestChampionshipsCount = normalizeTopCount(
+    bestChampionshipsCount ?? 1,
+  );
+
   const leagueRows: SeasonStandingScoredRow[] = [];
   const tournamentRows: SeasonStandingScoredRow[] = [];
+  const championshipRows: SeasonStandingScoredRow[] = [];
 
   for (const row of rows) {
     if (row.competitionClass === "league") {
@@ -1341,15 +1351,34 @@ function pickSeasonCreditRows(
       continue;
     }
 
+    if (row.competitionClass === "championship") {
+      championshipRows.push(row);
+      continue;
+    }
+
     tournamentRows.push(row);
   }
 
   const selectedRows = [
-    ...pickTopScoredRows(leagueRows, bestLeaguesCount),
-    ...pickTopScoredRows(tournamentRows, bestTournamentsCount),
+    ...pickTopScoredRows(championshipRows, normalizedBestChampionshipsCount),
+    ...pickTopScoredRows(leagueRows, normalizedBestLeaguesCount),
+    ...pickTopScoredRows(tournamentRows, normalizedBestTournamentsCount),
   ];
 
+  const competitionClassOrder: Record<CompetitionClass, number> = {
+    championship: 0,
+    tournament: 1,
+    league: 2,
+  };
+
   return selectedRows.sort((left, right) => {
+    const classOrderDiff =
+      competitionClassOrder[left.competitionClass] -
+      competitionClassOrder[right.competitionClass];
+    if (classOrderDiff !== 0) {
+      return classOrderDiff;
+    }
+
     if (left.seasonPoints !== right.seasonPoints) {
       return right.seasonPoints - left.seasonPoints;
     }
@@ -1402,7 +1431,8 @@ function buildCompetitionClassByCategoryId(
     if (
       !categoryId ||
       (category.competition_class !== "league" &&
-        category.competition_class !== "tournament")
+        category.competition_class !== "tournament" &&
+        category.competition_class !== "championship")
     ) {
       continue;
     }
@@ -1464,6 +1494,7 @@ async function loadSeasonCreditAggregationConfig(
   return {
     bestLeaguesCount: normalizeTopCount(seasonRow?.best_leagues_count),
     bestTournamentsCount: normalizeTopCount(seasonRow?.best_tournaments_count),
+    bestChampionshipsCount: 1,
     competitionClassByCategoryId: categoriesById,
   };
 }

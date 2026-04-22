@@ -216,14 +216,18 @@ function normalizeTwoDecimalNumber(value: unknown, fieldName: string): number {
 }
 
 function normalizeCompetitionClass(value: unknown): CompetitionClass {
-  if (value === "league" || value === "tournament") {
+  if (
+    value === "league" ||
+    value === "tournament" ||
+    value === "championship"
+  ) {
     return value;
   }
 
   throw new HttpError(
     400,
     "invalid_competitionClass",
-    "competitionClass must be either 'league' or 'tournament'",
+    "competitionClass must be one of 'league', 'tournament', or 'championship'",
   );
 }
 

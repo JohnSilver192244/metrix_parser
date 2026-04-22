@@ -1305,6 +1305,7 @@ test("aggregateSeasonStandingsByPlayer calculates season credit points by class 
     {
       bestLeaguesCount: 2,
       bestTournamentsCount: 1,
+      bestChampionshipsCount: 1,
       competitionClassByCategoryId: new Map([
         ["category-2", "tournament"],
         ["category-3", "tournament"],
@@ -1329,18 +1330,21 @@ test("aggregateSeasonStandingsByPlayer calculates season credit points by class 
       competitionName: "Tournament One",
       placement: 4,
       seasonPoints: 50,
+      competitionClass: "tournament",
     },
     {
       competitionId: "league-1",
       competitionName: "League One",
       placement: 1,
       seasonPoints: 40,
+      competitionClass: "league",
     },
     {
       competitionId: "league-2",
       competitionName: "League Two",
       placement: 2,
       seasonPoints: 30,
+      competitionClass: "league",
     },
   ]);
 });
@@ -2044,7 +2048,7 @@ test("GET /tournament-categories returns persisted categories via the API envelo
       categoryId: string;
       name: string;
       description: string;
-      competitionClass: "league" | "tournament";
+      competitionClass: "league" | "tournament" | "championship";
       segmentsCount: number;
       ratingGte: number;
       ratingLt: number;
@@ -3474,7 +3478,7 @@ test("POST /tournament-categories creates category for authenticated user", asyn
     | {
         name: string;
         description: string;
-        competitionClass: "league" | "tournament";
+        competitionClass: "league" | "tournament" | "championship";
         segmentsCount: number;
         ratingGte: number;
         ratingLt: number;
@@ -3535,7 +3539,7 @@ test("POST /tournament-categories accepts coefficient values with one decimal pl
     | {
         name: string;
         description: string;
-        competitionClass: "league" | "tournament";
+        competitionClass: "league" | "tournament" | "championship";
         segmentsCount: number;
         ratingGte: number;
         ratingLt: number;

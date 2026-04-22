@@ -1,4 +1,4 @@
-export type CompetitionClass = "league" | "tournament";
+export type CompetitionClass = "league" | "tournament" | "championship";
 
 export interface TournamentCategory {
   categoryId: string;

@@ -39,6 +39,12 @@ type SubmitState = {
   message: string | null;
 };
 
+const COMPETITION_CLASS_OPTIONS = [
+  { value: "tournament", label: "Турнир" },
+  { value: "league", label: "Лига" },
+  { value: "championship", label: "ЧР" },
+] as const;
+
 function toDraft(category: TournamentCategory): CategoryDraft {
   return {
     name: category.name,
@@ -72,8 +78,12 @@ export function normalizeDraft(draft: CategoryDraft): CreateTournamentCategoryRe
     throw new Error("Укажите описание категории.");
   }
 
-  if (competitionClass !== "league" && competitionClass !== "tournament") {
-    throw new Error("Выберите тип категории: лига или турнир.");
+  if (
+    competitionClass !== "league" &&
+    competitionClass !== "tournament" &&
+    competitionClass !== "championship"
+  ) {
+    throw new Error("Выберите тип категории: лига, турнир или ЧР.");
   }
 
   if (!Number.isInteger(segmentsCount) || segmentsCount <= 0) {
@@ -118,6 +128,11 @@ function formatRatingValue(value: number): string {
 
 function formatCoefficient(value: number): string {
   return value.toFixed(2);
+}
+
+function resolveCompetitionClassLabel(competitionClass: string): string {
+  const option = COMPETITION_CLASS_OPTIONS.find((entry) => entry.value === competitionClass);
+  return option?.label ?? "Турнир";
 }
 
 function confirmCategoryDeletion(): boolean {
@@ -280,8 +295,11 @@ export function TournamentCategoriesPageView({
                   onCreateFieldChange?.("competitionClass", event.target.value)
                 }
               >
-                <option value="tournament">Турнир</option>
-                <option value="league">Лига</option>
+                {COMPETITION_CLASS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="tournament-categories-page__field tournament-categories-page__field--segments">
@@ -434,13 +452,14 @@ export function TournamentCategoriesPageView({
                               )
                             }
                           >
-                            <option value="tournament">Турнир</option>
-                            <option value="league">Лига</option>
+                            {COMPETITION_CLASS_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
                           </select>
-                        ) : category.competitionClass === "league" ? (
-                          "Лига"
                         ) : (
-                          "Турнир"
+                          resolveCompetitionClassLabel(category.competitionClass)
                         )}
                       </td>
                       <td>

@@ -225,23 +225,75 @@ interface SeasonCreditCompetitionRow {
 function resolveSeasonCreditCompetitionPrefix(
   competitionClass: CompetitionClass | null | undefined,
 ): string {
-  return competitionClass === "league" ? "Л" : "Т";
+  if (competitionClass === "league") {
+    return "Л";
+  }
+
+  if (competitionClass === "championship") {
+    return "ЧР";
+  }
+
+  return "Т";
+}
+
+function resolveSeasonCreditCompetitionOrder(
+  competitionClass: CompetitionClass | null | undefined,
+): number {
+  if (competitionClass === "championship") {
+    return 0;
+  }
+
+  if (competitionClass === "tournament") {
+    return 1;
+  }
+
+  if (competitionClass === "league") {
+    return 2;
+  }
+
+  return 3;
+}
+
+function sortSeasonCreditCompetitionsForDisplay(
+  competitions: ReadonlyArray<NonNullable<Player["seasonCreditCompetitions"]>[number]>,
+): Array<NonNullable<Player["seasonCreditCompetitions"]>[number]> {
+  return [...competitions].sort((left, right) => {
+    const classOrderDiff =
+      resolveSeasonCreditCompetitionOrder(left.competitionClass) -
+      resolveSeasonCreditCompetitionOrder(right.competitionClass);
+    if (classOrderDiff !== 0) {
+      return classOrderDiff;
+    }
+
+    if (left.seasonPoints !== right.seasonPoints) {
+      return right.seasonPoints - left.seasonPoints;
+    }
+
+    return left.competitionId.localeCompare(right.competitionId, "ru");
+  });
 }
 
 function buildSeasonCreditCompetitionRows(
   competitions: ReadonlyArray<NonNullable<Player["seasonCreditCompetitions"]>[number]>,
 ): SeasonCreditCompetitionRow[] {
   const classCounters: Record<CompetitionClass, number> = {
+    championship: 0,
     league: 0,
     tournament: 0,
   };
 
-  return competitions.map((competition) => {
+  return sortSeasonCreditCompetitionsForDisplay(competitions).map((competition) => {
     const competitionClass = competition.competitionClass ?? "tournament";
     classCounters[competitionClass] += 1;
+    const label =
+      competitionClass === "championship"
+        ? "ЧР"
+        : `${resolveSeasonCreditCompetitionPrefix(competition.competitionClass)}${
+            classCounters[competitionClass]
+          }`;
     return {
       competitionId: competition.competitionId,
-      label: `${resolveSeasonCreditCompetitionPrefix(competition.competitionClass)}${classCounters[competitionClass]}`,
+      label,
       placement: formatSeasonCreditPlacementValue(competition.placement),
       points: formatPoints(competition.seasonPoints),
       competitionName: decodeHtmlEntities(competition.competitionName),

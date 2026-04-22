@@ -52,7 +52,7 @@ test("alignPlayerResultPlacement keeps dnf when neither existing nor resolved pl
   assert.deepEqual(alignPlayerResultPlacement(row, null), row);
 });
 
-test("aggregateSeasonStandingsByPlayer keeps full season totals while selecting 4 tournaments and 4 leagues for credit", () => {
+test("aggregateSeasonStandingsByPlayer keeps full season totals while selecting 4 tournaments, 4 leagues, and 1 championship for credit", () => {
   const playerId = "105169";
   const rows = [
     { competition_id: "3415210", player_id: playerId, category_id: "df336969-b2e8-441b-b0c5-c98407007224", placement: 4, season_points: 264.0 },
@@ -72,6 +72,8 @@ test("aggregateSeasonStandingsByPlayer keeps full season totals while selecting 
     { competition_id: "3349506", player_id: playerId, category_id: "676507e7-d22c-4712-a027-e4cfd4c11046", placement: 9, season_points: 37.38 },
     { competition_id: "3264729", player_id: playerId, category_id: "0c9ef4c4-af1c-45f2-9f79-7b829b36fe16", placement: 9, season_points: 35.7 },
     { competition_id: "3299525", player_id: playerId, category_id: "676507e7-d22c-4712-a027-e4cfd4c11046", placement: 34, season_points: 16.59 },
+    { competition_id: "3500000", player_id: playerId, category_id: "championship-category-id", placement: 2, season_points: 300.0 },
+    { competition_id: "3500001", player_id: playerId, category_id: "championship-category-id", placement: 8, season_points: 280.0 },
   ];
 
   const result = aggregateSeasonStandingsByPlayer(
@@ -79,28 +81,40 @@ test("aggregateSeasonStandingsByPlayer keeps full season totals while selecting 
     {
       bestLeaguesCount: 4,
       bestTournamentsCount: 4,
+      bestChampionshipsCount: 1,
       competitionClassByCategoryId: new Map([
         ["0c9ef4c4-af1c-45f2-9f79-7b829b36fe16", "league"],
         ["676507e7-d22c-4712-a027-e4cfd4c11046", "league"],
         ["86b29366-20bb-4326-976f-e804e9e3b025", "league"],
         ["ae3a9ba8-9d92-485e-acea-6d0e5499ebfc", "tournament"],
         ["df336969-b2e8-441b-b0c5-c98407007224", "tournament"],
+        ["championship-category-id", "championship"],
       ]),
     },
     new Map(rows.map((row) => [row.competition_id, row.competition_id])),
   );
 
-  assert.equal(result.seasonPointsByPlayerId.get(playerId), 1543.4700000000003);
-  assert.equal(result.seasonCompetitionCountByPlayerId.get(playerId), 17);
-  assert.equal(result.seasonCreditPointsByPlayerId.get(playerId), 1153.65);
+  assert.equal(result.seasonPointsByPlayerId.get(playerId), 2123.4700000000003);
+  assert.equal(result.seasonCompetitionCountByPlayerId.get(playerId), 19);
+  assert.equal(result.seasonCreditPointsByPlayerId.get(playerId), 1453.65);
   assert.deepEqual(
     result.seasonCreditCompetitionsByPlayerId.get(playerId)?.map((row) => row.competitionId),
-    ["3415210", "3198575", "3242080", "3186078", "3264746", "3464441", "3264745", "3390010"],
+    ["3500000", "3415210", "3198575", "3242080", "3186078", "3264746", "3464441", "3264745", "3390010"],
   );
   assert.deepEqual(
     result.seasonCreditCompetitionsByPlayerId
       .get(playerId)
       ?.map((row) => row.competitionClass),
-    ["tournament", "tournament", "tournament", "tournament", "league", "league", "league", "league"],
+    [
+      "championship",
+      "tournament",
+      "tournament",
+      "tournament",
+      "tournament",
+      "league",
+      "league",
+      "league",
+      "league",
+    ],
   );
 });

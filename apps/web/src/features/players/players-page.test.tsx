@@ -388,6 +388,13 @@ test("PlayersPageView renders season credit tooltip rows as name, place, points"
             seasonCreditPoints: 132.4,
             seasonCreditCompetitions: [
               {
+                competitionId: "competition-3",
+                competitionName: "Чемпионат России",
+                placement: 2,
+                seasonPoints: 120,
+                competitionClass: "championship",
+              },
+              {
                 competitionId: "competition-2",
                 competitionName: "Beta Cup",
                 placement: 3,
@@ -416,8 +423,21 @@ test("PlayersPageView renders season credit tooltip rows as name, place, points"
   assert.match(markup, /players-page__credit-tooltip-anchor/);
   assert.match(markup, /Соревнования в зачете/);
   assert.match(markup, /players-page__credit-tooltip-list/);
+  assert.match(markup, /ЧР/);
   assert.match(markup, /Т1/);
   assert.match(markup, /Л1/);
+  const championshipIndex = markup.indexOf("Чемпионат России");
+  const alphaCupIndex = markup.indexOf("Alpha Cup");
+  const betaCupIndex = markup.indexOf("Beta Cup");
+  assert.notEqual(championshipIndex, -1);
+  assert.notEqual(alphaCupIndex, -1);
+  assert.notEqual(betaCupIndex, -1);
+  assert.ok(championshipIndex < alphaCupIndex);
+  assert.ok(alphaCupIndex < betaCupIndex);
+  assert.match(
+    markup,
+    /players-page__credit-tooltip-row-placement">2<\/span><span class="players-page__credit-tooltip-row-points">120\.00<\/span><span class="players-page__credit-tooltip-row-name">Чемпионат России/,
+  );
   assert.match(
     markup,
     /players-page__credit-tooltip-row-placement">1<\/span><span class="players-page__credit-tooltip-row-points">89\.90<\/span><span class="players-page__credit-tooltip-row-name">Alpha Cup/,

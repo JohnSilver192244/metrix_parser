@@ -23,6 +23,13 @@ test("PlayerPageView renders player header, filters, and results table", () => {
           seasonCreditPoints: 132.4,
           seasonCreditCompetitions: [
             {
+              competitionId: "competition-3",
+              competitionName: "Russian Championship",
+              placement: 2,
+              seasonPoints: 120.0,
+              competitionClass: "championship",
+            },
+            {
               competitionId: "competition-2",
               competitionName: "Beta Cup",
               placement: 3,
@@ -95,8 +102,17 @@ test("PlayerPageView renders player header, filters, and results table", () => {
   assert.match(markup, /Место/);
   assert.match(markup, /Очки/);
   assert.match(markup, /Соревнование/);
+  assert.match(markup, /ЧР/);
   assert.match(markup, /Т1/);
   assert.match(markup, /Л1/);
+  const championshipIndex = markup.indexOf("Russian Championship");
+  const alphaCupIndex = markup.indexOf("Alpha Cup");
+  const betaCupIndex = markup.indexOf("Beta Cup");
+  assert.notEqual(championshipIndex, -1);
+  assert.notEqual(alphaCupIndex, -1);
+  assert.notEqual(betaCupIndex, -1);
+  assert.ok(championshipIndex < alphaCupIndex);
+  assert.ok(alphaCupIndex < betaCupIndex);
   assert.match(markup, /Spring Open/);
   assert.match(markup, /Autumn Open/);
   assert.ok(markup.indexOf("Зачет сезона") < markup.indexOf("Spring Open"));

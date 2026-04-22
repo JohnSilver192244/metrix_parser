@@ -106,6 +106,7 @@ test("TournamentCategoriesPageView renders create form and editable inputs for a
   assert.match(markup, /Рейтинг &lt;/);
   assert.match(markup, /<option value="league" selected="">Лига<\/option>/);
   assert.match(markup, /Коэффициент/);
+  assert.match(markup, /<option value="championship">ЧР<\/option>/);
   assert.match(markup, /value="Профессиональные"/);
   assert.match(markup, /value="21"/);
   assert.match(markup, /value="85"/);
@@ -117,6 +118,33 @@ test("TournamentCategoriesPageView renders create form and editable inputs for a
   assert.match(markup, /<span aria-hidden="true">×<\/span>/);
   assert.doesNotMatch(markup, />Сохранить<\/button>/);
   assert.doesNotMatch(markup, />Удалить<\/button>/);
+});
+
+test("TournamentCategoriesPageView renders championship competition class label", () => {
+  const markup = renderToStaticMarkup(
+    <TournamentCategoriesPageView
+      state={{
+        status: "ready",
+        total: 1,
+        categories: [
+          {
+            categoryId: "category-900",
+            name: "Чемпионат России",
+            description: "Финальный старт сезона.",
+            competitionClass: "championship",
+            segmentsCount: 54,
+            ratingGte: 84.3,
+            ratingLt: 999,
+            coefficient: 1.5,
+          },
+        ],
+      }}
+      canEdit={false}
+    />,
+  );
+
+  assert.match(markup, /Чемпионат России/);
+  assert.match(markup, />ЧР</);
 });
 
 test("normalizeDraft accepts decimal commas in coefficient and rating fields", () => {
@@ -138,6 +166,29 @@ test("normalizeDraft accepts decimal commas in coefficient and rating fields", (
       ratingGte: 70.5,
       ratingLt: 84.3,
       coefficient: 1.1,
+    },
+  );
+});
+
+test("normalizeDraft accepts championship as competition class", () => {
+  assert.deepEqual(
+    normalizeDraft({
+      name: "Чемпионат России",
+      description: "Финал сезона",
+      competitionClass: "championship",
+      segmentsCount: "54",
+      ratingGte: "84.3",
+      ratingLt: "999",
+      coefficient: "1.5",
+    }),
+    {
+      name: "Чемпионат России",
+      description: "Финал сезона",
+      competitionClass: "championship",
+      segmentsCount: 54,
+      ratingGte: 84.3,
+      ratingLt: 999,
+      coefficient: 1.5,
     },
   );
 });
