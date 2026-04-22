@@ -4009,7 +4009,7 @@ test("GET /updates/jobs/:jobId returns the current background status for authent
   assert.equal(payload.data.pollPath, "/updates/jobs/job-100");
 });
 
-test("POST /updates/competitions rejects periods longer than fourteen days", async () => {
+test("POST /updates/competitions accepts periods longer than fourteen days", async () => {
   const response = await invokeRequest(
     "/updates/competitions",
     {
@@ -4024,6 +4024,25 @@ test("POST /updates/competitions rejects periods longer than fourteen days", asy
       }),
     },
     {
+      updates: {
+        executeCompetitionsUpdate: async (period) => ({
+          operation: "competitions",
+          finalStatus: "completed",
+          source: "runtime",
+          message: "Получили и обработали соревнования.",
+          requestedAt: "2026-03-21T10:00:00.000Z",
+          finishedAt: "2026-03-21T10:00:01.000Z",
+          summary: {
+            found: 0,
+            created: 0,
+            updated: 0,
+            skipped: 0,
+            errors: 0,
+          },
+          issues: [],
+          period,
+        }),
+      },
       auth: {
         requireAuthenticatedUser: async () => ({
           login: "admin",
@@ -4032,12 +4051,16 @@ test("POST /updates/competitions rejects periods longer than fourteen days", asy
     },
   );
   const payload = JSON.parse(response.body) as {
-    error: { code: string; message: string };
+    data: {
+      period?: { dateFrom: string; dateTo: string };
+    };
   };
 
-  assert.equal(response.statusCode, 400);
-  assert.equal(payload.error.code, "invalid_period");
-  assert.match(payload.error.message, /14 days/);
+  assert.equal(response.statusCode, 202);
+  assert.deepEqual(payload.data.period, {
+    dateFrom: "2026-01-01",
+    dateTo: "2026-01-16",
+  });
 });
 
 test("POST /updates/courses accepts a period-free update command", async () => {

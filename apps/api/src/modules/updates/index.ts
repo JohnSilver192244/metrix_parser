@@ -22,7 +22,6 @@ import {
 
 const PERIOD_OPERATIONS = new Set<UpdateOperation>(["competitions", "players", "results"]);
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const MAX_UPDATE_PERIOD_DAYS = 14;
 
 function isRealCalendarDate(value: string): boolean {
   const [yearToken, monthToken, dayToken] = value.split("-");
@@ -46,13 +45,6 @@ function validateDate(value: string, fieldName: keyof UpdatePeriod): string {
   return value;
 }
 
-function countInclusiveUtcDays(period: UpdatePeriod): number {
-  const dateFrom = Date.parse(`${period.dateFrom}T00:00:00.000Z`);
-  const dateTo = Date.parse(`${period.dateTo}T00:00:00.000Z`);
-
-  return Math.floor((dateTo - dateFrom) / 86_400_000) + 1;
-}
-
 function resolvePeriod(body: TriggerUpdateRequestBody): UpdatePeriod {
   const dateFrom = body.dateFrom?.trim();
   const dateTo = body.dateTo?.trim();
@@ -72,14 +64,6 @@ function resolvePeriod(body: TriggerUpdateRequestBody): UpdatePeriod {
 
   if (period.dateFrom > period.dateTo) {
     throw new HttpError(400, "invalid_period", "dateFrom must be earlier than or equal to dateTo");
-  }
-
-  if (countInclusiveUtcDays(period) > MAX_UPDATE_PERIOD_DAYS) {
-    throw new HttpError(
-      400,
-      "invalid_period",
-      `Update period must not exceed ${MAX_UPDATE_PERIOD_DAYS} days`,
-    );
   }
 
   return period;
