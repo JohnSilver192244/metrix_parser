@@ -31,6 +31,7 @@ import {
 
 const UPDATE_JOB_POLL_PATH_PREFIX = "/updates/jobs";
 const SCHEDULED_MAX_BATCHES_PER_INVOCATION = 25;
+const PROCESSING_LEASE_STALE_AFTER_MS = 5 * 60 * 1000;
 const OPERATION_PROGRESS_TITLES: Record<UpdateOperation, string> = {
   competitions: "Соревнования",
   courses: "Парки",
@@ -464,6 +465,35 @@ function toUtcDate(value: number): string {
   return new Date(value).toISOString().slice(0, 10);
 }
 
+function parseIsoTimestamp(value: string | null | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function isStaleProcessingLease(
+  job: PersistedUpdateJobRecord,
+  nowMs = Date.now(),
+): boolean {
+  if (!job.processingLeaseToken) {
+    return false;
+  }
+
+  const lastProgressAtMs =
+    parseIsoTimestamp(job.progress?.updatedAt) ??
+    parseIsoTimestamp(job.startedAt) ??
+    parseIsoTimestamp(job.requestedAt);
+
+  if (lastProgressAtMs === null) {
+    return false;
+  }
+
+  return nowMs - lastProgressAtMs >= PROCESSING_LEASE_STALE_AFTER_MS;
+}
+
 function resolvePreviousUtcDayPeriod(scheduledTime: number): UpdatePeriod {
   const dayMs = 24 * 60 * 60 * 1000;
   const previousDay = scheduledTime - dayMs;
@@ -756,6 +786,18 @@ export function createUpdateJobsService(
 
       if (!job) {
         return;
+      }
+
+      if (
+        job.status === "running" &&
+        job.continuationCursor &&
+        isStaleProcessingLease(job)
+      ) {
+        await useWithRepository(env, async (repository) => {
+          await repository.updateJob(jobId, {
+            processingLeaseToken: null,
+          });
+        });
       }
 
       if (job.status !== "accepted" && !(job.status === "running" && job.continuationCursor)) {

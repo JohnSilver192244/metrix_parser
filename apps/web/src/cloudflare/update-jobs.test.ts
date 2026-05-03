@@ -333,6 +333,62 @@ test("touchAcceptedUpdate advances continuation jobs through multiple batches", 
   assert.equal(persisted?.result?.finalStatus, "completed");
 });
 
+test("touchAcceptedUpdate reclaims a stale continuation lease and resumes the job", async () => {
+  const repository = new InMemoryUpdateJobsRepository();
+  await repository.insertJob(
+    createRecord({
+      status: "running",
+      startedAt: "2026-04-16T10:00:01.000Z",
+      continuationCursor: { offset: 15 },
+      processingLeaseToken: "stale-lease",
+      progress: {
+        phase: "running",
+        message: "Игроки и результаты: обрабатываем batch 4, смещение 15.",
+        batchIndex: 4,
+        cursorOffset: 15,
+        updatedAt: "2026-04-16T10:05:00.000Z",
+      } satisfies UpdateJobProgress,
+      result: createResult("players"),
+    }),
+  );
+  const waitUntilPromises: Promise<void>[] = [];
+  let batchCalls = 0;
+  let nextId = 1;
+  const realDateNow = Date.now;
+  Date.now = () => Date.parse("2026-04-16T10:20:01.000Z");
+
+  try {
+    const service = createUpdateJobsService({
+      withRepository: async (_env, callback) =>
+        callback(repository, createExecutionEnv()),
+      runOperationBatch: async (command, _env, cursor) => {
+        batchCalls += 1;
+        assert.equal(cursor?.offset, 15);
+
+        return {
+          result: createResult(command.operation),
+        };
+      },
+      createId: () => `lease-${nextId++}`,
+    });
+
+    await service.touchAcceptedUpdate("job-100", "admin", createRuntimeEnv(), {
+      waitUntil(promise) {
+        waitUntilPromises.push(promise as Promise<void>);
+      },
+    });
+    await Promise.all(waitUntilPromises);
+  } finally {
+    Date.now = realDateNow;
+  }
+
+  const persisted = await repository.getJob("job-100");
+  assert.equal(batchCalls, 1);
+  assert.equal(persisted?.status, "completed");
+  assert.equal(persisted?.continuationCursor, null);
+  assert.equal(persisted?.processingLeaseToken, null);
+});
+
 test("runScheduledUpdate creates a new job when an older active job belongs to a different day", async () => {
   const repository = new InMemoryUpdateJobsRepository();
   await repository.insertJob(
