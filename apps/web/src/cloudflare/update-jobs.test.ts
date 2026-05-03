@@ -290,7 +290,7 @@ test("background batch failures force the stored result to failed", async () => 
   assert.equal(persisted?.processingLeaseToken, null);
 });
 
-test("touchAcceptedUpdate advances continuation jobs through multiple batches", async () => {
+test("touchAcceptedUpdate advances continuation jobs by one batch per poll", async () => {
   const repository = new InMemoryUpdateJobsRepository();
   await repository.insertJob(createRecord());
   const waitUntilPromises: Promise<void>[] = [];
@@ -324,6 +324,52 @@ test("touchAcceptedUpdate advances continuation jobs through multiple batches", 
     },
   });
   await Promise.all(waitUntilPromises);
+
+  const persisted = await repository.getJob("job-100");
+  assert.equal(batchCalls, 1);
+  assert.equal(persisted?.status, "running");
+  assert.deepEqual(persisted?.continuationCursor, { offset: 50 });
+  assert.equal(persisted?.processingLeaseToken, null);
+  assert.equal(persisted?.result?.finalStatus, "completed");
+});
+
+test("touchAcceptedUpdate completes a continuation job across multiple polls", async () => {
+  const repository = new InMemoryUpdateJobsRepository();
+  await repository.insertJob(createRecord());
+  let batchCalls = 0;
+  let nextId = 1;
+  const service = createUpdateJobsService({
+    withRepository: async (_env, callback) =>
+      callback(repository, createExecutionEnv()),
+    runOperationBatch: async (command, _env, cursor) => {
+      batchCalls += 1;
+
+      if (cursor?.offset === 250) {
+        return {
+          result: createResult(command.operation),
+        };
+      }
+
+      return {
+        result: createResult(command.operation),
+        nextCursor: {
+          offset: (cursor?.offset ?? 0) + 50,
+        },
+      };
+    },
+    createId: () => `lease-${nextId++}`,
+  });
+
+  for (let index = 0; index < 6; index += 1) {
+    const waitUntilPromises: Promise<void>[] = [];
+
+    await service.touchAcceptedUpdate("job-100", "admin", createRuntimeEnv(), {
+      waitUntil(promise) {
+        waitUntilPromises.push(promise as Promise<void>);
+      },
+    });
+    await Promise.all(waitUntilPromises);
+  }
 
   const persisted = await repository.getJob("job-100");
   assert.equal(batchCalls, 6);

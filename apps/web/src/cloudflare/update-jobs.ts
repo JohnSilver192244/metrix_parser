@@ -112,6 +112,10 @@ interface UpdateJobsServiceDependencies {
   createId?: (prefix?: string) => string;
 }
 
+interface ProcessPersistedJobOptions {
+  maxBatchesPerInvocation: number;
+}
+
 function logUpdateJobTransition(input: {
   jobId: string;
   operation: string;
@@ -528,10 +532,11 @@ export function createUpdateJobsService(
   async function processPersistedJob(
     record: PersistedUpdateJobRecord,
     env: UpdateJobsRuntimeEnv,
+    options: ProcessPersistedJobOptions,
   ): Promise<void> {
     let currentRecord = record;
 
-    for (let batchIndex = 0; batchIndex < SCHEDULED_MAX_BATCHES_PER_INVOCATION; batchIndex += 1) {
+    for (let batchIndex = 0; batchIndex < options.maxBatchesPerInvocation; batchIndex += 1) {
       const nextRecord = (await useWithRepository(env, async (repository, executionEnv) => {
         const leaseToken = createId("lease");
         const claimedRecord = await repository.claimJob(currentRecord.jobId, leaseToken);
@@ -769,7 +774,12 @@ export function createUpdateJobsService(
       await useWithRepository(env, async (repository) => {
         await repository.insertJob(record);
       });
-      scheduleBackground(processPersistedJob(record, env), ctx);
+      scheduleBackground(
+        processPersistedJob(record, env, {
+          maxBatchesPerInvocation: 1,
+        }),
+        ctx,
+      );
 
       return toAcceptedResponse(record);
     },
@@ -804,7 +814,12 @@ export function createUpdateJobsService(
         return;
       }
 
-      scheduleBackground(processPersistedJob(job, env), ctx);
+      scheduleBackground(
+        processPersistedJob(job, env, {
+          maxBatchesPerInvocation: 1,
+        }),
+        ctx,
+      );
     },
 
     async readAcceptedUpdateStatus(
@@ -837,7 +852,9 @@ export function createUpdateJobsService(
         env,
       );
 
-      await processPersistedJob(record, env);
+      await processPersistedJob(record, env, {
+        maxBatchesPerInvocation: SCHEDULED_MAX_BATCHES_PER_INVOCATION,
+      });
 
       return true;
     },
