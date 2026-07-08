@@ -198,7 +198,7 @@ function toRowPatch(
   return rowPatch;
 }
 
-export function createUpdateJobsRepository(supabaseClient?: ReturnType<typeof createClient>) {
+export function createUpdateJobsRepository(supabaseClient?: ReturnType<typeof createWorkerSupabaseAdminClient>) {
   const supabase = supabaseClient ?? createWorkerSupabaseAdminClient();
 
   return {
