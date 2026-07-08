@@ -834,11 +834,14 @@ export function createUpdateJobsService(
         return;
       }
 
-      if (
+      const staleAccepted =
+        job.status === "accepted" && isStaleProcessingLease(job);
+      const staleContinuation =
         job.status === "running" &&
         job.continuationCursor &&
-        isStaleProcessingLease(job)
-      ) {
+        isStaleProcessingLease(job);
+
+      if (staleAccepted || staleContinuation) {
         await useWithRepository(env, async (repository) => {
           await repository.updateJob(jobId, {
             processingLeaseToken: null,
