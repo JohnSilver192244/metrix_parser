@@ -401,6 +401,7 @@ async function executeRuntimeOperationBatch(
       apiCode: env.discGolfMetrixApiCode,
       overwriteExisting: command.overwriteExisting,
       courseIdOffset: cursor?.offset ?? 0,
+      requestTimeoutMs: 15_000,
     });
 
     return {
@@ -777,6 +778,8 @@ export function createUpdateJobsService(
       scheduleBackground(
         processPersistedJob(record, env, {
           maxBatchesPerInvocation: 1,
+        }).catch((error) => {
+          console.error("[update-jobs] processPersistedJob failed", error);
         }),
         ctx,
       );
@@ -817,6 +820,8 @@ export function createUpdateJobsService(
       scheduleBackground(
         processPersistedJob(job, env, {
           maxBatchesPerInvocation: 1,
+        }).catch((error) => {
+          console.error("[update-jobs] touchAcceptedUpdate processPersistedJob failed", error);
         }),
         ctx,
       );

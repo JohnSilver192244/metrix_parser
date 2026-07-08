@@ -39,7 +39,7 @@ export interface CoursesUpdateJobResult extends UpdateOperationResult {
   nextCourseIdOffset?: number;
 }
 
-const COURSES_FETCH_CONCURRENCY = 6;
+const COURSES_FETCH_CONCURRENCY = 3;
 const MAX_COURSE_IDS_PER_RUN = 100;
 
 async function fetchCoursePayloads(
