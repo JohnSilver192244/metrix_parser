@@ -35,29 +35,39 @@ class DiscGolfMetrixRequestTimeoutError extends Error {
   }
 }
 
+interface TimedResponse {
+  response: Response;
+  dispose(): void;
+}
+
 async function fetchWithTimeout(
   fetchImpl: typeof fetch,
   input: string,
   init: RequestInit,
   requestTimeoutMs: number,
-): Promise<Response> {
+): Promise<TimedResponse> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs);
   const timeoutError = new DiscGolfMetrixRequestTimeoutError(requestTimeoutMs);
 
   try {
-    return await fetchImpl(input, {
+    const response = await fetchImpl(input, {
       ...init,
       signal: controller.signal,
     });
+
+    return {
+      response,
+      dispose: () => clearTimeout(timeoutId),
+    };
   } catch (error) {
+    clearTimeout(timeoutId);
+
     if (controller.signal.aborted) {
       throw timeoutError;
     }
 
     throw error;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
@@ -154,7 +164,7 @@ export function createDiscGolfMetrixClient({
   fetchImpl = fetch,
   requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
 }: DiscGolfMetrixClientDependencies) {
-  async function performRequest(sourceUrl: string): Promise<Response> {
+  async function performRequest(sourceUrl: string): Promise<TimedResponse> {
     return fetchWithTimeout(
       fetchImpl,
       sourceUrl,
@@ -174,10 +184,10 @@ export function createDiscGolfMetrixClient({
     ): Promise<DiscGolfMetrixCompetitionsResponse> {
       const sourceUrl = buildCompetitionsRequestUrl(baseUrl, countryCode, apiCode, request);
 
-      let response: Response;
+      let timedResponse: TimedResponse;
 
       try {
-        response = await performRequest(sourceUrl);
+        timedResponse = await performRequest(sourceUrl);
       } catch (error) {
         throw new DiscGolfMetrixClientError(
           error instanceof DiscGolfMetrixRequestTimeoutError
@@ -190,53 +200,59 @@ export function createDiscGolfMetrixClient({
         );
       }
 
-      if (!response.ok) {
-        throw new DiscGolfMetrixClientError(
-          `DiscGolfMetrix returned HTTP ${response.status} for competitions request.`,
-          "discgolfmetrix_http_error",
-          { status: response.status, sourceUrl },
-        );
-      }
-
-      let responseBody: string;
+      const { response, dispose } = timedResponse;
 
       try {
-        responseBody = await response.text();
-      } catch (error) {
-        throw new DiscGolfMetrixClientError(
-          error instanceof Error
-            ? `DiscGolfMetrix payload could not be read: ${error.message}`
-            : "DiscGolfMetrix payload could not be read.",
-          "discgolfmetrix_network_error",
-          { sourceUrl },
-        );
+        if (!response.ok) {
+          throw new DiscGolfMetrixClientError(
+            `DiscGolfMetrix returned HTTP ${response.status} for competitions request.`,
+            "discgolfmetrix_http_error",
+            { status: response.status, sourceUrl },
+          );
+        }
+
+        let responseBody: string;
+
+        try {
+          responseBody = await response.text();
+        } catch (error) {
+          throw new DiscGolfMetrixClientError(
+            error instanceof Error
+              ? `DiscGolfMetrix payload could not be read: ${error.message}`
+              : "DiscGolfMetrix payload could not be read.",
+            "discgolfmetrix_network_error",
+            { sourceUrl },
+          );
+        }
+
+        let payload: unknown;
+
+        try {
+          payload = JSON.parse(responseBody);
+        } catch (error) {
+          const responsePreview = responseBody.slice(0, 120).replace(/\s+/g, " ").trim();
+
+          throw new DiscGolfMetrixClientError(
+            error instanceof Error
+              ? `DiscGolfMetrix payload is not valid JSON: ${error.message}. Response preview: ${responsePreview}`
+              : `DiscGolfMetrix payload is not valid JSON. Response preview: ${responsePreview}`,
+            "discgolfmetrix_parse_error",
+            { sourceUrl },
+          );
+        }
+
+        const parsedPayload = parseDiscGolfMetrixCompetitionsPayload(payload);
+        const fetchedAt = new Date().toISOString();
+
+        return {
+          sourceUrl,
+          fetchedAt,
+          records: parsedPayload.competitions,
+          rawPayload: parsedPayload,
+        };
+      } finally {
+        dispose();
       }
-
-      let payload: unknown;
-
-      try {
-        payload = JSON.parse(responseBody);
-      } catch (error) {
-        const responsePreview = responseBody.slice(0, 120).replace(/\s+/g, " ").trim();
-
-        throw new DiscGolfMetrixClientError(
-          error instanceof Error
-            ? `DiscGolfMetrix payload is not valid JSON: ${error.message}. Response preview: ${responsePreview}`
-            : `DiscGolfMetrix payload is not valid JSON. Response preview: ${responsePreview}`,
-          "discgolfmetrix_parse_error",
-          { sourceUrl },
-        );
-      }
-
-      const parsedPayload = parseDiscGolfMetrixCompetitionsPayload(payload);
-      const fetchedAt = new Date().toISOString();
-
-      return {
-        sourceUrl,
-        fetchedAt,
-        records: parsedPayload.competitions,
-        rawPayload: parsedPayload,
-      };
     },
 
     async fetchCourse(
@@ -244,10 +260,10 @@ export function createDiscGolfMetrixClient({
     ): Promise<DiscGolfMetrixCourseResponse> {
       const sourceUrl = buildCourseRequestUrl(baseUrl, apiCode, request);
 
-      let response: Response;
+      let timedResponse: TimedResponse;
 
       try {
-        response = await performRequest(sourceUrl);
+        timedResponse = await performRequest(sourceUrl);
       } catch (error) {
         throw new DiscGolfMetrixClientError(
           error instanceof DiscGolfMetrixRequestTimeoutError
@@ -260,54 +276,60 @@ export function createDiscGolfMetrixClient({
         );
       }
 
-      if (!response.ok) {
-        throw new DiscGolfMetrixClientError(
-          `DiscGolfMetrix returned HTTP ${response.status} for course request ${request.courseId}.`,
-          "discgolfmetrix_http_error",
-          { status: response.status, sourceUrl },
-        );
-      }
-
-      let responseBody: string;
+      const { response, dispose } = timedResponse;
 
       try {
-        responseBody = await response.text();
-      } catch (error) {
-        throw new DiscGolfMetrixClientError(
-          error instanceof Error
-            ? `DiscGolfMetrix payload could not be read: ${error.message}`
-            : "DiscGolfMetrix payload could not be read.",
-          "discgolfmetrix_network_error",
-          { sourceUrl },
-        );
+        if (!response.ok) {
+          throw new DiscGolfMetrixClientError(
+            `DiscGolfMetrix returned HTTP ${response.status} for course request ${request.courseId}.`,
+            "discgolfmetrix_http_error",
+            { status: response.status, sourceUrl },
+          );
+        }
+
+        let responseBody: string;
+
+        try {
+          responseBody = await response.text();
+        } catch (error) {
+          throw new DiscGolfMetrixClientError(
+            error instanceof Error
+              ? `DiscGolfMetrix payload could not be read: ${error.message}`
+              : "DiscGolfMetrix payload could not be read.",
+            "discgolfmetrix_network_error",
+            { sourceUrl },
+          );
+        }
+
+        let payload: unknown;
+
+        try {
+          payload = JSON.parse(responseBody);
+        } catch (error) {
+          const responsePreview = responseBody.slice(0, 120).replace(/\s+/g, " ").trim();
+
+          throw new DiscGolfMetrixClientError(
+            error instanceof Error
+              ? `DiscGolfMetrix payload is not valid JSON: ${error.message}. Response preview: ${responsePreview}`
+              : `DiscGolfMetrix payload is not valid JSON. Response preview: ${responsePreview}`,
+            "discgolfmetrix_parse_error",
+            { sourceUrl },
+          );
+        }
+
+        const parsedPayload = parseDiscGolfMetrixCoursePayload(payload);
+        const fetchedAt = new Date().toISOString();
+
+        return {
+          sourceUrl,
+          fetchedAt,
+          courseId: request.courseId,
+          record: parsedPayload,
+          rawPayload: parsedPayload,
+        };
+      } finally {
+        dispose();
       }
-
-      let payload: unknown;
-
-      try {
-        payload = JSON.parse(responseBody);
-      } catch (error) {
-        const responsePreview = responseBody.slice(0, 120).replace(/\s+/g, " ").trim();
-
-        throw new DiscGolfMetrixClientError(
-          error instanceof Error
-            ? `DiscGolfMetrix payload is not valid JSON: ${error.message}. Response preview: ${responsePreview}`
-            : `DiscGolfMetrix payload is not valid JSON. Response preview: ${responsePreview}`,
-          "discgolfmetrix_parse_error",
-          { sourceUrl },
-        );
-      }
-
-      const parsedPayload = parseDiscGolfMetrixCoursePayload(payload);
-      const fetchedAt = new Date().toISOString();
-
-      return {
-        sourceUrl,
-        fetchedAt,
-        courseId: request.courseId,
-        record: parsedPayload,
-        rawPayload: parsedPayload,
-      };
     },
 
     async fetchResults(
@@ -315,10 +337,10 @@ export function createDiscGolfMetrixClient({
     ): Promise<DiscGolfMetrixResultsResponse> {
       const sourceUrl = buildResultsRequestUrl(baseUrl, apiCode, request);
 
-      let response: Response;
+      let timedResponse: TimedResponse;
 
       try {
-        response = await performRequest(sourceUrl);
+        timedResponse = await performRequest(sourceUrl);
       } catch (error) {
         throw new DiscGolfMetrixClientError(
           error instanceof DiscGolfMetrixRequestTimeoutError
@@ -331,55 +353,61 @@ export function createDiscGolfMetrixClient({
         );
       }
 
-      if (!response.ok) {
-        throw new DiscGolfMetrixClientError(
-          `DiscGolfMetrix returned HTTP ${response.status} for results request ${request.competitionId}.`,
-          "discgolfmetrix_http_error",
-          { status: response.status, sourceUrl },
-        );
-      }
-
-      let responseBody: string;
+      const { response, dispose } = timedResponse;
 
       try {
-        responseBody = await response.text();
-      } catch (error) {
-        throw new DiscGolfMetrixClientError(
-          error instanceof Error
-            ? `DiscGolfMetrix payload could not be read: ${error.message}`
-            : "DiscGolfMetrix payload could not be read.",
-          "discgolfmetrix_network_error",
-          { sourceUrl },
-        );
+        if (!response.ok) {
+          throw new DiscGolfMetrixClientError(
+            `DiscGolfMetrix returned HTTP ${response.status} for results request ${request.competitionId}.`,
+            "discgolfmetrix_http_error",
+            { status: response.status, sourceUrl },
+          );
+        }
+
+        let responseBody: string;
+
+        try {
+          responseBody = await response.text();
+        } catch (error) {
+          throw new DiscGolfMetrixClientError(
+            error instanceof Error
+              ? `DiscGolfMetrix payload could not be read: ${error.message}`
+              : "DiscGolfMetrix payload could not be read.",
+            "discgolfmetrix_network_error",
+            { sourceUrl },
+          );
+        }
+
+        let payload: unknown;
+
+        try {
+          payload = JSON.parse(responseBody);
+        } catch (error) {
+          const responsePreview = responseBody.slice(0, 120).replace(/\s+/g, " ").trim();
+
+          throw new DiscGolfMetrixClientError(
+            error instanceof Error
+              ? `DiscGolfMetrix payload is not valid JSON: ${error.message}. Response preview: ${responsePreview}`
+              : `DiscGolfMetrix payload is not valid JSON. Response preview: ${responsePreview}`,
+            "discgolfmetrix_parse_error",
+            { sourceUrl },
+          );
+        }
+
+        const parsedPayload = parseDiscGolfMetrixResultsPayload(payload);
+        const fetchedAt = new Date().toISOString();
+
+        return {
+          sourceUrl,
+          fetchedAt,
+          competitionId: request.competitionId,
+          metrixId: request.metrixId ?? null,
+          record: parsedPayload,
+          rawPayload: parsedPayload,
+        };
+      } finally {
+        dispose();
       }
-
-      let payload: unknown;
-
-      try {
-        payload = JSON.parse(responseBody);
-      } catch (error) {
-        const responsePreview = responseBody.slice(0, 120).replace(/\s+/g, " ").trim();
-
-        throw new DiscGolfMetrixClientError(
-          error instanceof Error
-            ? `DiscGolfMetrix payload is not valid JSON: ${error.message}. Response preview: ${responsePreview}`
-            : `DiscGolfMetrix payload is not valid JSON. Response preview: ${responsePreview}`,
-          "discgolfmetrix_parse_error",
-          { sourceUrl },
-        );
-      }
-
-      const parsedPayload = parseDiscGolfMetrixResultsPayload(payload);
-      const fetchedAt = new Date().toISOString();
-
-      return {
-        sourceUrl,
-        fetchedAt,
-        competitionId: request.competitionId,
-        metrixId: request.metrixId ?? null,
-        record: parsedPayload,
-        rawPayload: parsedPayload,
-      };
     },
   };
 }

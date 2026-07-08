@@ -13,6 +13,7 @@ import {
   type UpdateResultSource,
 } from "@metrix-parser/shared-types";
 
+import { withTimeout } from "../../../worker/src/lib/async-timeout";
 import { invalidateApiReadCacheAfterBackgroundRecompute } from "../../../api/src/lib/api-read-cache";
 import type {
   AcceptedUpdateCommand,
@@ -32,6 +33,7 @@ import {
 const UPDATE_JOB_POLL_PATH_PREFIX = "/updates/jobs";
 const SCHEDULED_MAX_BATCHES_PER_INVOCATION = 25;
 const PROCESSING_LEASE_STALE_AFTER_MS = 5 * 60 * 1000;
+const PROCESSING_JOB_TIMEOUT_MS = 60_000;
 const OPERATION_PROGRESS_TITLES: Record<UpdateOperation, string> = {
   competitions: "Соревнования",
   courses: "Парки",
@@ -545,10 +547,13 @@ export function createUpdateJobsService(
       jobId: record.jobId,
       operation: record.operation,
     });
-    let currentRecord = record;
 
-    for (let batchIndex = 0; batchIndex < options.maxBatchesPerInvocation; batchIndex += 1) {
-      const nextRecord = (await useWithRepository(env, async (repository, executionEnv) => {
+    await withTimeout(
+      (async () => {
+        let currentRecord = record;
+
+        for (let batchIndex = 0; batchIndex < options.maxBatchesPerInvocation; batchIndex += 1) {
+          const nextRecord = (await useWithRepository(env, async (repository, executionEnv) => {
         const leaseToken = createId("lease");
         const claimedRecord = await repository.claimJob(currentRecord.jobId, leaseToken);
 
@@ -709,6 +714,10 @@ export function createUpdateJobsService(
 
       currentRecord = nextRecord;
     }
+  })(),
+  PROCESSING_JOB_TIMEOUT_MS,
+  `processPersistedJob(${record.operation}, ${record.jobId})`,
+);
   }
 
   async function ensureScheduledJob(

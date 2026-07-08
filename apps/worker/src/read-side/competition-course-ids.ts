@@ -2,9 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createUpdateIssue, type UpdateProcessingIssue } from "@metrix-parser/shared-types";
 
+import { withTimeout } from "../lib/async-timeout";
 import { readOptionalStringField } from "../parsing/competition-record";
 
 const APP_PUBLIC_SCHEMA = "app_public";
+const DEFAULT_SUPABASE_QUERY_TIMEOUT_MS = 30_000;
 
 export interface CompetitionSourceRow {
   competition_id: string;
@@ -110,23 +112,28 @@ export function createCompetitionCourseIdsReader(
 
 export function createSupabaseCompetitionCourseIdsAdapter(
   supabase: SupabaseClient,
+  requestTimeoutMs: number = DEFAULT_SUPABASE_QUERY_TIMEOUT_MS,
 ): CompetitionCourseIdsAdapter {
   return {
     async listCompetitionSources() {
-      const [directRowsResult, legacyRowsResult] = await Promise.all([
-        supabase
-          .schema(APP_PUBLIC_SCHEMA)
-          .from("competitions")
-          .select("competition_id, course_id")
-          .not("course_id", "is", null)
-          .order("competition_id", { ascending: true }),
-        supabase
-          .schema(APP_PUBLIC_SCHEMA)
-          .from("competitions")
-          .select("competition_id, course_id, raw_payload")
-          .is("course_id", null)
-          .order("competition_id", { ascending: true }),
-      ]);
+      const [directRowsResult, legacyRowsResult] = await withTimeout(
+        Promise.all([
+          supabase
+            .schema(APP_PUBLIC_SCHEMA)
+            .from("competitions")
+            .select("competition_id, course_id")
+            .not("course_id", "is", null)
+            .order("competition_id", { ascending: true }),
+          supabase
+            .schema(APP_PUBLIC_SCHEMA)
+            .from("competitions")
+            .select("competition_id, course_id, raw_payload")
+            .is("course_id", null)
+            .order("competition_id", { ascending: true }),
+        ]),
+        requestTimeoutMs,
+        "listCompetitionSources",
+      );
 
       if (directRowsResult.error) {
         throw new Error(
@@ -149,3 +156,4 @@ export function createSupabaseCompetitionCourseIdsAdapter(
     },
   };
 }
+

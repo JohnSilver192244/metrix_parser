@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { withTimeout } from "../lib/async-timeout";
 import type {
   CourseRow,
   CoursesPersistenceAdapter,
@@ -9,18 +10,24 @@ import type {
 const COURSES_SELECT_COLUMNS =
   "id, course_id, name, fullname, type, country_code, area, rating_value1, rating_result1, rating_value2, rating_result2, course_par, baskets_count, raw_payload, source_fetched_at";
 const APP_PUBLIC_SCHEMA = "app_public";
+const DEFAULT_SUPABASE_QUERY_TIMEOUT_MS = 30_000;
 
 export function createSupabaseCoursesAdapter(
   supabase: SupabaseClient,
+  requestTimeoutMs: number = DEFAULT_SUPABASE_QUERY_TIMEOUT_MS,
 ): CoursesPersistenceAdapter {
   return {
     async findByCourseId(courseId) {
-      const { data, error } = await supabase
-        .schema(APP_PUBLIC_SCHEMA)
-        .from("courses")
-        .select(COURSES_SELECT_COLUMNS)
-        .eq("course_id", courseId)
-        .maybeSingle();
+      const { data, error } = await withTimeout(
+        supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("courses")
+          .select(COURSES_SELECT_COLUMNS)
+          .eq("course_id", courseId)
+          .maybeSingle(),
+        requestTimeoutMs,
+        "findByCourseId",
+      );
 
       if (error) {
         throw new Error(`Failed to load course by course_id: ${error.message}`);
@@ -34,11 +41,15 @@ export function createSupabaseCoursesAdapter(
         return [];
       }
 
-      const { data, error } = await supabase
-        .schema(APP_PUBLIC_SCHEMA)
-        .from("courses")
-        .select(COURSES_SELECT_COLUMNS)
-        .in("course_id", courseIds);
+      const { data, error } = await withTimeout(
+        supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("courses")
+          .select(COURSES_SELECT_COLUMNS)
+          .in("course_id", courseIds),
+        requestTimeoutMs,
+        "findByCourseIds",
+      );
 
       if (error) {
         throw new Error(`Failed to load courses by course_id: ${error.message}`);
@@ -48,12 +59,16 @@ export function createSupabaseCoursesAdapter(
     },
 
     async insert(record: StoredCourseRecord) {
-      const { data, error } = await supabase
-        .schema(APP_PUBLIC_SCHEMA)
-        .from("courses")
-        .insert(record)
-        .select(COURSES_SELECT_COLUMNS)
-        .single();
+      const { data, error } = await withTimeout(
+        supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("courses")
+          .insert(record)
+          .select(COURSES_SELECT_COLUMNS)
+          .single(),
+        requestTimeoutMs,
+        "insert",
+      );
 
       if (error) {
         throw new Error(`Failed to insert course: ${error.message}`);
@@ -63,13 +78,17 @@ export function createSupabaseCoursesAdapter(
     },
 
     async update(id, record: StoredCourseRecord) {
-      const { data, error } = await supabase
-        .schema(APP_PUBLIC_SCHEMA)
-        .from("courses")
-        .update(record)
-        .eq("id", id)
-        .select(COURSES_SELECT_COLUMNS)
-        .single();
+      const { data, error } = await withTimeout(
+        supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("courses")
+          .update(record)
+          .eq("id", id)
+          .select(COURSES_SELECT_COLUMNS)
+          .single(),
+        requestTimeoutMs,
+        "update",
+      );
 
       if (error) {
         throw new Error(`Failed to update course ${id}: ${error.message}`);
@@ -83,13 +102,17 @@ export function createSupabaseCoursesAdapter(
         return [];
       }
 
-      const { data, error } = await supabase
-        .schema(APP_PUBLIC_SCHEMA)
-        .from("courses")
-        .upsert(records, {
-          onConflict: "course_id",
-        })
-        .select(COURSES_SELECT_COLUMNS);
+      const { data, error } = await withTimeout(
+        supabase
+          .schema(APP_PUBLIC_SCHEMA)
+          .from("courses")
+          .upsert(records, {
+            onConflict: "course_id",
+          })
+          .select(COURSES_SELECT_COLUMNS),
+        requestTimeoutMs,
+        "upsert",
+      );
 
       if (error) {
         throw new Error(`Failed to upsert courses: ${error.message}`);
