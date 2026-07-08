@@ -455,11 +455,17 @@ function scheduleBackground(
   ctx?: UpdateExecutionContextLike,
 ): void {
   if (ctx) {
-    ctx.waitUntil(promise);
+    try {
+      ctx.waitUntil(promise);
+    } catch (error) {
+      console.error("[update-jobs] scheduleBackground waitUntil failed", error);
+    }
     return;
   }
 
-  void promise;
+  promise.catch((error) => {
+    console.error("[update-jobs] scheduleBackground promise failed (no ctx)", error);
+  });
 }
 
 function createAcceptedMessage(operation: UpdateOperation): string {
@@ -535,6 +541,10 @@ export function createUpdateJobsService(
     env: UpdateJobsRuntimeEnv,
     options: ProcessPersistedJobOptions,
   ): Promise<void> {
+    console.info("[update-jobs] processPersistedJob started", {
+      jobId: record.jobId,
+      operation: record.operation,
+    });
     let currentRecord = record;
 
     for (let batchIndex = 0; batchIndex < options.maxBatchesPerInvocation; batchIndex += 1) {
@@ -778,8 +788,22 @@ export function createUpdateJobsService(
       scheduleBackground(
         processPersistedJob(record, env, {
           maxBatchesPerInvocation: 1,
-        }).catch((error) => {
+        }).catch(async (error) => {
           console.error("[update-jobs] processPersistedJob failed", error);
+          try {
+            await useWithRepository(env, async (repository) => {
+              await repository.updateJob(record.jobId, {
+                status: "failed",
+                continuationCursor: null,
+                finishedAt: new Date().toISOString(),
+                message: "Фоновое обновление упало с необработанной ошибкой.",
+                result: createUnexpectedFailure(record.operation, record.requestedAt),
+                progress: createJobProgress("failed", `Ошибка: ${error instanceof Error ? error.message : "unknown"}`, 0),
+              });
+            });
+          } catch (innerError) {
+            console.error("[update-jobs] failed to write failure status", innerError);
+          }
         }),
         ctx,
       );

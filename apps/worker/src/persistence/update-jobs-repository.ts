@@ -4,6 +4,7 @@ import type {
   UpdatePeriod,
 } from "@metrix-parser/shared-types";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createWorkerSupabaseAdminClient } from "../lib/supabase-admin";
 
 const APP_PUBLIC_SCHEMA = "app_public";
@@ -197,8 +198,8 @@ function toRowPatch(
   return rowPatch;
 }
 
-export function createUpdateJobsRepository() {
-  const supabase = createWorkerSupabaseAdminClient();
+export function createUpdateJobsRepository(supabaseClient?: ReturnType<typeof createClient>) {
+  const supabase = supabaseClient ?? createWorkerSupabaseAdminClient();
 
   return {
     async insertJob(record: PersistedUpdateJobRecord): Promise<void> {
