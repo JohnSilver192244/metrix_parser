@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import type { Course } from "@metrix-parser/shared-types";
 
+import { ActionToast } from "../../shared/action-toast";
 import { PageHeader } from "../../shared/page-header";
 import { LoadingStatePanel } from "../../shared/loading-state-panel";
 import { FloatingInfoTooltip } from "../../shared/floating-info-tooltip";
@@ -10,9 +11,12 @@ import {
   listCourses,
   resolveCoursesErrorMessage,
   resolveCoursesTotal,
+  resolveUpdateCourseErrorMessage,
+  updateCourse,
 } from "../../shared/api/courses";
 import { useSessionStorageState } from "../../shared/session-storage";
 import { decodeHtmlEntities } from "../../shared/text";
+import { useAuth } from "../auth/auth-context";
 
 type CoursesPageState =
   | {
@@ -88,6 +92,11 @@ function renderRatingCell(course: Course, rating: number | null): React.ReactNod
 export interface CoursesPageViewProps {
   state: CoursesPageState;
   mobileFiltersOpen?: boolean;
+  authStatus?: "loading" | "authenticated" | "anonymous";
+  onUpdateCourse?: (courseId: string) => void;
+  updatingCourseId?: string | null;
+  toast?: { message: string; tone: "success" | "error" } | null;
+  onToastClose?: () => void;
 }
 
 const coursesNameFilterStorageKey = "courses-page:name-filter";
@@ -184,6 +193,11 @@ function CoursesFiltersSection({
 export function CoursesPageView({
   state,
   mobileFiltersOpen = false,
+  authStatus = "anonymous",
+  onUpdateCourse,
+  updatingCourseId = null,
+  toast = null,
+  onToastClose,
 }: CoursesPageViewProps) {
   const [nameFilter, setNameFilter] = useSessionStorageState(
     coursesNameFilterStorageKey,
@@ -320,6 +334,9 @@ export function CoursesPageView({
                       <th scope="col">Par</th>
                       <th scope="col">Корзин</th>
                       <th scope="col">Рейтинг</th>
+                      {authStatus === "authenticated" && onUpdateCourse && (
+                        <th scope="col">Действия</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -337,6 +354,18 @@ export function CoursesPageView({
                           <td>{formatCoursePar(course.coursePar)}</td>
                           <td>{formatBasketsCount(course.basketsCount)}</td>
                           <td>{renderRatingCell(course, rating)}</td>
+                          {authStatus === "authenticated" && onUpdateCourse && (
+                            <td>
+                              <button
+                                className="courses-page__update-button"
+                                onClick={() => onUpdateCourse(course.courseId)}
+                                disabled={updatingCourseId === course.courseId}
+                                aria-label={`Обновить парк ${resolveCourseName(course)}`}
+                              >
+                                {updatingCourseId === course.courseId ? "..." : "↻"}
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -369,14 +398,26 @@ export function CoursesPageView({
           </SideDrawer>
         </>
       )}
+
+      <ActionToast
+        message={toast?.message ?? null}
+        tone={toast?.tone ?? "success"}
+        onClose={onToastClose}
+      />
     </section>
   );
 }
 
 export function CoursesPage() {
+  const auth = useAuth();
   const [state, setState] = useState<CoursesPageState>({
     status: "loading",
   });
+  const [toast, setToast] = useState<{
+    message: string;
+    tone: "success" | "error";
+  } | null>(null);
+  const [updatingCourseId, setUpdatingCourseId] = useState<string | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -411,5 +452,30 @@ export function CoursesPage() {
     };
   }, []);
 
-  return <CoursesPageView state={state} />;
+  async function handleUpdateCourse(courseId: string) {
+    setUpdatingCourseId(courseId);
+
+    try {
+      await updateCourse(courseId);
+      setToast({ message: "Парк успешно обновлён", tone: "success" });
+    } catch (error) {
+      setToast({
+        message: `Ошибка обновления: ${resolveUpdateCourseErrorMessage(error)}`,
+        tone: "error",
+      });
+    } finally {
+      setUpdatingCourseId(null);
+    }
+  }
+
+  return (
+    <CoursesPageView
+      state={state}
+      authStatus={auth.status}
+      onUpdateCourse={handleUpdateCourse}
+      updatingCourseId={updatingCourseId}
+      toast={toast}
+      onToastClose={() => setToast(null)}
+    />
+  );
 }

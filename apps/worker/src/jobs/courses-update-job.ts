@@ -77,6 +77,92 @@ async function fetchCoursePayloads(
   };
 }
 
+export async function runSingleCourseUpdateJob(
+  courseId: string,
+  dependencies: CoursesUpdateJobDependencies,
+): Promise<UpdateOperationResult> {
+  const requestedAt = new Date().toISOString();
+
+  try {
+    const supabase = dependencies.repository ? null : createWorkerSupabaseAdminClient();
+    const repository =
+      dependencies.repository ??
+      createCoursesRepository(createSupabaseCoursesAdapter(supabase!));
+    const client = createDiscGolfMetrixClient(dependencies);
+
+    const response = await client.fetchCourse({ courseId });
+    const mapped = mapDiscGolfMetrixCourseRecord(response.record, courseId);
+
+    if (!mapped.ok) {
+      const summary = createEmptyUpdateSummary();
+      summary.errors = 1;
+
+      return {
+        operation: "courses",
+        finalStatus: resolveUpdateFinalStatus(summary),
+        source: "runtime",
+        message: "Не удалось обработать запись парка.",
+        requestedAt,
+        finishedAt: new Date().toISOString(),
+        summary,
+        issues: [mapped.issue],
+      };
+    }
+
+    const recordResult = await repository.saveCourse(
+      {
+        course: mapped.course,
+        rawPayload: response.rawPayload,
+        sourceFetchedAt: response.fetchedAt,
+      },
+      { overwriteExisting: dependencies.overwriteExisting ?? true },
+    );
+
+    const actionCount =
+      recordResult.action === "created"
+        ? { created: 1, updated: 0, skipped: 0 }
+        : recordResult.action === "updated"
+          ? { created: 0, updated: 1, skipped: 0 }
+          : { created: 0, updated: 0, skipped: 1 };
+
+    const summary = {
+      ...createEmptyUpdateSummary(),
+      found: 1,
+      ...actionCount,
+      errors: recordResult.issue ? 1 : 0,
+    };
+
+    return {
+      operation: "courses",
+      finalStatus: resolveUpdateFinalStatus(summary),
+      source: "runtime",
+      message:
+        recordResult.action === "skipped"
+          ? "Парк не изменился — пропускаем обновление."
+          : "Парк успешно обновлён.",
+      requestedAt,
+      finishedAt: new Date().toISOString(),
+      summary,
+      issues: recordResult.issue ? [recordResult.issue] : [],
+    };
+  } catch (error) {
+    const issue = toDiscGolfMetrixIssue(error, `course:${courseId}`);
+    const summary = createEmptyUpdateSummary();
+    summary.errors = 1;
+
+    return {
+      operation: "courses",
+      finalStatus: resolveUpdateFinalStatus(summary),
+      source: "runtime",
+      message: "Не удалось обновить парк.",
+      requestedAt,
+      finishedAt: new Date().toISOString(),
+      summary,
+      issues: [issue],
+    };
+  }
+}
+
 export async function runCoursesUpdateJob(
   dependencies: CoursesUpdateJobDependencies,
 ): Promise<CoursesUpdateJobResult> {

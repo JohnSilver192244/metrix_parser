@@ -1,9 +1,17 @@
 import type { Course, CourseDbRecord } from "@metrix-parser/shared-types";
 
+import { HttpError } from "../../lib/http-errors";
 import { sendSuccess } from "../../lib/http";
 import { resolveListPagination } from "../../lib/pagination";
 import type { RouteDefinition } from "../../lib/router";
 import { createApiSupabaseAdminClient } from "../../lib/supabase-admin";
+import { invalidateApiReadCacheAll } from "../../lib/api-read-cache";
+import {
+  readSessionToken,
+  requireAuthenticatedUser,
+  type AuthGuardDependencies,
+} from "../auth/runtime";
+import { executeRuntimeSingleCourseUpdate } from "./execution";
 
 const APP_PUBLIC_SCHEMA = "app_public";
 const COURSES_SELECT_COLUMNS = [
@@ -27,6 +35,7 @@ interface CourseReadAdapter {
 
 export interface CoursesRouteDependencies {
   listCourses?: () => Promise<Course[]>;
+  updateCourse?: (courseId: string) => Promise<Course>;
 }
 
 function toCourse(record: CourseDbRecord): Course {
@@ -75,6 +84,7 @@ async function listCoursesFromRuntime(): Promise<Course[]> {
 
 export function getCoursesRoutes(
   dependencies: CoursesRouteDependencies = {},
+  authDependencies: AuthGuardDependencies = {},
 ): RouteDefinition[] {
   return [
     {
@@ -93,6 +103,26 @@ export function getCoursesRoutes(
           limit: pagination.limit,
           offset: pagination.offset,
         });
+      },
+    },
+    {
+      method: "POST",
+      path: "/courses/:courseId/update",
+      handler: async ({ req, res, params }) => {
+        const user = await requireAuthenticatedUser(
+          readSessionToken(req),
+          authDependencies,
+        );
+        const courseId = params.courseId?.trim();
+        if (!courseId) {
+          throw new HttpError(400, "invalid_course_id", "courseId is required");
+        }
+
+        const updateCourse = dependencies.updateCourse ?? executeRuntimeSingleCourseUpdate;
+        const course = await updateCourse(courseId);
+
+        invalidateApiReadCacheAll();
+        sendSuccess(res, course);
       },
     },
   ];
