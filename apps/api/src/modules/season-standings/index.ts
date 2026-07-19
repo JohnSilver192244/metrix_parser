@@ -800,7 +800,9 @@ export async function runSeasonPointsAccrual(
     } else {
       competitionsEligible += 1;
 
-      if (hasExistingRows) {
+      if (participantsCount < 8) {
+        nextCommentReason = "season_points_insufficient_players";
+      } else if (hasExistingRows) {
         competitionsSkippedByExisting += 1;
         nextCommentReason = "season_points_existing_rows_skipped";
       } else if (rankedResults.length > 0) {
@@ -896,7 +898,20 @@ async function reconcileSeasonCompetitionComment(
 async function runSeasonPointsAccrualFromRuntime(
   payload: RunSeasonPointsAccrualRequest,
 ): Promise<RunSeasonPointsAccrualResult> {
-  return runSeasonPointsAccrual(payload, createSupabaseSeasonStandingsWriteAdapter());
+  try {
+    return await runSeasonPointsAccrual(payload, createSupabaseSeasonStandingsWriteAdapter());
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        service: "api",
+        operation: "runSeasonPointsAccrual",
+        seasonCode: payload.seasonCode,
+        overwriteExisting: payload.overwriteExisting,
+        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : String(error),
+      }),
+    );
+    throw error;
+  }
 }
 
 export function getSeasonStandingsRoutes(
