@@ -23,6 +23,10 @@ import {
   listResults,
   resolveResultsErrorMessage,
 } from "../../shared/api/results";
+import {
+  updateCourse,
+  resolveUpdateCourseErrorMessage,
+} from "../../shared/api/courses";
 import { ApiClientError } from "../../shared/api/http";
 import { decodeHtmlEntities } from "../../shared/text";
 import {
@@ -31,6 +35,8 @@ import {
 } from "../../shared/navigation-context";
 import { buildPlayerPath } from "../../app/route-paths";
 import { LoadingStatePanel } from "../../shared/loading-state-panel";
+import { ActionToast } from "../../shared/action-toast";
+import { useAuth } from "../auth/auth-context";
 
 type CompetitionResultsPageState =
   | {
@@ -511,12 +517,22 @@ export interface CompetitionResultsPageViewProps {
   state: CompetitionResultsPageState;
   onNavigate: (pathname: string) => void;
   sourcePlayer?: CompetitionResultsSourcePlayer | null;
+  authStatus?: "loading" | "authenticated" | "anonymous";
+  onUpdateCourse?: (courseId: string) => void;
+  isUpdatingCourse?: boolean;
+  toast?: { message: string; tone: "success" | "error" } | null;
+  onToastClose?: () => void;
 }
 
 export function CompetitionResultsPageView({
   state,
   onNavigate,
   sourcePlayer,
+  authStatus = "anonymous",
+  onUpdateCourse,
+  isUpdatingCourse = false,
+  toast = null,
+  onToastClose,
 }: CompetitionResultsPageViewProps) {
   const [sort, setSort] = useState<CompetitionResultsSort>(DEFAULT_SORT);
   const backButton = (
@@ -680,9 +696,24 @@ export function CompetitionResultsPageView({
           </a>
         </h1>
         <p className="competition-results-page__meta">
-          {formatCompetitionDate(competition.competitionDate)} · {courseLabel} ·{" "}
-          {formatCompetitionRecordType(competition.recordType)} · Игроков:{" "}
-          {formatPlayersCount(competition.playersCount)} · Категория: {state.categoryName}
+          {formatCompetitionDate(competition.competitionDate)} · {courseLabel}
+          {authStatus === "authenticated" && onUpdateCourse && competition.courseId && (
+            <>
+              {" · "}
+              <button
+                className="competition-results-page__update-course-button"
+                onClick={() => onUpdateCourse(competition.courseId!)}
+                disabled={isUpdatingCourse}
+                aria-label={`Обновить парк ${courseLabel}`}
+              >
+                {isUpdatingCourse ? "..." : "Обновить парк"}
+              </button>
+            </>
+          )}
+          {" "}
+          · {formatCompetitionRecordType(competition.recordType)} · Игроков:{" "}
+          {formatPlayersCount(competition.playersCount)} · Категория:{}
+          {state.categoryName}
         </p>
         {competitionComment ? (
           <p className="competition-results-page__comment">{competitionComment}</p>
@@ -778,6 +809,11 @@ export function CompetitionResultsPageView({
           </div>
         </section>
       )}
+      <ActionToast
+        message={toast?.message ?? null}
+        tone={toast?.tone ?? "success"}
+        onClose={onToastClose}
+      />
     </section>
   );
 }
@@ -791,12 +827,33 @@ export function CompetitionResultsPage({
   competitionId,
   onNavigate,
 }: CompetitionResultsPageProps) {
+  const auth = useAuth();
   const [state, setState] = useState<CompetitionResultsPageState>({
     status: "loading",
   });
   const [sourcePlayer] = useState<CompetitionResultsSourcePlayer | null>(() =>
     consumeCompetitionResultsSourcePlayerContext(competitionId),
   );
+  const [toast, setToast] = useState<{
+    message: string;
+    tone: "success" | "error";
+  } | null>(null);
+  const [isUpdatingCourse, setIsUpdatingCourse] = useState(false);
+
+  async function handleUpdateCourse(courseId: string) {
+    setIsUpdatingCourse(true);
+    try {
+      await updateCourse(courseId);
+      setToast({ message: "Парк успешно обновлён", tone: "success" });
+    } catch (error) {
+      setToast({
+        message: `Ошибка обновления: ${resolveUpdateCourseErrorMessage(error)}`,
+        tone: "error",
+      });
+    } finally {
+      setIsUpdatingCourse(false);
+    }
+  }
 
   useEffect(() => {
     let isActive = true;
@@ -883,6 +940,11 @@ export function CompetitionResultsPage({
       state={state}
       onNavigate={onNavigate}
       sourcePlayer={sourcePlayer}
+      authStatus={auth.status}
+      onUpdateCourse={handleUpdateCourse}
+      isUpdatingCourse={isUpdatingCourse}
+      toast={toast}
+      onToastClose={() => setToast(null)}
     />
   );
 }

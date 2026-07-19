@@ -2342,6 +2342,30 @@ body {
   line-height: 1.5;
 }
 
+.competition-results-page__update-course-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: none;
+  margin-left: 6px;
+}
+
+.competition-results-page__update-course-button:hover:not(:disabled) {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+.competition-results-page__update-course-button:disabled {
+  color: var(--text-soft);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 /* ─── Tournament Categories Page ─── */
 
 .tournament-categories-page__create-panel {
